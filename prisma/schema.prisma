@@ -1,0 +1,274 @@
+// DEV local usa SQLite (arquivo ./prisma/dev.db) para rodar sem instalar nada.
+// PRODUÇÃO usa PostgreSQL: basta trocar o provider para "postgresql"
+// e ajustar DATABASE_URL. O schema é 100% portável entre os dois.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("caixa") // admin | gerente | caixa | cozinha | entregador
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  // permissões granulares em JSON: {"pedidos":true,...}
+  permissions  String   @default("{}")
+}
+
+model Restaurant {
+  id            String @id @default("single")
+  name          String @default("Cantina Sabor & Brasa")
+  logoUrl       String @default("")
+  bannerUrl     String @default("")
+  phone         String @default("(11) 99999-9999")
+  whatsapp      String @default("5511999999999")
+  address       String @default("Rua das Flores, 123 - Centro")
+  pixKey        String @default("contato@cantina.com")
+  deliveryFee   Float  @default(5)
+  minOrder      Float  @default(0)
+  prepTimeMin   Int    @default(30)
+  isOpenManual  Boolean? // null = automático por horário
+  payments      String @default("[\"pix\",\"dinheiro\",\"debito\",\"credito\"]")
+  hoursJson     String @default("{}")
+  // impressora
+  printerWidth  String @default("80mm")
+  printerAuto   Boolean @default(true)
+  printerName   String @default("Padrao")
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String
+  order    Int       @default(0)
+  active   Boolean   @default(true)
+  products Product[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  description  String   @default("")
+  price        Float
+  promoPrice   Float?
+  photoUrl     String   @default("")
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
+  available    Boolean  @default(true)
+  featured     Boolean  @default(false)
+  bestSeller   Boolean  @default(false)
+  order        Int      @default(0)
+  relatedIds   String   @default("[]") // upsell: ids em JSON
+  groups       ProductAddonGroup[]
+  createdAt    DateTime @default(now())
+}
+
+model AddonGroup {
+  id        String  @id @default(cuid())
+  name      String // ex: "Escolha o molho"
+  minSel    Int     @default(0)
+  maxSel    Int     @default(1)
+  required  Boolean @default(false)
+  products  ProductAddonGroup[]
+  addons    Addon[]
+}
+
+model ProductAddonGroup {
+  productId String
+  groupId   String
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  group     AddonGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  @@id([productId, groupId])
+}
+
+model Addon {
+  id       String     @id @default(cuid())
+  groupId  String
+  group    AddonGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name     String
+  price    Float      @default(0)
+  freeQty  Int        @default(0)
+  active   Boolean    @default(true)
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String   @unique
+  street    String   @default("")
+  number    String   @default("")
+  complement String  @default("")
+  district  String   @default("")
+  reference String   @default("")
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  number      Int      @unique
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  customerName String  @default("")
+  customerPhone String @default("")
+  addressText String   @default("")
+  type        String   @default("entrega") // entrega | retirada | local | balcao | mesa
+  status      String   @default("novo") // novo|confirmado|preparo|pronto|entrega|concluido|cancelado
+  payment     String   @default("pix")
+  changeFor   Float?
+  subtotal    Float    @default(0)
+  deliveryFee Float    @default(0)
+  discount    Float    @default(0)
+  couponCode  String   @default("")
+  total       Float    @default(0)
+  note        String   @default("")
+  tableId     String?
+  table       TableMap? @relation(fields: [tableId], references: [id])
+  driverId    String?
+  driver      Driver?  @relation(fields: [driverId], references: [id])
+  source      String   @default("cardapio") // cardapio | pdv | mesa
+  createdAt   DateTime @default(now())
+  items       OrderItem[]
+  payments    Payment[]
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String @default("")
+  name      String
+  qty       Int    @default(1)
+  unitPrice Float  @default(0)
+  addonsJson String @default("[]") // [{name,price,qty}]
+  note      String @default("")
+}
+
+model Payment {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method  String
+  amount  Float
+  createdAt DateTime @default(now())
+}
+
+model CashRegister {
+  id        String   @id @default(cuid())
+  operator  String
+  openedBy  String   @default("")
+  openedAt  DateTime @default(now())
+  closedAt  DateTime?
+  initial   Float    @default(0)
+  informed  Float?
+  expected  Float?
+  status    String   @default("aberto") // aberto | fechado
+  movements CashMovement[]
+}
+
+model CashMovement {
+  id         String       @id @default(cuid())
+  registerId String
+  register   CashRegister @relation(fields: [registerId], references: [id], onDelete: Cascade)
+  kind       String // venda | entrada | saida | sangria | suprimento | desconto | cancelamento
+  method     String       @default("dinheiro")
+  amount     Float
+  reason     String       @default("")
+  orderId    String       @default("")
+  createdAt  DateTime     @default(now())
+}
+
+model TableMap {
+  id     String @id @default(cuid())
+  number String @unique
+  status String @default("livre") // livre | ocupada | fechamento
+  orders Order[]
+}
+
+model Driver {
+  id     String @id @default(cuid())
+  name   String
+  phone  String @default("")
+  status String @default("disponivel") // disponivel | em_entrega | offline
+  orders Order[]
+}
+
+model Coupon {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  kind      String   @default("percent") // percent | fixed | frete_gratis
+  value     Float    @default(10)
+  minValue  Float    @default(0)
+  expiresAt DateTime?
+  maxUses   Int      @default(100)
+  used      Int      @default(0)
+  firstOnly Boolean  @default(false)
+  phoneOnly String   @default("")
+  active    Boolean  @default(true)
+}
+
+model Promotion {
+  id        String   @id @default(cuid())
+  title     String
+  kind      String   @default("percent") // percent | fixed | frete_gratis | produto
+  value     Float    @default(0)
+  productId String   @default("")
+  startAt   DateTime @default(now())
+  endAt     DateTime?
+  active    Boolean  @default(true)
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  orderId   String   @default("")
+  name      String   @default("")
+  stars     Int      @default(5)
+  comment   String   @default("")
+  createdAt DateTime @default(now())
+}
+
+model InventoryItem {
+  id       String @id @default(cuid())
+  name     String
+  unit     String @default("un")
+  qty      Float  @default(0)
+  minQty   Float  @default(0)
+  movements InventoryMovement[]
+}
+
+model InventoryMovement {
+  id      String        @id @default(cuid())
+  itemId  String
+  item    InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  kind    String // entrada | saida | ajuste
+  qty     Float
+  reason  String @default("")
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  kind      String
+  text      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String @default("")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  user      String   @default("")
+  action    String
+  detail    String   @default("")
+  createdAt DateTime @default(now())
+}
