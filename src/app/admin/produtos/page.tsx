@@ -7,12 +7,35 @@ export default function Produtos() {
   const [groups, setGroups] = useState<any[]>([]);
   const [f, setF] = useState<any>({ name: '', price: '', categoryId: '', groupIds: [] });
   const [edit, setEdit] = useState<any>(null);
+  const [gtinLoading, setGtinLoading] = useState(false);
   const load = async () => {
     setList(await fetch('/api/products').then((r) => r.json()));
     setCats(await fetch('/api/categories').then((r) => r.json()));
     setGroups(await fetch('/api/addon-groups').then((r) => r.json()));
   };
   useEffect(() => { load(); }, []);
+
+  const lookupGtin = async (gtin: string) => {
+    if (!gtin || gtin.length < 8) return;
+    setGtinLoading(true);
+    try {
+      const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${gtin}.json`);
+      const data = await r.json();
+      if (data.status === 1 && data.product) {
+        const p = data.product;
+        const name = p.product_name || p.product_name_pt || '';
+        const desc = p.generic_name || p.generic_name_pt || p.categories || '';
+        const img = p.image_url || p.image_front_url || '';
+        setF((prev: any) => ({ ...prev, name: prev.name || name, description: prev.description || desc, photoUrl: prev.photoUrl || img }));
+      } else {
+        alert('Produto não encontrado no banco GTIN (Open Food Facts)');
+      }
+    } catch {
+      alert('Erro ao consultar GTIN');
+    }
+    setGtinLoading(false);
+  };
+
   const save = async () => {
     const url = '/api/products';
     const body = edit ? { ...edit, ...f, price: Number(f.price), promoPrice: f.promoPrice ? Number(f.promoPrice) : null } : { ...f, price: Number(f.price), description: f.description || '', promoPrice: f.promoPrice ? Number(f.promoPrice) : null };
@@ -23,6 +46,10 @@ export default function Produtos() {
     <div>
       <h1 className="text-2xl font-black">Produtos (CRUD completo)</h1>
       <div className="card p-4 mt-3 grid md:grid-cols-4 gap-2">
+        <div className="md:col-span-4 flex gap-2 items-end">
+          <input className="input flex-1" placeholder="Código de barras (GTIN/EAN)" onKeyDown={(e) => { if (e.key === 'Enter') lookupGtin(e.currentTarget.value); }} />
+          <button className="btn-primary shrink-0" disabled={gtinLoading} onClick={(e) => { const inp = (e.currentTarget.parentElement as HTMLElement).querySelector('input') as HTMLInputElement; if (inp) lookupGtin(inp.value); }}>{gtinLoading ? 'Buscando...' : '🔍 Buscar GTIN'}</button>
+        </div>
         <input className="input" placeholder="Nome" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
         <input className="input" placeholder="Preço" type="number" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} />
         <input className="input" placeholder="Preço promo (opcional)" type="number" value={f.promoPrice || ''} onChange={(e) => setF({ ...f, promoPrice: e.target.value })} />
