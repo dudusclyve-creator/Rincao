@@ -3,8 +3,7 @@ import Link from 'next/link';
 const MENU = [
   ['Dashboard','/admin','📊'],['Pedidos','/admin/pedidos','🧾'],['PDV','/admin/pdv','🛒'],
   ['Mesas','/admin/mesas','🍽'],['Cozinha','/admin/cozinha','👨‍🍳'],['Caixa','/admin/caixa','💰'],
-  ['Cardápio/Produtos','/admin/produtos','🍔'],['Categorias','/admin/categorias','🗂'],
-  ['Adicionais','/admin/adicionais','➕'],['Clientes','/admin/clientes','👥'],
+  ['Cardápio','/admin/produtos','🍔'],['Clientes','/admin/clientes','👥'],
   ['Entregas','/admin/entregas','🛵'],['Estoque','/admin/estoque','📦'],
   ['Relatórios','/admin/relatorios','📈'],['Promoções','/admin/promocoes','🔥'],
   ['Cupons','/admin/cupons','🎟'],['Avaliações','/admin/avaliacoes','⭐'],

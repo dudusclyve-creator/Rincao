@@ -75,6 +75,7 @@ model AddonGroup {
   minSel    Int     @default(0)
   maxSel    Int     @default(1)
   required  Boolean @default(false)
+  order     Int     @default(0)
   products  ProductAddonGroup[]
   addons    Addon[]
 }
@@ -95,6 +96,7 @@ model Addon {
   price    Float      @default(0)
   freeQty  Int        @default(0)
   active   Boolean    @default(true)
+  order    Int        @default(0)
 }
 
 model Customer {
