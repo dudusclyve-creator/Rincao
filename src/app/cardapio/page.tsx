@@ -359,43 +359,74 @@ function ProductModal({ product, onClose, onAdded, allProducts }: any) {
     let next: CartAddon[];
     if (has) next = cur.filter((x) => x.name !== a.name);
     else {
-      if (cur.reduce((s, x) => s + (x.qty || 1), 0) + 1 > g.maxSel) { alert(`Máximo de ${g.maxSel} em "${g.name}"`); return; }
+      if (cur.reduce((s, x) => s + (x.qty || 1), 0) + 1 > g.maxSel) { alert(`M\u00e1ximo de ${g.maxSel} em "${g.name}"`); return; }
       next = [...cur, { name: a.name, price: a.price, qty: 1 }];
     }
     setSel({ ...sel, [g.id]: next });
   };
 
   const valid = groups.every((g: any) => {
-    const n = (sel[g.id] || []).reduce((s, x) => s + (x.qty || 1), 0);
+    const n = (sel[g.id] || []).reduce((s: number, x: any) => s + (x.qty || 1), 0);
     if (g.required && n < Math.max(1, g.minSel)) return false;
     return n >= g.minSel;
   });
 
   const total = qty * (price + Object.values(sel).flat().reduce((s, a) => s + (a.price || 0) * (a.qty || 1), 0));
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-xl rounded-2xl max-h-[90vh] overflow-y-auto shadow-2xl" style={{ background: '#e8d5c0', color: C.bgChip }} onClick={(e) => e.stopPropagation()}>
-        <div className="relative h-48 overflow-hidden rounded-t-2xl" style={{ background: C.bgCard }}>
-          {product.photoUrl
-            ? <img src={product.photoUrl} className="w-full h-full object-cover" alt="" />
-            : <div className="w-full h-full flex items-center justify-center text-6xl" style={{ color: C.textMuted }}>{EMOJI[product.category?.name] || '🍽'}</div>}
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-sm text-white" style={{ background: 'rgba(0,0,0,0.5)' }}>✕</button>
-        </div>
-        <div className="p-5">
-          <h2 className="text-lg font-black uppercase" style={{ color: C.bgChip }}>{product.name}</h2>
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: C.textMuted }}>{product.description}</p>
-          <p className="font-extrabold text-xl mt-2" style={{ color: '#8b2e0a' }}>{BRL(price)} {product.promoPrice && <s className="font-normal text-xs" style={{ color: C.textMuted }}>{BRL(product.price)}</s>}</p>
+  const P = {
+    bg: '#1a1008',
+    card: '#2a1a0e',
+    cardOn: '#3d2517',
+    accent: '#d4a574',
+    accentDark: '#8b5e2a',
+    text: '#f0e6d8',
+    textSub: '#a08060',
+    border: '#3a2515',
+  };
 
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" style={{ animation: 'fadeIn 0.2s ease' }} />
+      <div className="relative w-full max-w-lg rounded-3xl max-h-[92vh] overflow-y-auto shadow-2xl" style={{ background: P.bg, color: P.text, animation: 'slideUp 0.3s ease', scrollbarWidth: 'thin', scrollbarColor: P.border + ' transparent' }} onClick={(e) => e.stopPropagation()}>
+
+        {/* Image + gradient overlay */}
+        <div className="relative h-56 overflow-hidden rounded-t-3xl">
+          {product.photoUrl
+            ? <img src={product.photoUrl} className="w-full h-full object-cover" alt="" style={{ animation: 'zoomIn 0.4s ease' }} />
+            : <div className="w-full h-full flex items-center justify-center text-7xl" style={{ background: P.card }}>{EMOJI[product.category?.name] || '\uD83C\uDF7D'}</div>}
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${P.bg} 5%, transparent 60%)` }} />
+          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-all duration-200" style={{ backdropFilter: 'blur(8px)', background: 'rgba(0,0,0,0.3)' }}>{'\u2715'}</button>
+          {product.promoPrice && (
+            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-black text-white" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)' }}>{'-' + Math.round(Math.abs((product.promoPrice - product.price) / product.price) * 100) + '%'}</div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="px-5 pb-5 -mt-6 relative">
+          <h2 className="text-lg font-black uppercase tracking-wide" style={{ color: P.text }}>{product.name}</h2>
+          <p className="text-[11px] mt-1 leading-relaxed" style={{ color: P.textSub }}>{product.description}</p>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className="text-2xl font-black" style={{ color: P.accent }}>{BRL(price)}</span>
+            {product.promoPrice && <s className="text-xs" style={{ color: P.textSub }}>{BRL(product.price)}</s>}
+          </div>
+
+          {/* Addon groups */}
           {groups.map((g: any) => (
-            <div key={g.id} className="mt-4 rounded-xl p-3" style={{ background: 'white', border: `1px solid ${C.border}20` }}>
-              <p className="font-bold text-xs" style={{ color: C.bgChip }}>{g.name} {g.required && <span className="text-red-600">*obrigatório</span>} <span style={{ color: C.textMuted }}>({(sel[g.id] || []).reduce((s: number, x: any) => s + (x.qty || 1), 0)}/{g.maxSel})</span></p>
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <div key={g.id} className="mt-5">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: P.accent }}>{g.name}</p>
+                <div className="flex items-center gap-2">
+                  {g.required && <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#8b2e0a20', color: '#ef4444' }}>{'\u00F3'}brigat{'\u00F3'}rio</span>}
+                  <span className="text-[10px] font-bold" style={{ color: P.textSub }}>{'(' + (sel[g.id] || []).reduce((s: number, x: any) => s + (x.qty || 1), 0) + '/' + g.maxSel + ')'}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
                 {g.addons?.filter((a: any) => a.active).map((a: any) => {
                   const on = (sel[g.id] || []).some((x) => x.name === a.name);
                   return (
-                    <button key={a.id} onClick={() => toggle(g, a)} className="flex justify-between items-center border-2 rounded-lg px-2.5 py-2 text-[11px] transition" style={on ? { borderColor: '#8b2e0a', background: '#8b2e0a0d' } : { borderColor: C.border + '40' }}>
-                      <span className="font-medium" style={{ color: C.bgChip }}>{a.name}</span><span className="font-bold" style={{ color: C.textPrice }}>{a.price ? '+' + BRL(a.price) : 'grátis'}</span>
+                    <button key={a.id} onClick={() => toggle(g, a)} className="flex justify-between items-center rounded-xl px-3 py-2.5 text-[11px] transition-all duration-200" style={on ? { background: P.cardOn, border: `1px solid ${P.accent}`, boxShadow: `0 0 0 1px ${P.accent}30` } : { background: P.card, border: `1px solid ${P.border}40` }}>
+                      <span className="font-medium" style={{ color: on ? P.accent : P.text }}>{a.name}</span>
+                      <span className="font-bold" style={{ color: on ? P.accent : P.accent + 'cc' }}>{a.price ? '+' + BRL(a.price) : 'gr\u00E1tis'}</span>
                     </button>
                   );
                 })}
@@ -403,44 +434,47 @@ function ProductModal({ product, onClose, onAdded, allProducts }: any) {
             </div>
           ))}
 
-          <input className="w-full rounded-xl px-3 py-2.5 text-xs mt-3 outline-none" style={{ border: `1px solid ${C.border}40`, background: 'white', color: C.bgChip }} placeholder="Observações" value={note} onChange={(e) => setNote(e.target.value)} />
+          {/* Observacoes */}
+          <input className="w-full rounded-xl px-4 py-3 text-xs mt-5 outline-none transition-all duration-200 focus:ring-2" style={{ background: P.card, border: `1px solid ${P.border}40`, color: P.text, '--tw-ring-color': P.accent + '40' } as any} placeholder="Observa\u00E7\u00F5es" value={note} onChange={(e) => setNote(e.target.value)} />
 
-          <div className="flex items-center gap-3 mt-4">
-            <div className="flex items-center gap-2 rounded-xl px-2" style={{ background: 'white', border: `1px solid ${C.border}40` }}>
-              <button className="w-9 h-9 rounded-lg font-bold" style={{ color: C.bgChip }} onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-              <span className="font-bold text-base w-6 text-center" style={{ color: C.bgChip }}>{qty}</span>
-              <button className="w-9 h-9 rounded-lg font-bold" style={{ color: C.bgChip }} onClick={() => setQty(qty + 1)}>+</button>
+          {/* Qty + Adicionar */}
+          <div className="flex items-center gap-3 mt-5">
+            <div className="flex items-center rounded-xl overflow-hidden" style={{ background: P.card, border: `1px solid ${P.border}60` }}>
+              <button className="w-10 h-10 flex items-center justify-center text-sm font-bold transition-colors duration-150 hover:bg-white/5" style={{ color: P.accent }} onClick={() => setQty(Math.max(1, qty - 1))}>{'\u2212'}</button>
+              <span className="font-bold text-base w-8 text-center" style={{ color: P.text }}>{qty}</span>
+              <button className="w-10 h-10 flex items-center justify-center text-sm font-bold transition-colors duration-150 hover:bg-white/5" style={{ color: P.accent }} onClick={() => setQty(qty + 1)}>+</button>
             </div>
             <button disabled={!valid || !product.available} onClick={() => {
-              if (!valid) { alert('Confira as escolhas obrigatórias'); return; }
+              if (!valid) { alert('Confira as escolhas obrigat\u00F3rias'); return; }
               cart.add({ key: Math.random().toString(36), productId: product.id, name: product.name, unitPrice: price, qty, note, addons: Object.values(sel).flat() });
               onAdded();
-            }} className="flex-1 rounded-xl py-3 text-xs font-bold text-white disabled:opacity-40" style={{ background: '#8b2e0a' }}>Adicionar • {BRL(total)}</button>
+            }} className="flex-1 rounded-xl py-3.5 text-[12px] font-black text-white disabled:opacity-30 transition-all duration-200 hover:brightness-110 active:scale-[0.97]" style={{ background: `linear-gradient(135deg, ${P.accentDark}, ${P.accent})` }}>{'Adicionar \u2022 '}{BRL(total)}</button>
           </div>
-        </div>
-      </div>
 
-          {drinks.length > 0 && (<>
-            <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#8b7a6a' }}>Que tal adicionar?</p>
+          {/* Sugestoes de bebidas */}
+          {drinks.length > 0 && (
+            <div className="mt-6 pt-4" style={{ borderTop: `1px solid ${P.border}30` }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: P.accent }}>Que tal adicionar?</p>
               <div className="relative">
-                <button onClick={() => drinksRef.current?.scrollBy({ left: -150, behavior: 'smooth' })} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md" style={{ background: '#e0d5c8', color: '#3a2010' }}>&lsaquo;</button>
-                <div ref={drinksRef} className="flex gap-2 overflow-x-auto scrollbar-hide px-7 pb-1">
+                <button onClick={() => drinksRef.current?.scrollBy({ left: -140, behavior: 'smooth' })} className="absolute -left-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-lg transition-all duration-200 hover:scale-110" style={{ background: P.card, border: `1px solid ${P.border}`, color: P.accent }}>{'\u2039'}</button>
+                <div ref={drinksRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide px-8 pb-1">
                   {drinks.map((d: any) => {
                     const dp = d.promoPrice ?? d.price;
                     return (
-                      <button key={d.id} onClick={() => { cart.add({ key: Math.random().toString(36), productId: d.id, name: d.name, unitPrice: dp, qty: 1, note: '', addons: [] }); }} className="flex-shrink-0 w-[120px] rounded-xl p-2 text-center transition hover-addon" style={{ background: 'white', border: '1px solid #d5cab9' }}>
-                        <div className="w-10 h-10 mx-auto rounded-lg overflow-hidden mb-1" style={{ background: '#e0d5c8' }}>{d.photoUrl ? <img src={d.photoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">🥤</span>}</div>
-                        <p className="text-[9px] font-bold truncate" style={{ color: '#3a2010' }}>{d.name}</p>
-                        <p className="text-[9px] font-bold" style={{ color: '#8b5e2a' }}>{BRL(dp)}</p>
+                      <button key={d.id} onClick={() => { cart.add({ key: Math.random().toString(36), productId: d.id, name: d.name, unitPrice: dp, qty: 1, note: '', addons: [] }); }} className="flex-shrink-0 w-[110px] rounded-2xl p-2.5 text-center transition-all duration-200 hover:scale-105" style={{ background: P.card, border: `1px solid ${P.border}40` }}>
+                        <div className="w-12 h-12 mx-auto rounded-xl overflow-hidden mb-1.5" style={{ background: P.border }}>{d.photoUrl ? <img src={d.photoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-xl flex items-center justify-center h-full">{'\uD83E\uDD64'}</span>}</div>
+                        <p className="text-[9px] font-bold truncate leading-tight" style={{ color: P.text }}>{d.name}</p>
+                        <p className="text-[9px] font-black mt-0.5" style={{ color: P.accent }}>{BRL(dp)}</p>
                       </button>
                     );
                   })}
                 </div>
-                <button onClick={() => drinksRef.current?.scrollBy({ left: 150, behavior: 'smooth' })} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md" style={{ background: '#e0d5c8', color: '#3a2010' }}>&rsaquo;</button>
+                <button onClick={() => drinksRef.current?.scrollBy({ left: 140, behavior: 'smooth' })} className="absolute -right-1 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-lg transition-all duration-200 hover:scale-110" style={{ background: P.card, border: `1px solid ${P.border}`, color: P.accent }}>{'\u203A'}</button>
               </div>
             </div>
-          </>)}
+          )}
+        </div>
+      </div>
     </div>
   );
 }
