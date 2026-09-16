@@ -41,6 +41,9 @@ export default function Pedidos() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const prevCount = useRef(0);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [dispatchOrder, setDispatchOrder] = useState<any | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<string>('');
 
   const load = async () => {
     const o = await fetch('/api/orders?limit=120').then((r) => r.json());
@@ -49,9 +52,17 @@ export default function Pedidos() {
     setOrders(o);
   };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
+  useEffect(() => { fetch('/api/drivers').then((r) => r.json()).then(setDrivers); }, []);
 
   const setStatus = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+    load();
+  };
+
+  const dispatchWithDriver = async (orderId: string, driverId: string) => {
+    await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, status: 'entrega', driverId }) });
+    setDispatchOrder(null);
+    setSelectedDriver('');
     load();
   };
   const print = async (o: any) => {
@@ -179,6 +190,7 @@ export default function Pedidos() {
                         <p className="text-[10px] italic text-gray-500 mt-1">obs: {o.note}</p>
                       )}
 
+                      {isExpanded && o.driver && (<p className="text-[10px] text-purple-600 mt-1 px-2 py-1.5 rounded-lg font-bold" style={{ background: "#ede9fe" }}>🛵 Entregador: {o.driver.name} — {o.driver.phone}</p>)}
                       {/* Price */}
                       <p className="font-extrabold text-sm mt-1.5" style={{ color: '#3a2010' }}>{BRL(o.total)}</p>
                     </div>
@@ -191,7 +203,7 @@ export default function Pedidos() {
                           {NEXT_STATUS[STATUS_MAP[o.status]].map((next) => (
                             <button
                               key={next.status}
-                              onClick={(e) => { e.stopPropagation(); setStatus(o.id, next.status); }}
+                              onClick={(e) => { e.stopPropagation(); if (next.status === 'entrega') { const isDelivery = o.type === 'entrega' && !(o.addressText || '').toUpperCase().includes('RETIRADA') && !(o.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL'); if (isDelivery) { setDispatchOrder(o); return; } } setStatus(o.id, next.status); }}
                               className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-[10px] font-bold text-white transition active:scale-[0.97]"
                               style={{ background: COLUMNS.find((c) => c.id === STATUS_MAP[next.status])?.color || '#6b7280' }}
                             >
@@ -218,6 +230,36 @@ export default function Pedidos() {
           </div>
         ))}
       </div>
+
+      {/* Modal de selecao de entregador */}
+      {dispatchOrder && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setDispatchOrder(null)}>
+          <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-black text-base text-gray-900">🛵 Despachar Pedido #{dispatchOrder.number}</h3>
+              <button onClick={() => setDispatchOrder(null)} className="w-7 h-7 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition"><X size={14} /></button>
+            </div>
+            <p className="text-[11px] text-gray-500 mb-3">Selecione o entregador para <b>#{dispatchOrder.number}</b> ({dispatchOrder.customerName})</p>
+            <div className="space-y-2 mb-4">
+              {drivers.map((d: any) => (
+                <button key={d.id} onClick={() => setSelectedDriver(d.id)} className="w-full flex items-center gap-3 p-3 rounded-xl border-2 transition text-left" style={selectedDriver === d.id ? { borderColor: '#8b2e0a', background: '#8b2e0a08' } : { borderColor: '#e5e7eb' }}>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: d.status === 'disponivel' ? '#22c55e' : '#ef4444' }}>{d.name.charAt(0)}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-bold text-gray-800">{d.name}</p>
+                    <p className="text-[10px] text-gray-400">{d.phone} • {d.status === 'disponivel' ? 'Disponivel' : d.status === 'em_entrega' ? 'Em entrega' : 'Offline'}</p>
+                  </div>
+                  {selectedDriver === d.id && (<div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#8b2e0a' }}><svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg></div>)}
+                </button>
+              ))}
+              {drivers.length === 0 && (<p className="text-center text-[11px] text-gray-400 py-4">Nenhum cadastrado. Cadastre em Admin → Entregadores.</p>)}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setDispatchOrder(null)} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition">Cancelar</button>
+              <button disabled={!selectedDriver} onClick={() => dispatchWithDriver(dispatchOrder.id, selectedDriver)} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold text-white disabled:opacity-40 transition" style={{ background: '#8b2e0a' }}>Confirmar envio</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
