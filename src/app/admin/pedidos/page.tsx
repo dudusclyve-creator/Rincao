@@ -52,15 +52,17 @@ export default function Pedidos() {
     setOrders(o);
   };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
-  useEffect(() => { fetch('/api/drivers').then((r) => r.json()).then(setDrivers); }, []);
+  useEffect(() => { fetch('/api/users').then((r) => r.json()).then(setDrivers); }, []);
 
   const setStatus = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
     load();
   };
 
-  const dispatchWithDriver = async (orderId: string, driverId: string) => {
-    await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, status: 'entrega', driverId }) });
+  const dispatchWithDriver = async (orderId: string, userId: string) => {
+    const user = (drivers as any[]).find((u: any) => u.id === userId);
+    const drvRes = await fetch('/api/drivers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: user?.name || 'Entregador', phone: '' }) }).then((r) => r.json());
+    await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, status: 'entrega', driverId: drvRes.id }) });
     setDispatchOrder(null);
     setSelectedDriver('');
     load();
@@ -241,17 +243,17 @@ export default function Pedidos() {
             </div>
             <p className="text-[11px] text-gray-500 mb-3">Selecione o entregador para <b>#{dispatchOrder.number}</b> ({dispatchOrder.customerName})</p>
             <div className="space-y-2 mb-4">
-              {drivers.map((d: any) => (
+              {(drivers.filter((u: any) => u.role === 'entregador' && u.active)).map((d: any) => (
                 <button key={d.id} onClick={() => setSelectedDriver(d.id)} className="w-full flex items-center gap-3 p-3 rounded-xl border-2 transition text-left" style={selectedDriver === d.id ? { borderColor: '#8b2e0a', background: '#8b2e0a08' } : { borderColor: '#e5e7eb' }}>
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: d.status === 'disponivel' ? '#22c55e' : '#ef4444' }}>{d.name.charAt(0)}</div>
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: "#8b2e0a" }}>{d.name.charAt(0)}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-bold text-gray-800">{d.name}</p>
-                    <p className="text-[10px] text-gray-400">{d.phone} • {d.status === 'disponivel' ? 'Disponivel' : d.status === 'em_entrega' ? 'Em entrega' : 'Offline'}</p>
+                    <p className="text-[10px] text-gray-400">{d.email}</p>
                   </div>
                   {selectedDriver === d.id && (<div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#8b2e0a' }}><svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg></div>)}
                 </button>
               ))}
-              {drivers.length === 0 && (<p className="text-center text-[11px] text-gray-400 py-4">Nenhum cadastrado. Cadastre em Admin → Entregadores.</p>)}
+              {(drivers.filter((u: any) => u.role === 'entregador' && u.active)).length === 0 && (<p className="text-center text-[11px] text-gray-400 py-4">Nenhum entregador cadastrado. Cadastre em Equipe com role "entregador".</p>)}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setDispatchOrder(null)} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition">Cancelar</button>
