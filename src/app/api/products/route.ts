@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const p = await prisma.product.create({ data: {
     name: b.name, description: b.description || '', price: Number(b.price), promoPrice: b.promoPrice ? Number(b.promoPrice) : null,
     photoUrl: b.photoUrl || '', categoryId: b.categoryId, available: b.available ?? true,
-    featured: !!b.featured, bestSeller: !!b.bestSeller, order: Number(b.order || 0), relatedIds: JSON.stringify(b.relatedIds || []),
+    featured: !!b.featured, bestSeller: !!b.bestSeller, newArrival: !!b.newArrival, order: Number(b.order || 0), relatedIds: JSON.stringify(b.relatedIds || []),
   }});
   if (b.groupIds?.length) for (const g of b.groupIds) { try { await prisma.productAddonGroup.create({ data: { productId: p.id, groupId: g } }); } catch {} }
   return NextResponse.json(p);
@@ -20,7 +20,7 @@ export async function PATCH(req: Request) {
     name: b.name, description: b.description, price: b.price !== undefined ? Number(b.price) : undefined,
     promoPrice: b.promoPrice === null ? null : b.promoPrice !== undefined ? Number(b.promoPrice) : undefined,
     photoUrl: b.photoUrl, categoryId: b.categoryId, available: b.available, featured: b.featured,
-    bestSeller: b.bestSeller, order: b.order !== undefined ? Number(b.order) : undefined,
+    bestSeller: b.bestSeller, newArrival: b.newArrival, order: b.order !== undefined ? Number(b.order) : undefined,
     relatedIds: b.relatedIds ? JSON.stringify(b.relatedIds) : undefined,
   }});
   if (b.groupIds) {

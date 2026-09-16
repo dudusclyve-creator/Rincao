@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from '@/lib/store';
 import { BRL, isOpenNow, buildWhatsMessage, type CartAddon } from '@/lib/utils';
 
@@ -28,6 +28,20 @@ const C = {
   border: '#4a3525',
 };
 
+const DELIVERY_ZONES: Record<string, { name: string; fee: number }[]> = {
+  'Santana do Livramento': [
+    { name: 'Centro', fee: 5 }, { name: 'Boa Vista', fee: 5 }, { name: 'São José', fee: 6 },
+    { name: 'Cidade Alta', fee: 6 }, { name: 'Liberdade', fee: 7 }, { name: 'Jardim do Sol', fee: 7 },
+    { name: 'Parque Industrial', fee: 8 }, { name: 'Vila Nova', fee: 8 }, { name: 'Bela Vista', fee: 9 },
+    { name: 'Floresta', fee: 9 }, { name: 'Santo Antônio', fee: 10 },
+  ],
+  'Rivera': [
+    { name: 'Centro', fee: 8 }, { name: 'Paz', fee: 8 }, { name: 'Santa Cruz', fee: 9 },
+    { name: 'Mônaco', fee: 10 }, { name: 'Maria Clara', fee: 10 }, { name: 'Floresta', fee: 12 },
+    { name: 'Interlagos', fee: 12 }, { name: 'São Jorge', fee: 14 },
+  ],
+};
+
 export default function CardapioPage() {
   const [data, setData] = useState<any>(null);
   const [cat, setCat] = useState('all');
@@ -38,9 +52,39 @@ export default function CardapioPage() {
   const [addressOpen, setAddressOpen] = useState(false);
   const [deliveryType, setDeliveryType] = useState('entrega');
   const [addressText, setAddressText] = useState('');
+  const [deliveryStep, setDeliveryStep] = useState(0);
+  const [deliveryCity, setDeliveryCity] = useState('');
+  const [deliveryBairro, setDeliveryBairro] = useState('');
+  const [deliveryStreet, setDeliveryStreet] = useState('');
+  const [deliveryNum, setDeliveryNum] = useState('');
+  const [deliveryComp, setDeliveryComp] = useState('');
   const cart = useCart();
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
 
   useEffect(() => { fetch('/api/menu').then((r) => r.json()).then(setData); }, []);
+
+  useEffect(() => {
+    if (cat !== 'all' || search) return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          const id = e.target.getAttribute('data-cat-id');
+          if (id) setCat(id);
+        }
+      }
+    }, { rootMargin: '-120px 0px -50% 0px', threshold: 0 });
+    sectionRefs.current.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [data, cat, search]);
+
+  const selectCat = (id: string) => {
+    setCat(id);
+    if (tabsRef.current) {
+      const tab = tabsRef.current.querySelector(`[data-tab-id='${id}']`) as HTMLElement | null;
+      tab?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  };
 
   const open = useMemo(() => data?.restaurant ? isOpenNow(data.restaurant.hoursJson, data.restaurant.isOpenManual) : true, [data]);
   const products: Product[] = useMemo(() => {
@@ -102,9 +146,10 @@ export default function CardapioPage() {
         </div>
         <div className="absolute bottom-0 inset-x-0 px-6 lg:px-10 pb-4">
           <div className="flex items-end gap-4">
-            {R.logoUrl && <img src={R.logoUrl} alt={R.name} className="w-16 h-16 lg:w-20 lg:h-20 rounded-full object-cover shadow-2xl" style={{ border: `3px solid ${C.border}` }} />}
+            {R.logoUrl && <img src={R.logoUrl} alt={R.name} className="w-28 h-28 lg:w-36 lg:h-36 rounded-full object-cover shadow-2xl" style={{ border: `3px solid ${C.border}` }} />}
             <div>
               <h2 className="font-black text-xl lg:text-2xl" style={{ color: C.textLight }}>{R.name}</h2>
+              <p className="text-[10px] lg:text-xs mt-0.5 italic" style={{ color: C.textMuted }}>O melhor sabor da fronteira</p>
               <p className="text-xs lg:text-sm mt-0.5 flex items-center gap-1" style={{ color: C.textMuted }}>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 {R.address}
@@ -114,14 +159,24 @@ export default function CardapioPage() {
         </div>
       </div>
 
+      {/* ===== MARQUEE ENDERECO ===== */}
+      <div className="overflow-hidden py-1.5" style={{ background: C.bgCard }}>
+        <div className="animate-marquee whitespace-nowrap flex items-center gap-4 text-[10px] font-bold" style={{ color: C.textMuted }}>
+          <span>{R.address}</span>
+          <span>&bull;</span>
+          <span>{R.address}</span>
+          <span>&bull;</span>
+          <span>{R.address}</span>
+        </div>
+      </div>
       {/* ===== CATEGORIAS ===== */}
       <div className="sticky top-12 z-20 border-b" style={{ background: C.bg, borderColor: C.border + '30' }}>
         <div className="max-w-[1400px] mx-auto overflow-x-auto scrollbar-hide">
           <div className="flex gap-2 px-4 lg:px-8 py-2.5 min-w-max">
-            <button onClick={() => setCat('all')} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'all' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>Todos</button>
-            <button onClick={() => setCat('best')} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'best' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>⭐ Mais pedidos</button>
+            <button onClick={() => selectCat('all')} data-tab-id="all" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'all' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>Todos</button>
+            <button onClick={() => selectCat('best')} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" data-tab-id="best" style={cat === 'best' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>⭐ Mais pedidos</button>
             {data.categories.map((c: any) => (
-              <button key={c.id} onClick={() => setCat(c.id)} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold uppercase transition" style={cat === c.id ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>{c.name}</button>
+              <button key={c.id} onClick={() => selectCat(c.id)} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold uppercase transition" style={cat === c.id ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>{c.name}</button>
             ))}
           </div>
         </div>
@@ -160,9 +215,10 @@ export default function CardapioPage() {
                           <h3 className="font-bold text-xs lg:text-sm uppercase" style={{ color: C.textName }}>{p.name}</h3>
                           <p className="text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{p.description}</p>
                         </div>
-                        <p className="font-extrabold text-sm lg:text-base" style={{ color: C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
+                        <p className="font-extrabold text-sm lg:text-base" style={{ color: p.promoPrice ? '#22c55e' : C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
                       </div>
                       <div className="flex flex-col items-end gap-0.5 flex-wrap shrink-0">
+                        {p.newArrival && (<span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-gradient-to-r from-green-500 to-green-600">✨ Novidade!</span>)}
                         {p.bestSeller && (
                           <span className="badge-popular inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 via-orange-500 to-red-500">
                             🔥Popular
@@ -172,6 +228,7 @@ export default function CardapioPage() {
                           <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: '#38bdf8' }}>❄️ Gelado</span>
                         )}
                         {soldOut && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-red-600">Indisponível</span>}
+                        {p.promoPrice && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-red-600">-{Math.round(Math.abs((p.promoPrice - p.price) / p.price) * 100)}%</span>}
                         {p.promoPrice && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-amber-600">Promo</span>}
                       </div>
                     </button>
@@ -259,33 +316,65 @@ export default function CardapioPage() {
             </div>
           </div>
 
-          {/* Popup de recebimento - fora do rounded div, no nível do aside */}
+          {/* Popup de recebimento - 4 etapas */}
           {addressOpen && (
-            <div className="absolute left-0 right-0 z-30 rounded-xl p-4 shadow-xl" style={{ top: '52px', background: '#f5ede4', border: '1px solid #e0d5c8' }}>
-              <p className="text-[9px] font-bold uppercase tracking-wider mb-2.5" style={{ color: '#8b7a6a' }}>Como você quer receber o pedido?</p>
-              <div className="space-y-1.5">
-                {[
-                  { id: 'entrega', icon: '🏪', label: 'Entrega', desc: 'A gente leva até você' },
-                  { id: 'retirada', icon: '🚶', label: 'Retirada', desc: 'Você retira no local' },
-                  { id: 'local', icon: '🏠', label: 'Consumo no local', desc: 'Você consome no local' },
-                ].map((t) => (
-                  <button key={t.id} onClick={() => { setDeliveryType(t.id); if (t.id !== 'entrega') setAddressOpen(false); }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition text-left" style={deliveryType === t.id ? { background: '#f0e6d8', border: '1px solid #d5cab9' } : { background: 'transparent', border: '1px solid transparent' }}>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: '#e0d5c8' }}>{t.icon}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold" style={{ color: '#3a2010' }}>{t.label}</p>
-                      <p className="text-[9px]" style={{ color: '#9a8a7a' }}>{t.desc}</p>
-                    </div>
-                    {deliveryType === t.id && (
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: '#8b5e2a' }}>
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+            <div className="absolute left-0 right-0 z-30 rounded-xl p-4 shadow-xl" style={{ top: "52px", background: "#f5ede4", border: "1px solid #e0d5c8" }}>
+              {deliveryStep === 0 && (<>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-2.5" style={{ color: "#8b7a6a" }}>Como voc&#234; quer receber o pedido?</p>
+                <div className="space-y-1.5">
+                  {[{ id: "entrega", icon: "🏪", label: "Entrega", desc: "A gente leva at&#233; voc&#234;" }, { id: "retirada", icon: "🚶", label: "Retirada", desc: "Voc&#234; retira no local" }, { id: "local", icon: "🏠", label: "Consumo no local", desc: "Voc&#234; consome no local" }].map((t) => (
+                    <button key={t.id} onClick={() => { setDeliveryType(t.id); if (t.id !== "entrega") { setAddressOpen(false); setDeliveryStep(0); } else { setDeliveryStep(1); } }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition text-left" style={deliveryType === t.id ? { background: "#f0e6d8", border: "1px solid #d5cab9" } : { background: "transparent", border: "1px solid transparent" }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: "#e0d5c8" }}>{t.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold" style={{ color: "#3a2010" }}>{t.label}</p>
+                        <p className="text-[9px]" style={{ color: "#9a8a7a" }}>{t.desc}</p>
                       </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-              {deliveryType === 'entrega' && (
-                <button onClick={() => { setAddressOpen(false); setCheckout(true); }} className="w-full rounded-xl py-2.5 font-bold text-white text-[12px] mt-3" style={{ background: '#8b5e2a' }}>Continuar</button>
-              )}
+                      {deliveryType === t.id && (<div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: "#8b5e2a" }}><svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg></div>)}
+                    </button>
+                  ))}
+                </div>
+              </>)}
+              {deliveryStep === 1 && (<>
+                <button onClick={() => setDeliveryStep(0)} className="text-[10px] font-bold mb-2 flex items-center gap-1" style={{ color: "#8b5e2a" }}>← Voltar</button>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-2.5" style={{ color: "#8b7a6a" }}>Qual cidade?</p>
+                <div className="space-y-1.5">
+                  {Object.keys(DELIVERY_ZONES).map((city) => (
+                    <button key={city} onClick={() => { setDeliveryCity(city); setDeliveryStep(2); }} className="w-full flex items-center justify-between p-2.5 rounded-xl transition text-left" style={{ background: "#f0e6d8", border: "1px solid #d5cab9" }}>
+                      <span className="text-[11px] font-bold" style={{ color: "#3a2010" }}>{city}</span>
+                    </button>
+                  ))}
+                </div>
+              </>)}
+              {deliveryStep === 2 && (<>
+                <button onClick={() => setDeliveryStep(1)} className="text-[10px] font-bold mb-2 flex items-center gap-1" style={{ color: "#8b5e2a" }}>← Voltar</button>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-2.5" style={{ color: "#8b7a6a" }}>Qual bairro em {deliveryCity}?</p>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {(DELIVERY_ZONES[deliveryCity] || []).map((z) => (
+                    <button key={z.name} onClick={() => { setDeliveryBairro(z.name); setDeliveryStep(3); }} className="w-full flex items-center justify-between p-2.5 rounded-xl transition text-left" style={{ background: "#f0e6d8", border: "1px solid #d5cab9" }}>
+                      <span className="text-[11px] font-bold" style={{ color: "#3a2010" }}>{z.name}</span>
+                      <span className="text-[9px] font-bold" style={{ color: "#8b5e2a" }}>Taxa: {BRL(z.fee)}</span>
+                    </button>
+                  ))}
+                </div>
+              </>)}
+              {deliveryStep === 3 && (<>
+                <button onClick={() => setDeliveryStep(2)} className="text-[10px] font-bold mb-2 flex items-center gap-1" style={{ color: "#8b5e2a" }}>← Voltar</button>
+                <p className="text-[9px] font-bold uppercase tracking-wider mb-2.5" style={{ color: "#8b7a6a" }}>{deliveryBairro} - {deliveryCity}</p>
+                <input className="w-full rounded-lg px-2.5 py-2 text-[11px] mb-2 outline-none" style={{ background: "white", border: "1px solid #d5cab9", color: "#3a2010" }} placeholder="Rua/Avenida" value={deliveryStreet} onChange={(e) => setDeliveryStreet(e.target.value)} />
+                <div className="flex gap-2 mb-2">
+                  <input className="flex-1 rounded-lg px-2.5 py-2 text-[11px] outline-none" style={{ background: "white", border: "1px solid #d5cab9", color: "#3a2010" }} placeholder="Número" value={deliveryNum} onChange={(e) => setDeliveryNum(e.target.value)} />
+                  <input className="flex-1 rounded-lg px-2.5 py-2 text-[11px] outline-none" style={{ background: "white", border: "1px solid #d5cab9", color: "#3a2010" }} placeholder="Complemento" value={deliveryComp} onChange={(e) => setDeliveryComp(e.target.value)} />
+                </div>
+                <button onClick={() => {
+                  if (!deliveryStreet || !deliveryNum) { alert("Informe rua e número"); return; }
+                  const zone = (DELIVERY_ZONES[deliveryCity] || []).find((z) => z.name === deliveryBairro);
+                  const addr = `${deliveryStreet}, ${deliveryNum}${deliveryComp ? " - " + deliveryComp : ""} - ${deliveryBairro}, ${deliveryCity}`;
+                  setAddressText(addr);
+                  setAddressOpen(false);
+                  setDeliveryStep(0);
+                  setCheckout(true);
+                }} className="w-full rounded-xl py-2.5 font-bold text-white text-[12px] mt-1" style={{ background: "#8b5e2a" }}>Confirmar endereço</button>
+              </>)}
             </div>
           )}
         </aside>
@@ -301,18 +390,22 @@ export default function CardapioPage() {
       )}
 
       {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} />}
-      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} />}
-      {modal && <ProductModal product={modal} onClose={() => setModal(null)} onAdded={() => setModal(null)} />}
+      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} deliveryFee={deliveryType === "entrega" ? R.deliveryFee : 0} addressText={addressText} />}
+      {modal && <ProductModal product={modal} onClose={() => setModal(null)} onAdded={() => setModal(null)} allProducts={data?.products || []} />}
     </div>
   );
 }
 
 /* ======================== PRODUCT MODAL ======================== */
-function ProductModal({ product, onClose, onAdded }: any) {
+function ProductModal({ product, onClose, onAdded, allProducts }: any) {
   const cart = useCart();
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
   const [sel, setSel] = useState<Record<string, CartAddon[]>>({});
+  const drinksRef = useRef<HTMLDivElement>(null);
+  const drinks = (allProducts || []).filter((p: any) => p.category?.name === 'BEBIDAS' && p.id !== product.id && p.available).slice(0, 8);
   const groups = product.groups?.map((g: any) => g.group) || [];
   const price = product.promoPrice ?? product.price;
 
@@ -380,6 +473,28 @@ function ProductModal({ product, onClose, onAdded }: any) {
               onAdded();
             }} className="flex-1 rounded-xl py-3 text-xs font-bold text-white disabled:opacity-40" style={{ background: '#8b2e0a' }}>Adicionar • {BRL(total)}</button>
           </div>
+
+          {drinks.length > 0 && (<>
+            <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#8b7a6a" }}>Que tal adicionar?</p>
+              <div className="relative">
+                <button onClick={() => drinksRef.current?.scrollBy({ left: -150, behavior: "smooth" })} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md" style={{ background: "#e0d5c8", color: "#3a2010" }}>&lsaquo;</button>
+                <div ref={drinksRef} className="flex gap-2 overflow-x-auto scrollbar-hide px-7 pb-1">
+                  {drinks.map((d: any) => {
+                    const dp = d.promoPrice ?? d.price;
+                    return (
+                      <button key={d.id} onClick={() => { cart.add({ key: Math.random().toString(36), productId: d.id, name: d.name, unitPrice: dp, qty: 1, note: "", addons: [] }); }} className="flex-shrink-0 w-[120px] rounded-xl p-2 text-center transition hover-addon" style={{ background: "white", border: "1px solid #d5cab9" }}>
+                        <div className="w-10 h-10 mx-auto rounded-lg overflow-hidden mb-1" style={{ background: "#e0d5c8" }}>{d.photoUrl ? <img src={d.photoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-lg">🥤</span>}</div>
+                        <p className="text-[9px] font-bold truncate" style={{ color: "#3a2010" }}>{d.name}</p>
+                        <p className="text-[9px] font-bold" style={{ color: "#8b5e2a" }}>{BRL(dp)}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button onClick={() => drinksRef.current?.scrollBy({ left: 150, behavior: "smooth" })} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md" style={{ background: "#e0d5c8", color: "#3a2010" }}>&rsaquo;</button>
+              </div>
+            </div>
+          </>)}
         </div>
       </div>
     </div>
@@ -389,6 +504,8 @@ function ProductModal({ product, onClose, onAdded }: any) {
 /* ======================== CART DRAWER (MOBILE) ======================== */
 function CartDrawer({ onClose, onCheckout, products }: any) {
   const cart = useCart();
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [coupon, setCoupon] = useState('');
   const [discount, setDiscount] = useState(0);
 
@@ -436,6 +553,8 @@ function CheckoutBridge({ discount, coupon }: any) {
 /* ======================== CHECKOUT ======================== */
 function CheckoutModal({ restaurant, onClose }: any) {
   const cart = useCart();
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [f, setF] = useState({ name: '', phone: '', street: '', number: '', complement: '', district: '', reference: '', type: 'entrega', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
   const discount = (typeof window !== 'undefined' && (window as any).__discount) || 0;

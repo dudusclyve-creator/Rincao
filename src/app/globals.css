@@ -7,7 +7,7 @@ body { @apply bg-stone-50 text-neutral-900 antialiased; }
 .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98]; }
 .btn-primary { @apply btn bg-rose-700 text-white hover:bg-rose-800; }
 .btn-ghost { @apply btn bg-stone-100 hover:bg-stone-200; }
-.input { @apply w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-600 focus:ring-2 focus:ring-rose-100; }
+.input { @apply rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-rose-600 focus:ring-2 focus:ring-rose-100; }
 .label { @apply text-xs font-semibold uppercase tracking-wide text-stone-500; }
 .badge { @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold; }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -19,3 +19,9 @@ body { @apply bg-stone-50 text-neutral-900 antialiased; }
   body { background: white; }
 }
 .receipt { font-family: ui-monospace, monospace; }
+@keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+.animate-marquee { animation: marquee 14s linear infinite; }
+.hover-lift { transition: all 0.2s ease; }
+.hover-lift:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+.hover-addon { transition: all 0.15s ease; }
+.hover-addon:hover { transform: scale(1.03); box-shadow: 0 2px 8px rgba(139,46,10,0.12); background: #f0e8df !important; border-color: #d5cab9 !important; }

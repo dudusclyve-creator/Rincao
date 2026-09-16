@@ -63,6 +63,7 @@ model Product {
   available    Boolean  @default(true)
   featured     Boolean  @default(false)
   bestSeller   Boolean  @default(false)
+  newArrival   Boolean  @default(false)
   order        Int      @default(0)
   relatedIds   String   @default("[]") // upsell: ids em JSON
   groups       ProductAddonGroup[]

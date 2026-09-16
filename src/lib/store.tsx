@@ -24,7 +24,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{
       items, note, setNote, subtotal,
-      add: (i) => setItems((p) => [...p, i]),
+      add: (i) => setItems((p) => {
+        const sameIdx = p.findIndex((x) => x.productId === i.productId && x.note === i.note && JSON.stringify(x.addons) === JSON.stringify(i.addons));
+        if (sameIdx >= 0) {
+          const next = [...p];
+          next[sameIdx] = { ...next[sameIdx], qty: next[sameIdx].qty + i.qty };
+          return next;
+        }
+        return [...p, i];
+      }),
       remove: (key) => setItems((p) => p.filter((x) => x.key !== key)),
       updateQty: (key, qty) => setItems((p) => p.map((x) => x.key === key ? { ...x, qty: Math.max(1, qty) } : x)),
       clear: () => { setItems([]); setNote(''); },
