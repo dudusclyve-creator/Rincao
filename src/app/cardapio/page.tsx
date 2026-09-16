@@ -148,17 +148,6 @@ export default function CardapioPage() {
         </div>
       </div>
 
-      {/* ===== MARQUEE ENDERECO ===== */}
-      <div className="overflow-hidden py-1.5" style={{ background: C.bgCard }}>
-        <div className="animate-marquee whitespace-nowrap flex items-center gap-4 text-[10px] font-bold" style={{ color: C.textMuted }}>
-          <span>{R.address}</span>
-          <span>&bull;</span>
-          <span>{R.address}</span>
-          <span>&bull;</span>
-          <span>{R.address}</span>
-        </div>
-      </div>
-      {/* ===== CATEGORIAS ===== */}
       <div className="sticky top-12 z-20 border-b" style={{ background: C.bg, borderColor: C.border + '30' }}>
         <div className="max-w-[1400px] mx-auto overflow-x-auto scrollbar-hide">
           <div className="flex gap-2 px-4 lg:px-8 py-2.5 min-w-max">
