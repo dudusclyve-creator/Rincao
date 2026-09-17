@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { BRL } from '@/lib/utils';
-import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, Truck } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
 const DELIVERY_ZONES: Record<string, { name: string; fee: number }[]> = {
   'Santana do Livramento': [
@@ -156,7 +156,6 @@ export default function PDV() {
   const [cart, setCart] = useState<any[]>([]);
   const [type, setType] = useState('balcao');
   const [payment, setPayment] = useState('pix');
-  const [discount, setDiscount] = useState(0);
   const [client, setClient] = useState('');
   const [orderNote, setOrderNote] = useState('');
   const [search, setSearch] = useState('');
@@ -165,12 +164,13 @@ export default function PDV() {
   const [editNoteIdx, setEditNoteIdx] = useState<number | null>(null);
   const [selectedTable, setSelectedTable] = useState('');
   const [changeFor, setChangeFor] = useState(0);
+  const [splitPayment, setSplitPayment] = useState(false);
+  const [payments, setPayments] = useState<{ method: string; amount: number }[]>([{ method: 'pix', amount: 0 }]);
   const [deliveryCity, setDeliveryCity] = useState('');
   const [deliveryBairro, setDeliveryBairro] = useState('');
   const [deliveryStreet, setDeliveryStreet] = useState('');
   const [deliveryNum, setDeliveryNum] = useState('');
   const [deliveryComp, setDeliveryComp] = useState('');
-  const [deliveryRef, setDeliveryRef] = useState('');
   const [showAddress, setShowAddress] = useState(false);
   const catsRef = useRef<HTMLDivElement>(null);
 
@@ -200,7 +200,7 @@ export default function PDV() {
   const deliveryFee = type === 'entrega' && deliveryCity && deliveryBairro
     ? (DELIVERY_ZONES[deliveryCity]?.find(z => z.name === deliveryBairro)?.fee || 0)
     : 0;
-  const total = Math.max(0, sub + deliveryFee - discount);
+  const total = Math.max(0, sub + deliveryFee);
   const itemCount = cart.reduce((s: number, i: any) => s + i.qty, 0);
   const troco = payment === 'dinheiro' && changeFor > 0 ? Math.max(0, changeFor - total) : 0;
 
@@ -235,17 +235,20 @@ export default function PDV() {
 
   const finish = async () => {
     const addressText = type === 'entrega'
-      ? `${deliveryStreet}${deliveryNum ? ', ' + deliveryNum : ''}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}${deliveryRef ? ' (Ref: ' + deliveryRef + ')' : ''}`
+      ? `${deliveryStreet}${deliveryNum ? ', ' + deliveryNum : ''}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`
       : type === 'mesa' ? `Mesa ${selectedTable}` : type.toUpperCase();
+
+    const paymentMethod = splitPayment ? payments.map(p => `${p.method}:${p.amount}`).join(',') : payment;
+    const splitNote = splitPayment ? `Pagamento dividido: ${payments.map(p => `${PAYMENT_OPTIONS.find(o => o.id === p.method)?.label || p.method} ${BRL(p.amount)}`).join(' + ')}` : '';
 
     const o = await fetch('/api/orders', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customerName: client || 'PDV', customerPhone: '',
         street: deliveryStreet, number: deliveryNum, complement: deliveryComp,
-        district: deliveryBairro, reference: deliveryRef, addressText,
-        type, payment, changeFor: payment === 'dinheiro' ? changeFor : undefined,
-        subtotal: sub, deliveryFee, discount, source: 'pdv', note: orderNote,
+        district: deliveryBairro, addressText,
+        type, payment: paymentMethod, changeFor: payment === 'dinheiro' && !splitPayment ? changeFor : undefined,
+        subtotal: sub, deliveryFee, discount: 0, source: 'pdv', note: [orderNote, splitNote].filter(Boolean).join(' | '),
         tableId: type === 'mesa' ? selectedTable : undefined,
         items: cart.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons || [], note: i.note || '' })),
       })
@@ -258,8 +261,8 @@ export default function PDV() {
       await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: selectedTable, status: 'ocupada' }) });
     }
     alert(`Venda #${o.number} finalizada: ${BRL(o.total)}`);
-    setCart([]); setDiscount(0); setOrderNote(''); setClient(''); setChangeFor(0); setSelectedTable('');
-    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setDeliveryRef('');
+    setCart([]); setOrderNote(''); setClient(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
+    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp('');
   };
 
   const scrollCats = (dir: number) => {
@@ -513,8 +516,7 @@ export default function PDV() {
                           <input value={deliveryNum} onChange={(e) => setDeliveryNum(e.target.value)} placeholder="Nº" className="w-16 px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                         </div>
                         <div className="flex gap-2">
-                          <input value={deliveryComp} onChange={(e) => setDeliveryComp(e.target.value)} placeholder="Complemento" className="flex-1 px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                          <input value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} placeholder="Referência" className="flex-1 px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                          <input value={deliveryComp} onChange={(e) => setDeliveryComp(e.target.value)} placeholder="Complemento" className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                         </div>
                       </div>
                     )}
@@ -523,25 +525,72 @@ export default function PDV() {
 
                 {/* Payment */}
                 <div className="px-4 pt-3">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Pagamento</p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {PAYMENT_OPTIONS.map((p) => {
-                      const Icon = p.icon;
-                      return (
-                        <button key={p.id} onClick={() => setPayment(p.id)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200"
-                          style={payment === p.id
-                            ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` }
-                            : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <Icon size={13} />{p.label}
-                        </button>
-                      );
-                    })}
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Pagamento</p>
+                    <button onClick={() => { setSplitPayment(!splitPayment); if (!splitPayment) setPayments([{ method: payment, amount: total }]); }}
+                      className="text-[10px] font-bold transition-colors" style={{ color: splitPayment ? '#fb7185' : '#6b7280' }}>
+                      {splitPayment ? '✕ Dividir' : '÷ Dividir conta'}
+                    </button>
                   </div>
+                  {!splitPayment ? (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {PAYMENT_OPTIONS.map((p) => {
+                        const Icon = p.icon;
+                        return (
+                          <button key={p.id} onClick={() => setPayment(p.id)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200"
+                            style={payment === p.id
+                              ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` }
+                              : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <Icon size={13} />{p.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {payments.map((pmt, idx) => {
+                        const opt = PAYMENT_OPTIONS.find(o => o.id === pmt.method);
+                        return (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select value={pmt.method} onChange={(e) => {
+                              const np = [...payments]; np[idx] = { ...np[idx], method: e.target.value }; setPayments(np);
+                            }} className="w-28 px-2 py-2 rounded-xl text-[11px] font-bold outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
+                              {PAYMENT_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                            </select>
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">R$</span>
+                              <input type="number" value={pmt.amount || ''} onChange={(e) => {
+                                const np = [...payments]; np[idx] = { ...np[idx], amount: Number(e.target.value) }; setPayments(np);
+                              }} placeholder="0,00" className="w-full pl-6 pr-2 py-2 rounded-xl text-[11px] font-bold outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                            </div>
+                            {payments.length > 1 && (
+                              <button onClick={() => setPayments(payments.filter((_, i) => i !== idx))} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-500/20">
+                                <X size={12} className="text-gray-500" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center justify-between">
+                        <button onClick={() => {
+                          const remaining = total - payments.reduce((s, p) => s + p.amount, 0);
+                          const methods = ['pix', 'dinheiro', 'debito', 'credito'];
+                          const nextMethod = methods[payments.length % methods.length];
+                          setPayments([...payments, { method: nextMethod, amount: Math.max(0, Math.round(remaining * 100) / 100) }]);
+                        }} className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-colors">+ Adicionar forma</button>
+                        {payments.length > 0 && (
+                          <p className="text-[10px] font-bold" style={{ color: payments.reduce((s, p) => s + p.amount, 0) >= total ? '#22c55e' : '#fb7185' }}>
+                            {BRL(payments.reduce((s, p) => s + p.amount, 0))} / {BRL(total)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Troco */}
-                {payment === 'dinheiro' && (
+                {/* Troco (only for simple cash payment) */}
+                {payment === 'dinheiro' && !splitPayment && (
                   <div className="px-4 pt-3">
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Troco</p>
                     <div className="flex gap-2 items-center">
@@ -560,17 +609,12 @@ export default function PDV() {
                   </div>
                 )}
 
-                {/* Client, Note, Discount */}
+                {/* Client + Note */}
                 <div className="px-4 pt-3 space-y-2">
                   <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Cliente (opcional)"
                     className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                   <input value={orderNote} onChange={(e) => setOrderNote(e.target.value)} placeholder="Observação do pedido"
                     className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">R$</span>
-                    <input type="number" value={discount || ''} onChange={(e) => setDiscount(Number(e.target.value))} placeholder="Desconto"
-                      className="w-full pl-8 pr-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                  </div>
                 </div>
 
                 {/* Totals + Finish */}
@@ -578,7 +622,6 @@ export default function PDV() {
                   <div className="space-y-2 mb-3">
                     <div className="flex justify-between text-xs text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
                     {deliveryFee > 0 && <div className="flex justify-between text-xs text-gray-400"><span>Taxa entrega</span><span>{BRL(deliveryFee)}</span></div>}
-                    {discount > 0 && <div className="flex justify-between text-xs text-green-400"><span>Desconto</span><span>-{BRL(discount)}</span></div>}
                   </div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-lg font-black text-white">Total</span>
