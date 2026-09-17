@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: 'Rincão Lanches — Cardápio & Gestão',
   description: 'Cardápio digital, pedidos, PDV, caixa e gestão do Rincão Lanches.',
   manifest: '/manifest.json',
+  icons: { icon: '/icon.svg' },
 };
 
 export const viewport = { themeColor: '#890000' };

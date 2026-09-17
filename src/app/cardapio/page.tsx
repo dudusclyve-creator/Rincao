@@ -66,7 +66,7 @@ export default function CardapioPage() {
   const selectCat = (id: string) => {
     setCat(id);
     if (tabsRef.current) {
-      const tab = tabsRef.current.querySelector(`[data-tab-id='``]`) as HTMLElement | null;
+      const tab = tabsRef.current.querySelector(`[data-tab-id='${id}']`) as HTMLElement | null;
       tab?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
     }
   };
@@ -184,11 +184,15 @@ export default function CardapioPage() {
                   const price = p.promoPrice ?? p.price;
                   const soldOut = !p.available;
                   return (
-                    <button key={p.id} onClick={() => !soldOut && setModal(p)} disabled={soldOut} className="flex gap-3 p-2.5 rounded-xl text-left transition disabled:opacity-40 disabled:cursor-not-allowed group" style={{ background: C.bgCard, border: `1px solid ${C.border}40` }}>
-                      <div className="w-20 h-20 lg:w-24 lg:h-24 rounded-lg flex items-center justify-center text-3xl shrink-0 overflow-hidden" style={{ background: C.bg }}>
-                        {p.photoUrl ? <img src={p.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" /> : <span style={{ color: C.textMuted }}>{EMOJI[p.category?.name] || '🍽'}</span>}
+                    <button key={p.id} onClick={() => !soldOut && open && setModal(p)} disabled={soldOut || !open} className="flex gap-3 p-2.5 rounded-xl text-left transition disabled:cursor-not-allowed group relative" style={{ background: C.bgCard, border: soldOut ? '2px solid #dc2626' : `1px solid ${C.border}40` }}>
+                      <div className="relative w-20 h-20 lg:w-24 lg:h-24 rounded-lg shrink-0" style={{ background: C.bg }}>
+                        <div className="w-full h-full rounded-lg overflow-hidden" style={{ filter: soldOut ? 'grayscale(0.5) brightness(0.8)' : 'none' }}>
+                          {p.photoUrl ? <img src={p.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" /> : <span className="flex items-center justify-center h-full text-3xl" style={{ color: C.textMuted }}>{EMOJI[p.category?.name] || '🍽'}</span>}
+                        </div>
+                        {p.promoPrice && <span className="absolute top-0 left-0 rounded-br-lg rounded-tl-lg px-1.5 py-0.5 text-[9px] font-bold text-white bg-red-600 z-10">-{Math.round(Math.abs((p.promoPrice - p.price) / p.price) * 100)}%</span>}
                       </div>
-                      <div className="flex-1 min-w-0 flex flex-col justify-between">
+                      {soldOut && <span className="absolute top-2.5 left-2.5 rounded-md px-2 py-0.5 text-[9px] font-bold text-white bg-red-600 shadow-lg z-10">Indisponível</span>}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between" style={{ opacity: soldOut ? 0.5 : 1 }}>
                         <div>
                           <h3 className="font-bold text-xs lg:text-sm uppercase" style={{ color: C.textName }}>{p.name}</h3>
                           <p className="text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{p.description}</p>
@@ -196,18 +200,16 @@ export default function CardapioPage() {
                         <p className="font-extrabold text-sm lg:text-base" style={{ color: p.promoPrice ? '#22c55e' : C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
                       </div>
                       <div className="flex flex-col items-end gap-0.5 flex-wrap shrink-0">
-                        {p.newArrival && (<span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-gradient-to-r from-green-500 to-green-600">✨ Novidade!</span>)}
+                        {p.newArrival && (<span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade!</span>)}
                         {p.bestSeller && (
-                          <span className="badge-popular inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 via-orange-500 to-red-500">
+                          <span className="badge-popular inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>
                             🔥Popular
                           </span>
                         )}
                         {p.category?.name === 'BEBIDAS' && (
-                          <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: '#38bdf8' }}>❄️ Gelado</span>
+                          <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #0369a1, #38bdf8)' }}>❄️ Gelado</span>
                         )}
-                        {soldOut && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-red-600">Indisponível</span>}
-                        {p.promoPrice && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-red-600">-{Math.round(Math.abs((p.promoPrice - p.price) / p.price) * 100)}%</span>}
-                        {p.promoPrice && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white bg-amber-600">Promo</span>}
+                        {p.promoPrice && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
                       </div>
                     </button>
                   );
@@ -220,29 +222,29 @@ export default function CardapioPage() {
 
         {/* CARRINHO LATERAL (desktop) */}
         <aside className="hidden lg:flex w-[300px] shrink-0 flex-col sticky relative" style={{ top: '116px', alignSelf: 'flex-start' }}>
-          <div className="rounded-2xl w-full flex flex-col shadow-lg" style={{ background: '#f5ede4', color: '#3a2010' }}>
+          <div className="rounded-2xl w-full flex flex-col" style={{ background: 'white', border: '1px solid #f0f0f0', color: '#333', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
             {/* Endereço */}
-            <button onClick={() => setAddressOpen(!addressOpen)} className="flex items-center justify-between px-4 py-3 text-left w-full cursor-pointer hover:opacity-80 transition rounded-t-2xl">
+            <button onClick={() => { setAddressOpen(!addressOpen); setDeliveryStep(0); }} className="flex items-center justify-between px-4 py-3 text-left w-full cursor-pointer hover:bg-amber-50/50 transition rounded-t-2xl">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#e0d5c8' }}>
-                  <svg className="w-4 h-4" style={{ color: '#3a2010' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#f5ebe0' }}>
+                  <svg className="w-4 h-4" style={{ color: '#6b3a1f' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 </div>
                 <div>
-                  <p className="text-[12px] font-bold" style={{ color: '#3a2010' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-                  <p className="text-[10px] font-bold" style={{ color: '#9a8a7a' }}>{deliveryType !== 'entrega' ? 'R$ 0,00' : BRL(R.deliveryFee)}</p>
+                  <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
+                  <p className="text-[10px]" style={{ color: '#b8906a' }}>{deliveryType !== 'entrega' ? 'R$ 0,00' : BRL(R.deliveryFee)}</p>
                 </div>
               </div>
-              <svg className="w-4 h-4 shrink-0" style={{ color: '#b0a090', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+              <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
             </button>
 
             {/* Itens ou vazio */}
             <div className="overflow-y-auto px-4 py-3">
               {cart.items.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-2" style={{ background: '#e0d5c8' }}>
-                    <svg className="w-7 h-7" style={{ color: '#b0a090' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-2" style={{ background: '#f5ebe0' }}>
+                    <svg className="w-7 h-7" style={{ color: '#b8906a' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
                   </div>
-                  <p className="text-[12px] font-medium" style={{ color: '#b0a090' }}>Sacola vazia</p>
+                  <p className="text-[12px] font-medium" style={{ color: '#b8906a' }}>Sacola vazia</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -250,29 +252,29 @@ export default function CardapioPage() {
                     const total = i.qty * (i.unitPrice + i.addons.reduce((s: number, a: CartAddon) => s + a.price * (a.qty || 1), 0));
                     const product = data?.products?.find((p: any) => p.id === i.productId);
                     return (
-                      <div key={i.key} className="flex gap-2.5 pb-3" style={{ borderBottom: '1px solid #e0d5c8' }}>
+                      <div key={i.key} className="flex gap-2.5 pb-3" style={{ borderBottom: '1px solid #f0ebe5' }}>
                         {product?.photoUrl && (
                           <img src={product.photoUrl} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start">
-                            <p className="text-[11px] font-bold flex-1 pr-1">{i.qty}x {i.name}</p>
-                            <span className="text-[11px] font-bold shrink-0">{BRL(total)}</span>
+                            <p className="text-[11px] font-bold flex-1 pr-1" style={{ color: '#3a2515' }}>{i.qty}x {i.name}</p>
+                            <span className="text-[11px] font-bold shrink-0" style={{ color: '#3a2515' }}>{BRL(total)}</span>
                           </div>
                           {i.addons.length > 0 && (
                             <div className="mt-0.5">
                               {i.addons.map((a: CartAddon, k: number) => (
-                                <p key={k} className="text-[9px]" style={{ color: '#9a8a7a' }}>+ {a.name}{a.qty && a.qty > 1 ? ` (${a.qty}x)` : ''}</p>
+                                <p key={k} className="text-[9px]" style={{ color: '#b8906a' }}>+ {a.name}{a.qty && a.qty > 1 ? ` (${a.qty}x)` : ''}</p>
                               ))}
                             </div>
                           )}
                           <div className="flex items-center gap-3 mt-1.5">
-                            <div className="flex items-center rounded-lg overflow-hidden" style={{ border: '1px solid #d5cab9' }}>
-                              <button className="w-6 h-6 flex items-center justify-center text-xs font-bold" style={{ background: '#e8dfd6', color: '#3a2010' }} onClick={() => cart.updateQty(i.key, i.qty - 1)}>−</button>
-                              <span className="w-6 h-6 flex items-center justify-center text-[11px] font-bold">{i.qty}</span>
-                              <button className="w-6 h-6 flex items-center justify-center text-xs font-bold" style={{ background: '#e8dfd6', color: '#3a2010' }} onClick={() => cart.updateQty(i.key, i.qty + 1)}>+</button>
+                            <div className="flex items-center rounded-lg overflow-hidden" style={{ background: '#f5ebe0' }}>
+                              <button className="w-6 h-6 flex items-center justify-center text-xs font-bold" style={{ color: '#6b3a1f' }} onClick={() => cart.updateQty(i.key, i.qty - 1)}>−</button>
+                              <span className="w-6 h-6 flex items-center justify-center text-[11px] font-bold" style={{ color: '#3a2515' }}>{i.qty}</span>
+                              <button className="w-6 h-6 flex items-center justify-center text-xs font-bold" style={{ color: '#6b3a1f' }} onClick={() => cart.updateQty(i.key, i.qty + 1)}>+</button>
                             </div>
-                            <button className="text-[10px] underline" style={{ color: '#9a8a7a' }} onClick={() => cart.remove(i.key)}>Remover</button>
+                            <button className="text-[10px]" style={{ color: '#b8906a' }} onClick={() => cart.remove(i.key)}>Remover</button>
                           </div>
                         </div>
                       </div>
@@ -283,44 +285,103 @@ export default function CardapioPage() {
             </div>
 
             {/* Rodapé */}
-            <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid #e0d5c8' }}>
+            <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid #f0ebe5' }}>
               {cart.items.length > 0 && (
                 <>
-                  <p className="text-[11px] font-bold mb-1" style={{ color: '#3a2010' }}>Tem um cupom?</p>
-                  <p className="text-[10px] mb-2" style={{ color: '#9a8a7a' }}>Clique e insira o código</p>
-                  <button onClick={() => setCheckout(true)} className="w-full rounded-xl py-3 font-bold text-white text-[13px]" style={{ background: '#8b5e2a' }}>Finalizar pedido</button>
+                  <button onClick={() => setCheckout(true)} disabled={!open} className="w-full rounded-xl py-3 font-bold text-white text-[13px] transition-all duration-200 hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: '#6b3a1f' }}>Finalizar pedido</button>
+                  {!open && <p className="text-center text-[10px] mt-1.5 font-semibold" style={{ color: '#dc2626' }}>Estabelecimento fechado no momento</p>}
                 </>
               )}
             </div>
           </div>
 
-          {/* Popup de recebimento - fora do rounded div, no nível do aside */}
+          {/* Popup de recebimento */}
           {addressOpen && (
-            <div className="absolute left-0 right-0 z-30 rounded-xl p-4 shadow-xl" style={{ top: '52px', background: '#f5ede4', border: '1px solid #e0d5c8' }}>
-              <p className="text-[9px] font-bold uppercase tracking-wider mb-2.5" style={{ color: '#8b7a6a' }}>Como você quer receber o pedido?</p>
-              <div className="space-y-1.5">
-                {[
-                  { id: 'entrega', icon: '🏪', label: 'Entrega', desc: 'A gente leva até você' },
-                  { id: 'retirada', icon: '🚶', label: 'Retirada', desc: 'Você retira no local' },
-                  { id: 'local', icon: '🏠', label: 'Consumo no local', desc: 'Você consome no local' },
-                ].map((t) => (
-                  <button key={t.id} onClick={() => { setDeliveryType(t.id); if (t.id !== 'entrega') setAddressOpen(false); }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition text-left" style={deliveryType === t.id ? { background: '#f0e6d8', border: '1px solid #d5cab9' } : { background: 'transparent', border: '1px solid transparent' }}>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: '#e0d5c8' }}>{t.icon}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold" style={{ color: '#3a2010' }}>{t.label}</p>
-                      <p className="text-[9px]" style={{ color: '#9a8a7a' }}>{t.desc}</p>
-                    </div>
-                    {deliveryType === t.id && (
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: '#8b5e2a' }}>
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>
+            <div className="absolute left-0 right-0 z-30 rounded-xl p-4 shadow-xl" style={{ top: '52px', background: 'white', border: '1px solid #f0f0f0', maxHeight: '420px', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}>
+              {deliveryStep === 0 && (<>
+                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Como você quer receber?</p>
+                <div className="space-y-1.5">
+                  {[
+                    { id: 'entrega', icon: '🛵', label: 'Entrega', desc: 'A gente leva até você' },
+                    { id: 'retirada', icon: '🚶', label: 'Retirada', desc: 'Você retira no local' },
+                    { id: 'local', icon: '🏠', label: 'Consumo no local', desc: 'Você consome no local' },
+                  ].map((t) => (
+                    <button key={t.id} onClick={() => {
+                      setDeliveryType(t.id);
+                      if (t.id === 'entrega') setDeliveryStep(1);
+                      else {
+                        setAddressText(t.id === 'retirada' ? 'Retirada no local' : 'Consumo no local');
+                        setAddressOpen(false);
+                      }
+                    }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left hover:shadow-sm" style={deliveryType === t.id ? { background: '#6b3a1f', color: '#fff' } : { background: '#f9f9f9', color: '#6b3a1f' }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: deliveryType === t.id ? 'rgba(255,255,255,0.15)' : '#fff' }}>{t.icon}</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold">{t.label}</p>
+                        <p className="text-[9px] opacity-50">{t.desc}</p>
                       </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-              {deliveryType === 'entrega' && (
-                <button onClick={() => { setAddressOpen(false); setCheckout(true); }} className="w-full rounded-xl py-2.5 font-bold text-white text-[12px] mt-3" style={{ background: '#8b5e2a' }}>Continuar</button>
-              )}
+                      <svg className="w-4 h-4 shrink-0 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                  ))}
+                </div>
+              </>)}
+
+              {deliveryStep === 1 && (<>
+                <button onClick={() => setDeliveryStep(0)} className="flex items-center gap-1 mb-2.5 text-[10px] font-semibold text-gray-400 hover:text-gray-900 transition-colors">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                  Voltar
+                </button>
+                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Qual sua cidade?</p>
+                <div className="space-y-1.5">
+                  {Object.keys(DELIVERY_ZONES).map((city) => (
+                    <button key={city} onClick={() => { setDeliveryCity(city); setDeliveryStep(2); }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryCity === city ? '#6b3a1f' : '#f9f9f9', color: deliveryCity === city ? '#fff' : '#6b3a1f' }}>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: deliveryCity === city ? 'rgba(255,255,255,0.15)' : '#fff' }}>📍</div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-bold">{city}</p>
+                        <p className="text-[9px] opacity-50">{DELIVERY_ZONES[city].length} bairros</p>
+                      </div>
+                      <svg className="w-4 h-4 shrink-0 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                  ))}
+                </div>
+              </>)}
+
+              {deliveryStep === 2 && (<>
+                <button onClick={() => setDeliveryStep(1)} className="flex items-center gap-1 mb-2.5 text-[10px] font-semibold text-gray-400 hover:text-gray-900 transition-colors">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                  Voltar
+                </button>
+                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Bairro em {deliveryCity}</p>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {(DELIVERY_ZONES[deliveryCity] || []).map((z) => (
+                    <button key={z.name} onClick={() => { setDeliveryBairro(z.name); setDeliveryStep(3); }} className="w-full flex items-center justify-between p-2.5 rounded-lg transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryBairro === z.name ? '#6b3a1f' : '#f9f9f9', color: deliveryBairro === z.name ? '#fff' : '#6b3a1f' }}>
+                      <span className="text-[11px] font-bold">{z.name}</span>
+                      <span className="text-[10px] font-bold" style={{ opacity: deliveryBairro === z.name ? 0.7 : 0.4 }}>+{BRL(z.fee)}</span>
+                    </button>
+                  ))}
+                </div>
+              </>)}
+
+              {deliveryStep === 3 && (<>
+                <button onClick={() => setDeliveryStep(2)} className="flex items-center gap-1 mb-2.5 text-[10px] font-semibold text-gray-400 hover:text-gray-900 transition-colors">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                  Voltar
+                </button>
+                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">{deliveryBairro}, {deliveryCity}</p>
+                <div className="space-y-2">
+                  <input className="w-full rounded-xl px-3 py-2.5 text-[11px] outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Rua *" value={deliveryStreet} onChange={(e) => setDeliveryStreet(e.target.value)} />
+                  <div className="flex gap-2">
+                    <input className="w-20 shrink-0 rounded-xl px-3 py-2.5 text-[11px] outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Número *" value={deliveryNum} onChange={(e) => setDeliveryNum(e.target.value)} />
+                    <input className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-[11px] outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Complemento" value={deliveryComp} onChange={(e) => setDeliveryComp(e.target.value)} />
+                  </div>
+                </div>
+                <button onClick={() => {
+                  if (!deliveryStreet || !deliveryNum) { alert('Informe rua e número'); return; }
+                  const zona = (DELIVERY_ZONES[deliveryCity] || []).find((z) => z.name === deliveryBairro);
+                  const fullAddr = `${deliveryStreet}, ${deliveryNum}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`;
+                   setAddressText(fullAddr);
+                   setAddressOpen(false);
+                }} className="w-full rounded-xl py-2.5 font-bold text-white text-[12px] mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#6b3a1f' }}>Salvar endereço</button>
+              </>)}
             </div>
           )}
         </aside>
@@ -329,21 +390,21 @@ export default function CardapioPage() {
 
       {/* ===== MOBILE CART BAR ===== */}
       {cart.items.length > 0 && !cartOpen && (
-        <button onClick={() => setCartOpen(true)} className="lg:hidden fixed bottom-4 inset-x-4 rounded-2xl py-3.5 font-bold text-white shadow-xl z-20 flex items-center justify-between px-5" style={{ background: '#8b2e0a' }}>
+        <button onClick={() => open && setCartOpen(true)} disabled={!open} className="lg:hidden fixed bottom-4 inset-x-4 rounded-2xl py-3.5 font-bold text-white shadow-xl z-20 flex items-center justify-between px-5 transition-all duration-200 hover:shadow-2xl active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: '#6b3a1f' }}>
           <span className="flex items-center gap-2"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px]">{totalItems}</span>Ver sacola</span>
           <span>{BRL(cart.subtotal)}</span>
         </button>
       )}
 
-      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} />}
+      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={setAddressText} deliveryFee={R.deliveryFee} />}
       {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} />}
-      {modal && <ProductModal product={modal} onClose={() => setModal(null)} onAdded={() => setModal(null)} allProducts={data?.products || []} />}
+      {modal && <ProductModal product={modal} onClose={() => setModal(null)} onAdded={() => setModal(null)} allProducts={data?.products || []} isOpen={open} />}
     </div>
   );
 }
 
 /* ======================== PRODUCT MODAL ======================== */
-function ProductModal({ product, onClose, onAdded, allProducts }: any) {
+function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
   const drinksRef = useRef<HTMLDivElement>(null);
   const drinks = (allProducts || []).filter((p: any) => p.category?.name === 'BEBIDAS' && p.id !== product.id && p.available).slice(0, 8);
   const cart = useCart();
@@ -374,28 +435,30 @@ function ProductModal({ product, onClose, onAdded, allProducts }: any) {
   const total = qty * (price + Object.values(sel).flat().reduce((s, a) => s + (a.price || 0) * (a.qty || 1), 0));
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-xl rounded-2xl max-h-[90vh] overflow-y-auto shadow-2xl" style={{ background: '#e8d5c0', color: C.bgChip }} onClick={(e) => e.stopPropagation()}>
-        <div className="relative h-48 overflow-hidden rounded-t-2xl" style={{ background: C.bgCard }}>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-xl rounded-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'white', color: '#333', boxShadow: '0 25px 60px rgba(0,0,0,0.15)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="relative h-56 overflow-hidden rounded-t-2xl" style={{ background: '#f5f5f5' }}>
           {product.photoUrl
             ? <img src={product.photoUrl} className="w-full h-full object-cover" alt="" />
-            : <div className="w-full h-full flex items-center justify-center text-6xl" style={{ color: C.textMuted }}>{EMOJI[product.category?.name] || '🍽'}</div>}
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-sm text-white" style={{ background: 'rgba(0,0,0,0.5)' }}>✕</button>
+            : <div className="w-full h-full flex items-center justify-center text-6xl text-gray-300">{EMOJI[product.category?.name] || '🍽'}</div>}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <button onClick={onClose} className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-sm text-white/70 hover:text-white hover:bg-black/20 transition-all duration-200" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}>✕</button>
+          <div className="absolute bottom-4 left-5 right-5">
+            <h2 className="text-lg font-bold text-white uppercase tracking-wide">{product.name}</h2>
+            <p className="text-xs mt-0.5 text-white/60 leading-relaxed">{product.description}</p>
+            <p className="font-bold text-xl mt-1.5 text-white">{BRL(price)} {product.promoPrice && <s className="font-normal text-xs text-white/40">{BRL(product.price)}</s>}</p>
+          </div>
         </div>
         <div className="p-5">
-          <h2 className="text-lg font-black uppercase" style={{ color: C.bgChip }}>{product.name}</h2>
-          <p className="text-xs mt-1 leading-relaxed" style={{ color: C.textMuted }}>{product.description}</p>
-          <p className="font-extrabold text-xl mt-2" style={{ color: '#8b2e0a' }}>{BRL(price)} {product.promoPrice && <s className="font-normal text-xs" style={{ color: C.textMuted }}>{BRL(product.price)}</s>}</p>
-
           {groups.map((g: any) => (
-            <div key={g.id} className="mt-4 rounded-xl p-3" style={{ background: 'white', border: `1px solid ${C.border}20` }}>
-              <p className="font-bold text-xs" style={{ color: C.bgChip }}>{g.name} {g.required && <span className="text-red-600">*obrigatório</span>} <span style={{ color: C.textMuted }}>({(sel[g.id] || []).reduce((s: number, x: any) => s + (x.qty || 1), 0)}/{g.maxSel})</span></p>
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <div key={g.id} className="mt-4 rounded-xl p-3.5 bg-gray-50 border border-gray-100">
+              <p className="font-semibold text-xs text-gray-900">{g.name} {g.required && <span className="text-red-500">*obrigatório</span>} <span className="text-gray-400">({(sel[g.id] || []).reduce((s: number, x: any) => s + (x.qty || 1), 0)}/{g.maxSel})</span></p>
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
                 {g.addons?.filter((a: any) => a.active).map((a: any) => {
                   const on = (sel[g.id] || []).some((x) => x.name === a.name);
                   return (
-                    <button key={a.id} onClick={() => toggle(g, a)} className="flex justify-between items-center border-2 rounded-lg px-2.5 py-2 text-[11px] transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:brightness-110 cursor-pointer" style={on ? { borderColor: '#8b2e0a', background: '#8b2e0a0d' } : { borderColor: C.border + '40' }}>
-                      <span className="font-medium" style={{ color: C.bgChip }}>{a.name}</span><span className="font-bold" style={{ color: C.textPrice }}>{a.price ? '+' + BRL(a.price) : 'grátis'}</span>
+                    <button key={a.id} onClick={() => toggle(g, a)} className="flex justify-between items-center border-2 rounded-xl px-3 py-2.5 text-[11px] transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97] cursor-pointer" style={on ? { borderColor: '#6b3a1f', background: 'linear-gradient(135deg, #6b3a1f, #8b5e3a)', color: '#fff', boxShadow: '0 4px 14px rgba(107,58,31,0.25)' } : { borderColor: '#e8e0d8', background: '#fdfcfa', color: '#5a4030' }}>
+                      <span className="font-medium">{a.name}</span><span className="font-bold text-[10px]" style={{ color: on ? 'rgba(255,255,255,0.8)' : '#b8906a' }}>{a.price ? '+' + BRL(a.price) : 'grátis'}</span>
                     </button>
                   );
                 })}
@@ -403,114 +466,185 @@ function ProductModal({ product, onClose, onAdded, allProducts }: any) {
             </div>
           ))}
 
-          <input className="w-full rounded-xl px-3 py-2.5 text-xs mt-3 outline-none" style={{ border: `1px solid ${C.border}40`, background: 'white', color: C.bgChip }} placeholder="Observações" value={note} onChange={(e) => setNote(e.target.value)} />
+          <input className="w-full rounded-xl px-4 py-3 text-xs mt-4 outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Observações" value={note} onChange={(e) => setNote(e.target.value)} />
 
-          <div className="flex items-center gap-3 mt-4">
-            <div className="flex items-center gap-2 rounded-xl px-2" style={{ background: 'white', border: `1px solid ${C.border}40` }}>
-              <button className="w-9 h-9 rounded-lg font-bold" style={{ color: C.bgChip }} onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
-              <span className="font-bold text-base w-6 text-center" style={{ color: C.bgChip }}>{qty}</span>
-              <button className="w-9 h-9 rounded-lg font-bold" style={{ color: C.bgChip }} onClick={() => setQty(qty + 1)}>+</button>
+          <div className="flex items-center gap-3 mt-5">
+            <div className="flex items-center gap-1 rounded-xl overflow-hidden bg-gray-100">
+              <button className="w-10 h-10 flex items-center justify-center text-lg font-bold text-gray-400 hover:text-gray-900 transition-all duration-200" onClick={() => setQty(Math.max(1, qty - 1))}>−</button>
+              <span className="font-bold text-base w-8 text-center text-gray-900">{qty}</span>
+              <button className="w-10 h-10 flex items-center justify-center text-lg font-bold text-gray-400 hover:text-gray-900 transition-all duration-200" onClick={() => setQty(qty + 1)}>+</button>
             </div>
-            <button disabled={!valid || !product.available} onClick={() => {
+            <button disabled={!valid || !product.available || !isOpen} onClick={() => {
               if (!valid) { alert('Confira as escolhas obrigatórias'); return; }
               cart.add({ key: Math.random().toString(36), productId: product.id, name: product.name, unitPrice: price, qty, note, addons: Object.values(sel).flat() });
               onAdded();
-            }} className="flex-1 rounded-xl py-3 text-xs font-bold text-white disabled:opacity-40" style={{ background: 'linear-gradient(135deg, #8b2e0a, #d4a574)' }}>Adicionar • {BRL(total)}</button>
+            }} className="flex-1 rounded-xl py-3 text-xs font-bold text-white disabled:opacity-30 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#6b3a1f' }}>Adicionar • {BRL(total)}</button>
           </div>
         </div>
-      </div>
 
-          {drinks.length > 0 && (<>
-            <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#8b7a6a' }}>Que tal adicionar?</p>
+        {drinks.length > 0 && (<>
+          <div className="px-5 pb-5">
+            <div className="pt-4 border-t border-gray-100">
+              <p className="text-[10px] font-semibold uppercase tracking-widest mb-2.5" style={{ color: '#b8906a' }}>Que tal adicionar?</p>
               <div className="relative">
-                <button onClick={() => drinksRef.current?.scrollBy({ left: -150, behavior: 'smooth' })} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md" style={{ background: '#e0d5c8', color: '#3a2010' }}>&lsaquo;</button>
-                <div ref={drinksRef} className="flex gap-2 overflow-x-auto scrollbar-hide px-7 pb-1">
+                <button onClick={() => drinksRef.current?.scrollBy({ left: -200, behavior: 'smooth' })} className="absolute left-0 top-0 bottom-0 z-10 w-10 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-200 hover:scale-110 active:scale-95 backdrop-blur shadow-md" style={{ background: 'rgba(107,58,31,0.1)', color: '#6b3a1f' }}>&lsaquo;</button>
+                <div ref={drinksRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide px-11 py-1">
                   {drinks.map((d: any) => {
                     const dp = d.promoPrice ?? d.price;
                     return (
-                      <button key={d.id} onClick={() => { cart.add({ key: Math.random().toString(36), productId: d.id, name: d.name, unitPrice: dp, qty: 1, note: "", addons: [] }); }} className="flex-shrink-0 w-[130px] relative rounded-2xl overflow-hidden transition-all duration-200 hover:scale-105 hover:shadow-lg cursor-pointer" style={{ background: "white", border: "1px solid #d5cab9" }}>
-                        <div className="w-full aspect-square overflow-hidden" style={{ background: "#e0d5c8" }}>{d.photoUrl ? <img src={d.photoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-3xl flex items-center justify-center h-full">{"\uD83E\uDD64"}</span>}<div className="absolute inset-x-0 bottom-0 px-2 py-2" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)" }}><p className="text-[9px] font-bold truncate" style={{ color: "#fff" }}>{d.name}</p><p className="text-[9px] font-black" style={{ color: "#8b5e2a" }}>{BRL(dp)}</p></div></div>
+                      <button key={d.id} onClick={() => { cart.add({ key: Math.random().toString(36), productId: d.id, name: d.name, unitPrice: dp, qty: 1, note: '', addons: [] }); }} className="flex-shrink-0 w-[130px] rounded-xl p-2.5 text-center transition-all duration-200 hover:shadow-md active:scale-95 border" style={{ background: '#fdfcfa', borderColor: '#e8e0d8' }}>
+                        <div className="w-full h-20 rounded-lg overflow-hidden mb-1.5" style={{ background: '#f0ebe5' }}>{d.photoUrl ? <img src={d.photoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-3xl">🥤</span>}</div>
+                        <p className="text-[9px] font-bold truncate" style={{ color: '#5a4030' }}>{d.name}</p>
+                        <p className="text-[10px] font-bold" style={{ color: '#b8906a' }}>{BRL(dp)}</p>
                       </button>
                     );
                   })}
                 </div>
-                <button onClick={() => drinksRef.current?.scrollBy({ left: 150, behavior: 'smooth' })} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md" style={{ background: '#e0d5c8', color: '#3a2010' }}>&rsaquo;</button>
+                <button onClick={() => drinksRef.current?.scrollBy({ left: 200, behavior: 'smooth' })} className="absolute right-0 top-0 bottom-0 z-10 w-10 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-200 hover:scale-110 active:scale-95 backdrop-blur shadow-md" style={{ background: 'rgba(107,58,31,0.1)', color: '#6b3a1f' }}>&rsaquo;</button>
               </div>
             </div>
-          </>)}
+          </div>
+        </>)}
+      </div>
     </div>
   );
 }
 
 /* ======================== CART DRAWER (MOBILE) ======================== */
-function CartDrawer({ onClose, onCheckout, products }: any) {
+function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryType, addressText, setAddressText, deliveryFee }: any) {
   const cart = useCart();
-  const [coupon, setCoupon] = useState('');
-  const [discount, setDiscount] = useState(0);
+  const [step, setStep] = useState(0);
+  const [city, setCity] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [street, setStreet] = useState('');
+  const [num, setNum] = useState('');
+  const [comp, setComp] = useState('');
+
+  const fee = deliveryType === 'entrega' ? deliveryFee : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center lg:hidden" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-t-2xl p-4 max-h-[85vh] overflow-y-auto" style={{ background: '#e8d5c0', color: C.bgChip }} onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-extrabold text-base" style={{ color: C.bgChip }}>Seu carrinho</h2>
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center lg:hidden backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-t-2xl p-4 max-h-[85vh] overflow-y-auto" style={{ background: 'white', color: '#333', boxShadow: '0 -8px 32px rgba(0,0,0,0.1)' }} onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-bold text-base" style={{ color: '#3a2515' }}>Seu carrinho</h2>
+
+        {/* Botão de endereço */}
+        <button onClick={() => setStep(step === 0 ? 1 : 0)} className="w-full flex items-center gap-2.5 mt-3 p-2.5 rounded-xl transition-all" style={{ background: addressText ? '#f5ebe0' : '#f9f9f9', border: `1px solid ${addressText ? '#e0d0c0' : '#eee'}` }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: addressText ? '#6b3a1f' : '#e0d5c8' }}>
+            <svg className="w-4 h-4" style={{ color: addressText ? '#fff' : '#6b3a1f' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <div className="text-left flex-1 min-w-0">
+            <p className="text-[11px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
+            <p className="text-[9px]" style={{ color: '#b8906a' }}>{deliveryType !== 'entrega' ? 'R$ 0,00' : BRL(deliveryFee)}</p>
+          </div>
+          <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: step !== 0 ? 'rotate(180deg)' : '', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+        </button>
+
+        {/* Fluxo de endereço mobile */}
+        {step === 1 && (
+          <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
+            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Como receber?</p>
+            <div className="space-y-1.5">
+              {[{ id: 'entrega', icon: '🛵', label: 'Entrega' }, { id: 'retirada', icon: '🚶', label: 'Retirada' }, { id: 'local', icon: '🏠', label: 'No local' }].map((t) => (
+                <button key={t.id} onClick={() => { setDeliveryType(t.id); if (t.id === 'entrega') setStep(2); else { setAddressText(t.id === 'retirada' ? 'Retirada no local' : 'Consumo no local'); setStep(0); } }} className="w-full flex items-center gap-2.5 p-2 rounded-lg text-left transition-all" style={deliveryType === t.id ? { background: '#6b3a1f', color: '#fff' } : { background: '#f5ebe0', color: '#5a4030' }}>
+                  <span className="text-sm">{t.icon}</span>
+                  <span className="text-[11px] font-bold">{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
+            <button onClick={() => setStep(1)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
+            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Cidade</p>
+            <div className="space-y-1.5">
+              {Object.keys(DELIVERY_ZONES).map((c) => (
+                <button key={c} onClick={() => { setCity(c); setStep(3); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: city === c ? '#6b3a1f' : '#f5ebe0', color: city === c ? '#fff' : '#5a4030' }}>
+                  <span className="text-[11px] font-bold">{c}</span>
+                  <span className="text-[9px]">{DELIVERY_ZONES[c].length} bairros</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
+            <button onClick={() => setStep(2)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
+            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Bairro em {city}</p>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {(DELIVERY_ZONES[city] || []).map((z) => (
+                <button key={z.name} onClick={() => { setBairro(z.name); setStep(4); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: bairro === z.name ? '#6b3a1f' : '#f5ebe0', color: bairro === z.name ? '#fff' : '#5a4030' }}>
+                  <span className="text-[11px] font-bold">{z.name}</span>
+                  <span className="text-[10px] font-bold">+{BRL(z.fee)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
+            <button onClick={() => setStep(3)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
+            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>{bairro}, {city}</p>
+            <div className="space-y-2">
+              <input className="w-full rounded-lg px-3 py-2 text-[11px] outline-none" style={{ border: '1px solid #e8e0d8', background: 'white', color: '#333' }} placeholder="Rua *" value={street} onChange={(e) => setStreet(e.target.value)} />
+              <div className="flex gap-2">
+                <input className="w-20 shrink-0 rounded-lg px-3 py-2 text-[11px] outline-none" style={{ border: '1px solid #e8e0d8', background: 'white', color: '#333' }} placeholder="Nº *" value={num} onChange={(e) => setNum(e.target.value)} />
+                <input className="flex-1 min-w-0 rounded-lg px-3 py-2 text-[11px] outline-none" style={{ border: '1px solid #e8e0d8', background: 'white', color: '#333' }} placeholder="Compl." value={comp} onChange={(e) => setComp(e.target.value)} />
+              </div>
+            </div>
+            <button onClick={() => {
+              if (!street || !num) { alert('Informe rua e número'); return; }
+              setAddressText(`${street}, ${num}${comp ? ' - ' + comp : ''} - ${bairro}, ${city}`);
+              setStep(0);
+            }} className="w-full rounded-lg py-2 font-bold text-white text-[11px] mt-2" style={{ background: '#6b3a1f' }}>Salvar</button>
+          </div>
+        )}
+
         {cart.items.map((i) => (
-          <div key={i.key} className="py-2 text-xs" style={{ borderBottom: `1px solid ${C.border}20` }}>
-            <div className="flex justify-between"><b style={{ color: C.bgChip }}>{i.qty}x {i.name}</b><span style={{ color: C.bgChip }}>{BRL(i.qty * (i.unitPrice + i.addons.reduce((s, a) => s + a.price * (a.qty || 1), 0)))}</span></div>
-            {i.addons.map((a, k) => <div key={k} style={{ color: C.textMuted }}>• {a.name}</div>)}
-            <div className="flex gap-2 mt-0.5">
-              <button className="text-[10px] font-bold underline" style={{ color: C.textMuted }} onClick={() => cart.updateQty(i.key, i.qty + 1)}>+1</button>
-              <button className="text-[10px] font-bold underline" style={{ color: C.textMuted }} onClick={() => cart.updateQty(i.key, i.qty - 1)}>-1</button>
-              <button className="text-[10px] font-bold underline text-red-600" onClick={() => cart.remove(i.key)}>remover</button>
+          <div key={i.key} className="py-2.5 text-xs" style={{ borderBottom: '1px solid #f0ebe5' }}>
+            <div className="flex justify-between"><b style={{ color: '#3a2515' }}>{i.qty}x {i.name}</b><span style={{ color: '#3a2515' }}>{BRL(i.qty * (i.unitPrice + i.addons.reduce((s, a) => s + a.price * (a.qty || 1), 0)))}</span></div>
+            {i.addons.map((a, k) => <div key={k} style={{ color: '#b8906a' }}>• {a.name}</div>)}
+            <div className="flex gap-3 mt-1">
+              <button className="text-[10px] font-semibold" style={{ color: '#b8906a' }} onClick={() => cart.updateQty(i.key, i.qty + 1)}>+1</button>
+              <button className="text-[10px] font-semibold" style={{ color: '#b8906a' }} onClick={() => cart.updateQty(i.key, i.qty - 1)}>-1</button>
+              <button className="text-[10px] font-semibold text-red-500" onClick={() => cart.remove(i.key)}>remover</button>
             </div>
           </div>
         ))}
-        <div className="flex gap-2 mt-2">
-          <input className="flex-1 rounded-lg px-2.5 py-2 text-[11px] outline-none" style={{ border: `1px solid ${C.border}30`, background: 'white', color: C.bgChip }} placeholder="Cupom" value={coupon} onChange={(e) => setCoupon(e.target.value)} />
-          <button className="rounded-lg px-3 text-[11px] font-bold" style={{ background: C.bgChip, color: C.textLight }} onClick={async () => {
-            const r = await fetch('/api/coupons/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: coupon, subtotal: cart.subtotal }) }).then((x) => x.json());
-            if (!r.ok) alert(r.error); else { setDiscount(r.discount); alert('Cupom aplicado!'); }
-          }}>Aplicar</button>
+        <input className="w-full rounded-xl px-3 py-2.5 text-[11px] mt-2 outline-none" style={{ border: '1px solid #e8e0d8', background: '#fdfcfa', color: '#333' }} placeholder="Observação" value={cart.note} onChange={(e) => cart.setNote(e.target.value)} />
+        <div className="mt-3 text-xs space-y-1">
+          <div className="flex justify-between" style={{ color: '#b8906a' }}><span>Subtotal</span><span style={{ color: '#5a4030' }}>{BRL(cart.subtotal)}</span></div>
+          {fee > 0 && <div className="flex justify-between" style={{ color: '#b8906a' }}><span>Entrega</span><span style={{ color: '#5a4030' }}>{BRL(fee)}</span></div>}
+          <div className="flex justify-between text-base font-bold pt-1" style={{ color: '#3a2515', borderTop: '1px solid #f0ebe5' }}><span>Total</span><span>{BRL(Math.max(0, cart.subtotal + fee))}</span></div>
         </div>
-        <input className="w-full rounded-lg px-2.5 py-2 text-[11px] mt-2 outline-none" style={{ border: `1px solid ${C.border}30`, background: 'white', color: C.bgChip }} placeholder="Observação" value={cart.note} onChange={(e) => cart.setNote(e.target.value)} />
-        <div className="mt-2 text-xs space-y-0.5" style={{ color: C.bgChip }}>
-          <div className="flex justify-between"><span style={{ color: C.textMuted }}>Subtotal</span><b>{BRL(cart.subtotal)}</b></div>
-          <div className="flex justify-between"><span style={{ color: C.textMuted }}>Desconto</span><b>-{BRL(discount)}</b></div>
-          <div className="flex justify-between text-base font-black"><span>Total</span><span style={{ color: '#8b2e0a' }}>{BRL(Math.max(0, cart.subtotal - discount))}</span></div>
-        </div>
-        <button onClick={() => onCheckout()} className="w-full rounded-xl py-3 font-bold text-white text-xs mt-2" style={{ background: '#8b2e0a' }}>Finalizar • {BRL(Math.max(0, cart.subtotal - discount))}</button>
-        <button onClick={onClose} className="w-full text-center text-[10px] mt-1" style={{ color: C.textMuted }}>Continuar comprando</button>
-        <CheckoutBridge discount={discount} coupon={coupon} />
+        <button onClick={() => onCheckout()} className="w-full rounded-xl py-3 font-bold text-white text-xs mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#6b3a1f' }}>Finalizar • {BRL(Math.max(0, cart.subtotal + fee))}</button>
+        <button onClick={onClose} className="w-full text-center text-[10px] mt-2" style={{ color: '#b8906a' }}>Continuar comprando</button>
       </div>
     </div>
   );
 }
 
-function CheckoutBridge({ discount, coupon }: any) {
-  useEffect(() => { (window as any).__discount = discount; (window as any).__coupon = coupon; }, [discount, coupon]);
-  return null;
-}
-
 /* ======================== CHECKOUT ======================== */
-function CheckoutModal({ restaurant, onClose }: any) {
+function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, addressText }: any) {
   const cart = useCart();
-  const [f, setF] = useState({ name: '', phone: '', street: '', number: '', complement: '', district: '', reference: '', type: 'entrega', payment: 'pix', changeFor: '' });
+  const [f, setF] = useState({ name: '', phone: '', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
-  const discount = (typeof window !== 'undefined' && (window as any).__discount) || 0;
-  const coupon = (typeof window !== 'undefined' && (window as any).__coupon) || '';
-  const fee = f.type === 'entrega' ? restaurant.deliveryFee : 0;
-  const total = Math.max(0, cart.subtotal + fee - discount);
+  const fee = deliveryType === 'entrega' ? deliveryFee : 0;
+  const total = Math.max(0, cart.subtotal + fee);
 
   const finish = async () => {
     if (!f.name || !f.phone) { alert('Informe nome e telefone'); return; }
-    if (f.type === 'entrega' && (!f.street || !f.number)) { alert('Informe endereço de entrega'); return; }
-    const addressText = f.type === 'entrega' ? `${f.street}, ${f.number} ${f.complement} - ${f.district} (Ref: ${f.reference})` : f.type === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL';
     const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      customerName: f.name, customerPhone: f.phone, street: f.street, number: f.number, complement: f.complement, district: f.district, reference: f.reference,
-      addressText, type: f.type, payment: f.payment, changeFor: f.changeFor || null,
-      subtotal: cart.subtotal, deliveryFee: fee, discount, couponCode: coupon,
+      customerName: f.name, customerPhone: f.phone, street: '', number: '', complement: '', district: '', reference: '',
+      addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
+      type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
+      subtotal: cart.subtotal, deliveryFee: fee, discount: 0, couponCode: '',
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
     })}).then((r) => r.json());
-    setDone({ ...order, addressText });
+    setDone({ ...order, addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL') });
   };
 
   if (done) {
@@ -522,80 +656,86 @@ function CheckoutModal({ restaurant, onClose }: any) {
     });
     const wa = `https://wa.me/${restaurant.whatsapp}?text=${encodeURIComponent(msg)}`;
     return (
-      <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-        <div className="rounded-2xl p-6 max-w-md w-full text-center shadow-2xl" style={{ background: '#e8d5c0', color: C.bgChip }}>
-          <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mx-auto text-white" style={{ background: WA_GREEN }}>✅</div>
-          <h2 className="text-xl font-black mt-3">Pedido #{done.number}!</h2>
-          <p className="text-xs mt-1" style={{ color: C.textMuted }}>Total {BRL(done.total)} • {done.payment.toUpperCase()}</p>
-          <pre className="text-left text-[10px] rounded-xl p-3 mt-3 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono" style={{ background: 'white', border: `1px solid ${C.border}20`, color: C.bgChip }}>{msg}</pre>
-          <a href={wa} target="_blank" className="block rounded-xl py-3 font-bold text-white text-xs mt-3" style={{ background: WA_GREEN }}>ENVIAR NO WHATSAPP</a>
-          <ReviewBox orderId={done.id} />
-          <button onClick={() => { cart.clear(); onClose(); }} className="w-full text-[11px] mt-2" style={{ color: C.textMuted }}>Voltar ao cardápio</button>
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div className="rounded-2xl p-6 max-w-md w-full text-center" style={{ background: 'white', color: '#333', boxShadow: '0 25px 60px rgba(0,0,0,0.1)' }}>
+          <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mx-auto bg-green-50">✅</div>
+          <h2 className="text-xl font-bold text-gray-900 mt-3">Pedido #{done.number}!</h2>
+          <p className="text-xs mt-1 text-gray-400">Total {BRL(done.total)} • {done.payment.toUpperCase()}</p>
+          <pre className="text-left text-[10px] rounded-xl p-3 mt-3 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono bg-gray-50 border border-gray-100 text-gray-700">{msg}</pre>
+          <a href={wa} target="_blank" className="block rounded-xl py-3 font-bold text-white text-xs mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: WA_GREEN }}>ENVIAR NO WHATSAPP</a>
+          <button onClick={() => { cart.clear(); onClose(); }} className="w-full text-[11px] mt-2 text-gray-400 hover:text-gray-600 transition-colors">Voltar ao cardápio</button>
         </div>
       </div>
     );
   }
 
-  const inp = (k: keyof typeof f, ph: string, extra = '') => (
-    <input className={`rounded-lg px-2.5 py-2 text-xs outline-none ${extra}`} style={{ border: `1px solid ${C.border}40`, background: 'white', color: C.bgChip }} placeholder={ph} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-  );
+  const change = f.payment === 'dinheiro' && f.changeFor ? Math.max(0, parseFloat(f.changeFor.replace(',', '.')) - total) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl p-5 max-h-[90vh] overflow-y-auto shadow-2xl" style={{ background: '#e8d5c0', color: C.bgChip }} onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-black text-lg">Finalizar pedido</h2>
-        <div className="grid grid-cols-2 gap-2 mt-3">
-          {inp('name', 'Nome *')}
-          {inp('phone', 'Telefone *')}
-          <div className="col-span-2 flex gap-1.5">
-            {['entrega', 'retirada', 'local'].map((t) => (
-              <button key={t} onClick={() => setF({ ...f, type: t })} className="flex-1 rounded-lg px-2 py-2 text-[11px] font-bold capitalize border-2 transition" style={f.type === t ? { borderColor: '#8b2e0a', background: '#8b2e0a', color: '#fff' } : { borderColor: C.border + '40' }}>{t === 'local' ? 'no local' : t}</button>
-            ))}
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl max-h-[90vh] overflow-y-auto" style={{ background: 'white', color: '#333', boxShadow: '0 25px 60px rgba(0,0,0,0.12)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Finalizar pedido</h2>
+              <p className="text-[11px] mt-0.5 text-gray-400">{deliveryType === 'entrega' ? '🛵 Entrega' : deliveryType === 'retirada' ? '🚶 Retirada' : '🏠 No local'}</p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200">✕</button>
           </div>
-          {f.type === 'entrega' && (<>
-            {inp('street', 'Endereço *', 'col-span-2')}
-            {inp('number', 'Número *')}
-            {inp('complement', 'Compl.')}
-            {inp('district', 'Bairro', 'col-span-2')}
-            {inp('reference', 'Ref.', 'col-span-2')}
-          </>)}
-          <div className="col-span-2">
-            <p className="text-[10px] font-bold uppercase" style={{ color: C.textMuted }}>Pagamento</p>
-            <div className="flex gap-1.5 flex-wrap mt-1">
-              {['pix', 'dinheiro', 'debito', 'credito'].map((p) => (
-                <button key={p} onClick={() => setF({ ...f, payment: p })} className="rounded-lg px-3 py-2 text-[11px] font-bold capitalize border-2 transition" style={f.payment === p ? { borderColor: '#8b2e0a', background: '#8b2e0a', color: '#fff' } : { borderColor: C.border + '40' }}>{p === 'debito' ? 'débito' : p === 'credito' ? 'crédito' : p}</button>
+
+          <div className="space-y-2.5">
+            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Seu nome *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+          </div>
+
+          <div className="mt-5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Pagamento</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[{ id: 'pix', icon: '📱', label: 'Pix' }, { id: 'dinheiro', icon: '💵', label: 'Dinheiro' }, { id: 'debito', icon: '💳', label: 'Débito' }, { id: 'credito', icon: '💳', label: 'Crédito' }].map((p) => (
+                <button key={p.id} onClick={() => setF({ ...f, payment: p.id })} className="flex flex-col items-center gap-1.5 rounded-xl py-3 text-[10px] font-semibold transition-all duration-200 border" style={f.payment === p.id ? { borderColor: '#6b3a1f', background: '#6b3a1f', color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } : { borderColor: '#f0f0f0', background: '#f9f9f9', color: '#888' }}>
+                  <span className="text-base">{p.icon}</span>
+                  <span>{p.label}</span>
+                </button>
               ))}
             </div>
-            {f.payment === 'dinheiro' && <div className="mt-1.5"><input className="rounded-lg px-2.5 py-2 text-xs w-full outline-none" style={{ border: `1px solid ${C.border}40`, background: 'white', color: C.bgChip }} placeholder="Troco para quanto?" value={f.changeFor} onChange={(e) => setF({ ...f, changeFor: e.target.value })} /></div>}
-            {f.payment === 'pix' && <p className="text-[10px] mt-1.5 rounded-lg p-2" style={{ background: 'white', border: `1px solid ${C.border}20` }}>Pix: <b>{restaurant.pixKey}</b></p>}
           </div>
+
+          {f.payment === 'dinheiro' && (
+            <div className="mt-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+              <input type="number" className="w-full rounded-lg px-3 py-2.5 text-sm outline-none bg-white border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Troco para quanto?" value={f.changeFor} onChange={(e) => setF({ ...f, changeFor: e.target.value })} />
+              {f.changeFor && parseFloat(f.changeFor.replace(',', '.')) > 0 && (
+                <div className="flex items-center gap-2 mt-2.5 p-2.5 rounded-lg" style={{ background: change >= 0 ? '#f0fdf4' : '#fef2f2', border: `1px solid ${change >= 0 ? '#dcfce7' : '#fecaca'}` }}>
+                  <span className="text-sm">{change >= 0 ? '✅' : '❌'}</span>
+                  <p className="text-xs font-semibold" style={{ color: change >= 0 ? '#16a34a' : '#dc2626' }}>
+                    {change >= 0 ? `Troco: ${BRL(change)}` : `Faltam ${BRL(Math.abs(change))}`}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {f.payment === 'pix' && (
+            <div className="mt-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Chave Pix</p>
+              <p className="text-sm font-bold text-gray-900 mt-1">{restaurant.pixKey}</p>
+            </div>
+          )}
+
+          <div className="mt-5 p-4 rounded-xl bg-gray-50 border border-gray-100">
+            <div className="flex justify-between text-xs mb-1.5 text-gray-400"><span>Subtotal</span><span className="text-gray-700">{BRL(cart.subtotal)}</span></div>
+            {fee > 0 && <div className="flex justify-between text-xs mb-1.5 text-gray-400"><span>Entrega</span><span className="text-gray-700">{BRL(fee)}</span></div>}
+            <div className="flex justify-between items-center text-base font-bold text-gray-900 mt-2.5 pt-2.5 border-t border-gray-200">
+              <span>Total</span>
+              <span className="text-xl">{BRL(total)}</span>
+            </div>
+          </div>
+
+          <button onClick={finish} className="w-full rounded-xl py-3.5 font-bold text-white text-sm mt-5 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#6b3a1f' }}>Finalizar • {BRL(total)}</button>
+          <button onClick={onClose} className="w-full text-center text-[11px] mt-3 py-1 text-gray-400 hover:text-gray-600 transition-colors">Voltar</button>
         </div>
-        <div className="mt-3 text-xs rounded-lg p-3" style={{ background: 'white', border: `1px solid ${C.border}20` }}>
-          <div className="flex justify-between" style={{ color: C.textMuted }}><span>Subtotal</span><span>{BRL(cart.subtotal)}</span></div>
-          <div className="flex justify-between" style={{ color: C.textMuted }}><span>Entrega</span><span>{BRL(fee)}</span></div>
-          <div className="flex justify-between" style={{ color: C.textMuted }}><span>Desconto</span><span>-{BRL(discount)}</span></div>
-          <div className="flex justify-between font-black text-base mt-1 pt-1" style={{ borderTop: `1px solid ${C.border}20`, color: '#8b2e0a' }}><span>Total</span><span>{BRL(total)}</span></div>
-        </div>
-        <button onClick={finish} className="w-full rounded-xl py-3 font-bold text-white text-xs mt-3" style={{ background: '#8b2e0a' }}>Finalizar • {BRL(total)}</button>
-        <button onClick={onClose} className="w-full text-[11px] mt-1" style={{ color: C.textMuted }}>Voltar</button>
       </div>
     </div>
   );
 }
 
-function ReviewBox({ orderId }: { orderId: string }) {
-  const [stars, setStars] = useState(5);
-  const [sent, setSent] = useState(false);
-  if (sent) return <p className="text-xs mt-2 font-bold" style={{ color: WA_GREEN }}>Obrigado!</p>;
-  return (
-    <div className="mt-3 text-xs">
-      <div className="flex gap-0.5 justify-center">{[1, 2, 3, 4, 5].map((s) => (
-        <button key={s} onClick={() => setStars(s)} className="text-lg">{s <= stars ? '⭐' : '☆'}</button>
-      ))}</div>
-      <button className="rounded-lg px-3 py-1.5 font-bold w-full mt-1.5" style={{ background: C.bgChip, color: C.textLight }} onClick={async () => {
-        await fetch('/api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId, stars }) });
-        setSent(true);
-      }}>Enviar</button>
-    </div>
-  );
-}
+
