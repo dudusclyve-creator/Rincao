@@ -16,6 +16,24 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const b = await req.json();
+
+  if (b.action === 'addItems') {
+    const order = await prisma.order.findUnique({ where: { id: b.orderId }, include: { items: true } });
+    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    const newItems = (b.items || []).map((it: any) => ({
+      orderId: order.id, productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
+      unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
+    }));
+    await prisma.orderItem.createMany({ data: newItems });
+    const addedTotal = newItems.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { subtotal: order.subtotal + addedTotal, total: order.total + addedTotal },
+      include: { items: true, customer: true, table: true, driver: true },
+    });
+    return NextResponse.json(updated);
+  }
+
   // upsert cliente pelo telefone
   let customerId: string | undefined;
   if (b.customerPhone) {
@@ -77,9 +95,16 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const b = await req.json();
-  const order = await prisma.order.update({
-    where: { id: b.id }, data: { status: b.status, driverId: b.driverId ?? undefined },
-  });
+  const data: any = {};
+  if (b.status) data.status = b.status;
+  if (b.driverId !== undefined) data.driverId = b.driverId;
+  if (b.tableId !== undefined) data.tableId = b.tableId || null;
+  if (b.customerName !== undefined) data.customerName = b.customerName;
+  if (b.payment !== undefined) data.payment = b.payment;
+  if (b.changeFor !== undefined) data.changeFor = b.changeFor;
+  if (b.note !== undefined) data.note = b.note;
+  if (b.discount !== undefined) data.discount = b.discount;
+  const order = await prisma.order.update({ where: { id: b.id }, data });
   if (b.status === 'cancelado')
     await prisma.notification.create({ data: { kind: 'cancelado', text: `Pedido #${order.number} cancelado` } });
   if (b.status === 'pronto')
