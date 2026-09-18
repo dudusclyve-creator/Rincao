@@ -68,7 +68,7 @@ function ProductModal({ product, allProducts, onClose, onAdd }: { product: any; 
             ? <img src={product.photoUrl} className="w-full h-full object-cover" alt="" />
             : <div className="w-full h-full flex items-center justify-center text-5xl text-gray-600">🍽</div>}
           <div className="absolute inset-0 bg-gradient-to-t from-[#1e1828] via-transparent to-transparent" />
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all">
+          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/15 hover:rotate-90 transition-all duration-300">
             <X size={16} />
           </button>
           <div className="absolute bottom-3 left-4 right-4">
@@ -87,7 +87,7 @@ function ProductModal({ product, allProducts, onClose, onAdd }: { product: any; 
                   const on = (sel[g.id] || []).some((x: any) => x.name === a.name);
                   return (
                     <button key={a.id} onClick={() => toggle(g, a)}
-                      className="flex justify-between items-center rounded-xl px-3 py-2 text-[11px] transition-all duration-200"
+                      className="flex justify-between items-center rounded-xl px-3 py-2 text-[11px] pdv-btn-hover"
                       style={on
                         ? { background: 'rgba(225,29,72,0.2)', border: '1px solid rgba(225,29,72,0.4)', color: '#fb7185' }
                         : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#9ca3af' }
@@ -109,11 +109,11 @@ function ProductModal({ product, allProducts, onClose, onAdd }: { product: any; 
           {/* Qty + Add */}
           <div className="flex items-center gap-3 mt-4">
             <div className="flex items-center gap-1 rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <button className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition-colors" onClick={() => setQty(Math.max(1, qty - 1))}>
+              <button className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200" onClick={() => setQty(Math.max(1, qty - 1))}>
                 <Minus size={14} />
               </button>
               <span className="font-bold text-sm w-7 text-center text-white">{qty}</span>
-              <button className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white transition-colors" onClick={() => setQty(qty + 1)}>
+              <button className="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200" onClick={() => setQty(qty + 1)}>
                 <Plus size={14} />
               </button>
             </div>
@@ -234,9 +234,10 @@ export default function PDV() {
   };
 
   const finish = async () => {
+    const tableObj = tables.find((t: any) => t.id === selectedTable);
     const addressText = type === 'entrega'
       ? `${deliveryStreet}${deliveryNum ? ', ' + deliveryNum : ''}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`
-      : type === 'mesa' ? `Mesa ${selectedTable}` : type.toUpperCase();
+      : type === 'mesa' ? `Mesa ${tableObj?.number || selectedTable}` : type.toUpperCase();
 
     const paymentMethod = splitPayment ? payments.map(p => `${p.method}:${p.amount}`).join(',') : payment;
     const splitNote = splitPayment ? `Pagamento dividido: ${payments.map(p => `${PAYMENT_OPTIONS.find(o => o.id === p.method)?.label || p.method} ${BRL(p.amount)}`).join(' + ')}` : '';
@@ -301,18 +302,18 @@ export default function PDV() {
           <div className="relative mb-3">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produto..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50 focus:shadow-[0_0_0_2px_rgba(225,29,72,0.15)]"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
           </div>
 
           {/* Categories - scrollable with arrows */}
           <div className="relative mb-4">
-            <button onClick={() => scrollCats(-1)} className="absolute left-0 top-0 bottom-0 z-10 w-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(26,21,32,0.9)' }}>
+            <button onClick={() => scrollCats(-1)} className="absolute left-0 top-0 bottom-0 z-10 w-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(26,21,32,0.9)' }}>
               <ChevronLeft size={16} className="text-gray-400" />
             </button>
             <div ref={catsRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide px-9 pb-1">
               <button onClick={() => setCat('all')}
-                className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all duration-200"
+                className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
                 style={cat === 'all'
                   ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff', boxShadow: '0 2px 12px rgba(225,29,72,0.3)' }
                   : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -322,7 +323,7 @@ export default function PDV() {
                 const count = menu.products.filter((p: any) => p.categoryId === c.id).length;
                 return (
                   <button key={c.id} onClick={() => setCat(c.id)}
-                    className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 whitespace-nowrap"
+                    className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
                     style={cat === c.id
                       ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff', boxShadow: '0 2px 12px rgba(225,29,72,0.3)' }
                       : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -331,7 +332,7 @@ export default function PDV() {
                 );
               })}
             </div>
-            <button onClick={() => scrollCats(1)} className="absolute right-0 top-0 bottom-0 z-10 w-8 flex items-center justify-center rounded-lg" style={{ background: 'rgba(26,21,32,0.9)' }}>
+            <button onClick={() => scrollCats(1)} className="absolute right-0 top-0 bottom-0 z-10 w-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(26,21,32,0.9)' }}>
               <ChevronRight size={16} className="text-gray-400" />
             </button>
           </div>
@@ -343,7 +344,7 @@ export default function PDV() {
               const justAdded = lastAdded === p.id;
               return (
                 <button key={p.id} disabled={!p.available} onClick={() => quickAdd(p)}
-                  className="relative text-left rounded-2xl overflow-hidden transition-all duration-200 group disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="relative text-left rounded-2xl overflow-hidden pdv-hover disabled:opacity-30 disabled:cursor-not-allowed"
                   style={{
                     background: justAdded ? 'rgba(225,29,72,0.12)' : inCart ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
                     border: justAdded ? '1px solid rgba(225,29,72,0.4)' : inCart ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.06)',
@@ -393,7 +394,7 @@ export default function PDV() {
                 <span className="text-sm font-bold text-white">Venda</span>
               </div>
               {cart.length > 0 && (
-                <button onClick={() => setCart([])} className="text-[11px] text-gray-500 hover:text-red-400 transition-colors">Limpar</button>
+                <button onClick={() => setCart([])} className="text-[11px] text-gray-500 hover:text-red-400 hover:scale-105 transition-all duration-200">Limpar</button>
               )}
             </div>
 
@@ -417,16 +418,16 @@ export default function PDV() {
                             <p className="text-[10px] text-gray-500">{BRL(item.unitPrice)} un.</p>
                           </div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                            <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(255,255,255,0.06)' }}>
                               <Minus size={11} className="text-gray-400" />
                             </button>
                             <span className="text-xs font-bold text-white w-5 text-center">{item.qty}</span>
-                            <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                            <button onClick={() => updateQty(item.id, 1)} className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(255,255,255,0.06)' }}>
                               <Plus size={11} className="text-gray-400" />
                             </button>
                           </div>
                           <p className="text-xs font-bold text-white w-16 text-right">{BRL(itemTotal)}</p>
-                          <button onClick={() => removeFromCart(item.id)} className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20">
+                          <button onClick={() => removeFromCart(item.id)} className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-red-500/20 transition-all duration-200">
                             <X size={11} className="text-gray-500" />
                           </button>
                         </div>
@@ -440,7 +441,7 @@ export default function PDV() {
                         )}
                         {/* Note button */}
                         <div className="flex items-center gap-2 mt-1 ml-1">
-                          <button onClick={() => setEditNoteIdx(idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-rose-400 transition-colors">
+                          <button onClick={() => setEditNoteIdx(idx)} className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-rose-400 hover:translate-x-1 transition-all duration-200">
                             <StickyNote size={10} />
                             {item.note ? <span className="truncate max-w-[120px]">{item.note}</span> : <span>obs</span>}
                           </button>
@@ -462,7 +463,7 @@ export default function PDV() {
                   <div className="grid grid-cols-4 gap-1.5">
                     {TYPE_OPTIONS.map((t) => (
                       <button key={t.id} onClick={() => { setType(t.id); setShowAddress(t.id === 'entrega'); }}
-                        className="flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all duration-200"
+                        className="flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold pdv-btn-hover"
                         style={type === t.id
                           ? { background: 'rgba(225,29,72,0.15)', color: '#fb7185', border: '1px solid rgba(225,29,72,0.3)' }
                           : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -479,7 +480,7 @@ export default function PDV() {
                     <div className="grid grid-cols-4 gap-1.5">
                       {availableTables.map((t: any) => (
                         <button key={t.id} onClick={() => setSelectedTable(t.id)}
-                          className="py-2 rounded-xl text-[10px] font-bold transition-all duration-200"
+                          className="py-2 rounded-xl text-[10px] font-bold pdv-btn-hover"
                           style={selectedTable === t.id
                             ? { background: 'rgba(225,29,72,0.15)', color: '#fb7185', border: '1px solid rgba(225,29,72,0.3)' }
                             : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -500,23 +501,23 @@ export default function PDV() {
                     {showAddress && (
                       <div className="space-y-2 pb-2">
                         <select value={deliveryCity} onChange={(e) => { setDeliveryCity(e.target.value); setDeliveryBairro(''); }}
-                          className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
+                          className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
                           <option value="">Cidade</option>
                           {cities.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                         {deliveryCity && (
                           <select value={deliveryBairro} onChange={(e) => setDeliveryBairro(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
+                            className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
                             <option value="">Bairro</option>
                             {bairros.map(b => <option key={b.name} value={b.name}>{b.name} — {BRL(b.fee)}</option>)}
                           </select>
                         )}
                         <div className="flex gap-2">
-                          <input value={deliveryStreet} onChange={(e) => setDeliveryStreet(e.target.value)} placeholder="Rua" className="flex-1 px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                          <input value={deliveryNum} onChange={(e) => setDeliveryNum(e.target.value)} placeholder="Nº" className="w-16 px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                          <input value={deliveryStreet} onChange={(e) => setDeliveryStreet(e.target.value)} placeholder="Rua" className="flex-1 px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                          <input value={deliveryNum} onChange={(e) => setDeliveryNum(e.target.value)} placeholder="Nº" className="w-16 px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                         </div>
                         <div className="flex gap-2">
-                          <input value={deliveryComp} onChange={(e) => setDeliveryComp(e.target.value)} placeholder="Complemento" className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                          <input value={deliveryComp} onChange={(e) => setDeliveryComp(e.target.value)} placeholder="Complemento" className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                         </div>
                       </div>
                     )}
@@ -527,8 +528,8 @@ export default function PDV() {
                 <div className="px-4 pt-3">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Pagamento</p>
-                    <button onClick={() => { setSplitPayment(!splitPayment); if (!splitPayment) setPayments([{ method: payment, amount: total }]); }}
-                      className="text-[10px] font-bold transition-colors" style={{ color: splitPayment ? '#fb7185' : '#6b7280' }}>
+                        <button onClick={() => { setSplitPayment(!splitPayment); if (!splitPayment) setPayments([{ method: payment, amount: total }]); }}
+                      className="text-[10px] font-bold pdv-btn-hover px-2 py-1 rounded-lg" style={{ color: splitPayment ? '#fb7185' : '#6b7280' }}>
                       {splitPayment ? '✕ Dividir' : '÷ Dividir conta'}
                     </button>
                   </div>
@@ -538,7 +539,7 @@ export default function PDV() {
                         const Icon = p.icon;
                         return (
                           <button key={p.id} onClick={() => setPayment(p.id)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200"
+                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold pdv-btn-hover"
                             style={payment === p.id
                               ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` }
                               : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -555,7 +556,7 @@ export default function PDV() {
                           <div key={idx} className="flex items-center gap-2">
                             <select value={pmt.method} onChange={(e) => {
                               const np = [...payments]; np[idx] = { ...np[idx], method: e.target.value }; setPayments(np);
-                            }} className="w-28 px-2 py-2 rounded-xl text-[11px] font-bold outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
+                            }} className="w-28 px-2 py-2 rounded-xl text-[11px] font-bold outline-none transition-all duration-200 hover:border-white/20" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
                               {PAYMENT_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
                             </select>
                             <div className="relative flex-1">
@@ -565,7 +566,7 @@ export default function PDV() {
                               }} placeholder="0,00" className="w-full pl-6 pr-2 py-2 rounded-xl text-[11px] font-bold outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                             </div>
                             {payments.length > 1 && (
-                              <button onClick={() => setPayments(payments.filter((_, i) => i !== idx))} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-500/20">
+                              <button onClick={() => setPayments(payments.filter((_, i) => i !== idx))} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-500/20 transition-all duration-200">
                                 <X size={12} className="text-gray-500" />
                               </button>
                             )}
@@ -578,7 +579,7 @@ export default function PDV() {
                           const methods = ['pix', 'dinheiro', 'debito', 'credito'];
                           const nextMethod = methods[payments.length % methods.length];
                           setPayments([...payments, { method: nextMethod, amount: Math.max(0, Math.round(remaining * 100) / 100) }]);
-                        }} className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-colors">+ Adicionar forma</button>
+                        }} className="text-[10px] font-bold text-rose-400 hover:text-rose-300 hover:scale-105 transition-all duration-200">+ Adicionar forma</button>
                         {payments.length > 0 && (
                           <p className="text-[10px] font-bold" style={{ color: payments.reduce((s, p) => s + p.amount, 0) >= total ? '#22c55e' : '#fb7185' }}>
                             {BRL(payments.reduce((s, p) => s + p.amount, 0))} / {BRL(total)}
@@ -612,9 +613,9 @@ export default function PDV() {
                 {/* Client + Note */}
                 <div className="px-4 pt-3 space-y-2">
                   <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Cliente (opcional)"
-                    className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                    className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                   <input value={orderNote} onChange={(e) => setOrderNote(e.target.value)} placeholder="Observação do pedido"
-                    className="w-full px-3 py-2 rounded-xl text-xs outline-none" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                    className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 </div>
 
                 {/* Totals + Finish */}
@@ -629,7 +630,7 @@ export default function PDV() {
                   </div>
                   <button onClick={finish}
                     disabled={!cart.length || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
-                    className="w-full py-3 rounded-xl text-sm font-bold text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
                     style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
                     Finalizar + Imprimir
                   </button>

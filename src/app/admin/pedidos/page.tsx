@@ -24,11 +24,15 @@ const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = 
   entrega: { bg: '#166534', text: '#86efac', label: 'ENTREGA' },
   retirada: { bg: '#7c2d12', text: '#fdba74', label: 'RETIRADA' },
   local: { bg: '#1e3a5f', text: '#93c5fd', label: 'LOCAL' },
+  mesa: { bg: '#581c87', text: '#d8b4fe', label: 'MESA' },
+  balcao: { bg: '#713f12', text: '#fde68a', label: 'BALCÃO' },
 };
 
 function getOrderType(o: any): string {
   if (o.type === 'retirada' || (o.addressText || '').toUpperCase().includes('RETIRADA')) return 'retirada';
   if (o.type === 'local' || (o.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL')) return 'local';
+  if (o.type === 'mesa' || (o.addressText || '').toUpperCase().includes('MESA')) return 'mesa';
+  if (o.type === 'balcao' || o.type === 'balcão') return 'balcao';
   return 'entrega';
 }
 
