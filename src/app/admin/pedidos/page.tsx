@@ -126,24 +126,29 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
       </div>
 
       <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(0,0,0,0.15)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        {NEXT_STATUS[STATUS_MAP[o.status]]?.map((next) => (
-          <button
-            key={next.status}
-            title={next.label}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (next.status === 'entrega') {
-                const isDelivery = o.type === 'entrega' && !(o.addressText || '').toUpperCase().includes('RETIRADA') && !(o.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL');
-                if (isDelivery) { onDispatch(o); return; }
-              }
-              onStatus(o.id, next.status);
-            }}
-            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-[11px] font-bold text-white transition-all hover:brightness-110 active:scale-95"
-            style={{ background: next.color }}
-          >
-            {next.icon} {next.label}
-          </button>
-        ))}
+        {NEXT_STATUS[STATUS_MAP[o.status]]?.map((next) => {
+          const isLocal = ['mesa', 'balcao', 'retirada', 'local'].includes(o.type);
+          const label = next.status === 'entrega' && isLocal ? 'Pronto' : next.label;
+          const icon = next.status === 'entrega' && isLocal ? '🔔' : next.icon;
+          return (
+            <button
+              key={next.status}
+              title={label}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (next.status === 'entrega') {
+                  const isDelivery = o.type === 'entrega' && !(o.addressText || '').toUpperCase().includes('RETIRADA') && !(o.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL');
+                  if (isDelivery) { onDispatch(o); return; }
+                }
+                onStatus(o.id, next.status);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-[11px] font-bold text-white transition-all hover:brightness-110 active:scale-95"
+              style={{ background: next.color }}
+            >
+              {icon} {label}
+            </button>
+          );
+        })}
         {o.status === 'concluido' && isExpanded && (
           <button title="Reverter para despachado" onClick={(e) => { e.stopPropagation(); onStatus(o.id, 'entrega'); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-[11px] font-bold text-white transition-all hover:brightness-110 active:scale-95" style={{ background: '#7c3aed' }}>
             <RotateCcw size={11} /> Reverter
