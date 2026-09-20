@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
-import { BRL } from '@/lib/utils';
+import { BRL, playDropSound } from '@/lib/utils';
 import {
   Users, Plus, Minus, X, Search, ArrowRightLeft, Receipt,
   User, ChevronDown, ChevronUp, CreditCard, Banknote, Smartphone,
@@ -555,6 +555,7 @@ export default function Mesas() {
               onDragLeave={() => setDragOverId(null)}
               onDrop={(e) => {
                 e.preventDefault();
+                playDropSound();
                 setDragOverId(null);
                 const srcId = e.dataTransfer.getData('text/plain');
                 if (srcId && srcId !== t.id) {

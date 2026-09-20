@@ -232,3 +232,11 @@ export function playNewOrderSound() {
     });
   } catch {}
 }
+
+export function playDropSound() {
+  try {
+    const audio = new Audio('/drop.mp3');
+    audio.volume = 0.6;
+    audio.play().catch(() => {});
+  } catch {}
+}

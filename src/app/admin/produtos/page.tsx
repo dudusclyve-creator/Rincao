@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { BRL } from '@/lib/utils';
+import { BRL, playDropSound } from '@/lib/utils';
 import {
   ChevronDown, ChevronRight, Plus, Trash2, Pencil,
   Copy, Eye, EyeOff, ChevronUp, Package, Star, Flame, X, Check,
@@ -159,6 +159,7 @@ export default function CardapioAdmin() {
     e.preventDefault();
     setDropTarget(null);
     if (!dragId || dragType !== targetType) return;
+    playDropSound();
 
     if (targetType === 'category' && dragId !== targetId) {
       swapOrders(dragId, targetId, 'categories');

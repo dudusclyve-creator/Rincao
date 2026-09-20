@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, receiptText } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText } from '@/lib/utils';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard } from 'lucide-react';
 
 const COLUMNS = [
@@ -299,6 +299,7 @@ export default function Pedidos() {
   };
 
   const handleDrop = async (colId: string) => {
+    playDropSound();
     if (!dragId || !colId) { setDragId(null); setDragOverCol(null); return; }
     const order = orders.find((o) => o.id === dragId);
     if (order && STATUS_MAP[order.status] !== colId) {
