@@ -233,18 +233,29 @@ export function playNewOrderSound() {
   } catch {}
 }
 
+let _dropAudio: HTMLAudioElement | null = null;
+let _menuAudio: HTMLAudioElement | null = null;
+
+function getAudio(cache: HTMLAudioElement | null, src: string, vol: number): HTMLAudioElement {
+  if (!cache) {
+    cache = new Audio(src);
+    cache.volume = vol;
+    cache.preload = 'auto';
+  }
+  cache.currentTime = 0;
+  return cache;
+}
+
 export function playDropSound() {
   try {
-    const audio = new Audio('/drop.mp3');
-    audio.volume = 0.6;
-    audio.play().catch(() => {});
+    _dropAudio = getAudio(_dropAudio, '/drop.mp3', 0.6);
+    _dropAudio.play().catch(() => {});
   } catch {}
 }
 
 export function playMenuClick() {
   try {
-    const audio = new Audio('/menu-click.mp3');
-    audio.volume = 0.5;
-    audio.play().catch(() => {});
+    _menuAudio = getAudio(_menuAudio, '/menu-click.mp3', 0.5);
+    _menuAudio.play().catch(() => {});
   } catch {}
 }
