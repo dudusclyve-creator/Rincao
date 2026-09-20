@@ -63,6 +63,7 @@ export default function CardapioAdmin() {
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMin, setNewGroupMin] = useState(0);
   const [newGroupMax, setNewGroupMax] = useState(2);
+  const [newGroupRequired, setNewGroupRequired] = useState(false);
 
   const [dragType, setDragType] = useState<'category' | 'product' | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -183,8 +184,8 @@ export default function CardapioAdmin() {
 
   const createAddonGroup = async () => {
     if (!newGroupName.trim()) return;
-    await fetch('/api/addon-groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newGroupName, minSel: newGroupMin, maxSel: newGroupMax, order: addonGroups.length }) });
-    setNewGroupName(''); setNewGroupMin(0); setNewGroupMax(2); load();
+    await fetch('/api/addon-groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newGroupName, minSel: newGroupMin, maxSel: newGroupMax, required: newGroupRequired, order: addonGroups.length }) });
+    setNewGroupName(''); setNewGroupMin(0); setNewGroupMax(2); setNewGroupRequired(false); load();
   };
   const saveAddon = async (groupId: string, name: string, price: number) => {
     const g = addonGroups.find((x) => x.id === groupId);
@@ -434,10 +435,23 @@ export default function CardapioAdmin() {
 
         {showAddons && (
           <div className="space-y-2">
-            <div className="grid gap-2 items-center mb-3" style={{ gridTemplateColumns: '1fr 56px 56px auto' }}>
+            <div className="grid gap-2 items-center mb-3" style={{ gridTemplateColumns: '1fr 56px 56px auto auto' }}>
               <input className="input" placeholder="Nome do grupo (Molhos, Bebidas...)" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createAddonGroup()} />
-              <input className="input text-center" type="number" placeholder="Mín" value={newGroupMin} onChange={(e) => setNewGroupMin(Number(e.target.value))} />
-              <input className="input text-center" type="number" placeholder="Máx" value={newGroupMax} onChange={(e) => setNewGroupMax(Number(e.target.value))} />
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] text-gray-500 mb-0.5">min</span>
+                <input className="input text-center w-full" type="number" value={newGroupMin} onChange={(e) => setNewGroupMin(Number(e.target.value))} />
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] text-gray-500 mb-0.5">max</span>
+                <input className="input text-center w-full" type="number" value={newGroupMax} onChange={(e) => setNewGroupMax(Number(e.target.value))} />
+              </div>
+              <button onClick={() => setNewGroupRequired(!newGroupRequired)}
+                className="text-[10px] font-bold px-2.5 py-2 rounded-xl transition-all pdv-btn-hover"
+                style={newGroupRequired
+                  ? { background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }
+                  : { background: 'rgba(255,255,255,0.06)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.08)' }}>
+                {newGroupRequired ? 'obrig.' : 'opcional'}
+              </button>
               <button onClick={createAddonGroup}
                 className="text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1 pdv-btn-hover"
                 style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff' }}>

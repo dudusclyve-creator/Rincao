@@ -233,24 +233,26 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex justify-center mb-5">
-            <div className="relative w-32 h-32">
+            <div className="relative w-36 h-36">
               <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                 {(() => {
+                  const C = 2 * Math.PI * 14;
                   let acc = 0;
                   return Object.entries(d.byPay).map(([k, v]: any) => {
                     const pct = (v / totalPay) * 100;
-                    const dash = `${pct} ${100 - pct}`;
+                    const len = (pct / 100) * C;
+                    const dash = `${len} ${C - len}`;
                     const offset = -acc;
-                    acc += pct;
+                    acc += len;
                     return (
-                      <circle key={k} cx="18" cy="18" r="14" fill="none" stroke={payColors[k] || '#6b7280'} strokeWidth="5" strokeDasharray={dash} strokeDashoffset={offset} strokeLinecap="round" className="transition-all duration-700" style={{ opacity: 0.85 }} />
+                      <circle key={k} cx="18" cy="18" r="14" fill="none" stroke={payColors[k] || '#6b7280'} strokeWidth="4" strokeDasharray={dash} strokeDashoffset={offset} strokeLinecap="butt" className="transition-all duration-700" style={{ opacity: 0.85 }} />
                     );
                   });
                 })()}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-black text-white">{BRL(totalPay)}</span>
-                <span className="text-[9px] text-gray-500">total</span>
+                <span className="text-sm font-black text-white leading-tight">{BRL(totalPay)}</span>
+                <span className="text-[8px] text-gray-500 mt-0.5">total</span>
               </div>
             </div>
           </div>

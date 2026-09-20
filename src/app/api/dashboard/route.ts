@@ -19,6 +19,9 @@ export async function GET(req: Request) {
         const [method, amount] = part.split(':');
         byPay[method] = (byPay[method] || 0) + Number(amount);
       });
+    } else if (o.payment?.includes(':')) {
+      const [method, amount] = o.payment.split(':');
+      byPay[method] = (byPay[method] || 0) + Number(amount);
     } else {
       byPay[o.payment] = (byPay[o.payment] || 0) + o.total;
     }
