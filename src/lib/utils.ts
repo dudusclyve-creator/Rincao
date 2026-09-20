@@ -240,3 +240,11 @@ export function playDropSound() {
     audio.play().catch(() => {});
   } catch {}
 }
+
+export function playMenuClick() {
+  try {
+    const audio = new Audio('/menu-click.mp3');
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  } catch {}
+}

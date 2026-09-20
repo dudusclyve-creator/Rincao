@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
+import { playMenuClick } from '@/lib/utils';
 
 const MENU: [string, string, string][] = [
   ['Dashboard','/admin','📊'],['Pedidos','/admin/pedidos','🧾'],['PDV','/admin/pdv','🛒'],
@@ -124,7 +125,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Link cardápio */}
         {!collapsed && (
-          <a href="/cardapio" target="_blank" className="mx-3 mt-3 px-3 py-2 rounded-xl text-[11px] font-medium flex items-center gap-1.5 transition-all duration-200"
+          <a href="/cardapio" target="_blank" onClick={() => playMenuClick()} className="mx-3 mt-3 px-3 py-2 rounded-xl text-[11px] font-medium flex items-center gap-1.5 transition-all duration-200"
             style={{ background: 'rgba(255,255,255,0.03)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#f0e8e0'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; e.currentTarget.style.color = '#6b7280'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; }}>
@@ -142,6 +143,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 key={href}
                 href={href}
                 className="flex items-center gap-2.5 rounded-xl transition-all duration-200 group"
+                onClick={() => playMenuClick()}
                 style={{
                   padding: collapsed ? '10px 0' : '9px 12px',
                   justifyContent: collapsed ? 'center' : 'flex-start',
@@ -196,7 +198,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex-1 min-w-0">
         <div className="md:hidden text-white p-3 flex gap-2 overflow-x-auto no-print" style={{ background: '#141018', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           {MENU.map(([label, href]) => (
-            <Link key={href} href={href} className="text-[11px] rounded-lg px-2.5 py-1.5 whitespace-nowrap transition-all duration-200"
+            <Link key={href} href={href} onClick={() => playMenuClick()} className="text-[11px] rounded-lg px-2.5 py-1.5 whitespace-nowrap transition-all duration-200"
               style={isActive(href)
                 ? { background: 'rgba(225,29,72,0.12)', color: '#f0e8e0', border: '1px solid rgba(225,29,72,0.2)' }
                 : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid transparent' }}>
