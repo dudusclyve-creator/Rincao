@@ -653,10 +653,19 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
   const fee = deliveryType === 'entrega' ? deliveryFee : 0;
   const total = Math.max(0, cart.subtotal + fee);
 
+  const parseAddress = (text: string) => {
+    if (!text) return { street: '', number: '', complement: '', district: '' };
+    const match = text.match(/^(.+?),\s*(\S+?)(?:\s*-\s*(.+?))?\s*-\s*(.+)$/);
+    if (match) return { street: match[1].trim(), number: match[2].trim(), complement: match[3]?.trim() || '', district: match[4].trim() };
+    return { street: text, number: '', complement: '', district: '' };
+  };
+
+  const addr = parseAddress(addressText);
+
   const finish = async () => {
     if (!f.name || !f.phone) { alert('Informe nome e telefone'); return; }
     const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      customerName: f.name, customerPhone: f.phone, street: '', number: '', complement: '', district: '', reference: '',
+      customerName: f.name, customerPhone: f.phone, street: addr.street, number: addr.number, complement: addr.complement, district: addr.district, reference: '',
       addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
       type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
       subtotal: cart.subtotal, deliveryFee: fee, discount: 0, couponCode: '',

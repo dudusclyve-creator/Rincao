@@ -109,6 +109,7 @@ model Customer {
   complement String  @default("")
   district  String   @default("")
   reference String   @default("")
+  tier      String   @default("")
   createdAt DateTime @default(now())
   orders    Order[]
 }

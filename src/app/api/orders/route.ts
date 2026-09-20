@@ -65,7 +65,12 @@ export async function POST(req: Request) {
         },
       });
     } else {
-      await prisma.customer.update({ where: { id: cust.id }, data: { name: b.customerName || cust.name } });
+      const updateData: any = { name: b.customerName || cust.name };
+      if (b.street) updateData.street = b.street;
+      if (b.number) updateData.number = b.number;
+      if (b.complement) updateData.complement = b.complement;
+      if (b.district) updateData.district = b.district;
+      await prisma.customer.update({ where: { id: cust.id }, data: updateData });
     }
     customerId = cust.id;
   }
