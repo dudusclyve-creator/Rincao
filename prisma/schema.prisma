@@ -52,22 +52,23 @@ model Category {
 }
 
 model Product {
-  id           String   @id @default(cuid())
-  name         String
-  description  String   @default("")
-  price        Float
-  promoPrice   Float?
-  photoUrl     String   @default("")
-  categoryId   String
-  category     Category @relation(fields: [categoryId], references: [id])
-  available    Boolean  @default(true)
-  featured     Boolean  @default(false)
-  bestSeller   Boolean  @default(false)
-  newArrival   Boolean  @default(false)
-  order        Int      @default(0)
-  relatedIds   String   @default("[]") // upsell: ids em JSON
-  groups       ProductAddonGroup[]
-  createdAt    DateTime @default(now())
+  id              String   @id @default(cuid())
+  name            String
+  description     String   @default("")
+  price           Float
+  promoPrice      Float?
+  photoUrl        String   @default("")
+  categoryId      String
+  category        Category @relation(fields: [categoryId], references: [id])
+  available       Boolean  @default(true)
+  featured        Boolean  @default(false)
+  bestSeller      Boolean  @default(false)
+  newArrival      Boolean  @default(false)
+  order           Int      @default(0)
+  relatedIds      String   @default("[]")
+  inventoryItemId String   @default("")
+  groups          ProductAddonGroup[]
+  createdAt       DateTime @default(now())
 }
 
 model AddonGroup {

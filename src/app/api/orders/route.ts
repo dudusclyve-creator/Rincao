@@ -23,6 +23,12 @@ export async function POST(req: Request) {
     const item = order.items[b.itemIndex];
     if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     await prisma.orderItem.delete({ where: { id: item.id } });
+    if (item.productId) {
+      const prod = await prisma.product.findUnique({ where: { id: item.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) {
+        await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { increment: item.qty } } });
+      }
+    }
     const remaining = order.items.filter((_: any, i: number) => i !== b.itemIndex);
     const newSubtotal = remaining.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
     const newTotal = Math.max(0, newSubtotal + (order.type === 'entrega' ? order.deliveryFee : 0) - order.discount);
@@ -48,6 +54,13 @@ export async function POST(req: Request) {
       data: { subtotal: order.subtotal + addedTotal, total: order.total + addedTotal },
       include: { items: true, customer: true, table: true, driver: true },
     });
+    for (const it of newItems) {
+      if (!it.productId) continue;
+      const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) {
+        await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: it.qty } } });
+      }
+    }
     return NextResponse.json(updated);
   }
 
@@ -119,6 +132,15 @@ export async function POST(req: Request) {
   });
   await prisma.notification.create({ data: { kind: 'novo_pedido', text: `Novo pedido #${order.number} — ${order.customerName} — R$ ${total.toFixed(2)}` } });
 
+  // Deduzir estoque de bebidas (produtos com inventoryItemId vinculado)
+  for (const it of (b.items || [])) {
+    if (!it.productId) continue;
+    const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+    if (prod?.inventoryItemId) {
+      await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: Number(it.qty || 1) } } });
+    }
+  }
+
   if (b.source === 'cardapio') {
     const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (open) {
@@ -141,8 +163,17 @@ export async function PATCH(req: Request) {
   if (b.note !== undefined) data.note = b.note;
   if (b.discount !== undefined) data.discount = b.discount;
   const order = await prisma.order.update({ where: { id: b.id }, data });
-  if (b.status === 'cancelado')
+  if (b.status === 'cancelado') {
     await prisma.notification.create({ data: { kind: 'cancelado', text: `Pedido #${order.number} cancelado` } });
+    const items = await prisma.orderItem.findMany({ where: { orderId: order.id } });
+    for (const it of items) {
+      if (!it.productId) continue;
+      const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) {
+        await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { increment: it.qty } } });
+      }
+    }
+  }
   if (b.status === 'pronto')
     await prisma.notification.create({ data: { kind: 'pronto', text: `Pedido #${order.number} pronto` } });
   return NextResponse.json(order);
