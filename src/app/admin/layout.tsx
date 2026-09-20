@@ -23,18 +23,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const playNotifSound = useCallback(() => {
     try {
-      const notes = [523, 659, 784, 1047];
-      notes.forEach((freq, i) => {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (ctx.state === 'suspended') ctx.resume();
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value = freq;
-        g.gain.value = 0.3;
-        o.start(ctx.currentTime + i * 0.15);
-        o.stop(ctx.currentTime + i * 0.15 + 0.15);
-      });
+      const audio = new Audio('/notification.mp3');
+      audio.volume = 0.8;
+      audio.play().catch(() => {});
     } catch {}
   }, []);
 
