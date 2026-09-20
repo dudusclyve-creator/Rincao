@@ -1,9 +1,9 @@
 'use client';
-import { useEffect, useState, useRef, useMemo } from 'react';
-import { BRL } from '@/lib/utils';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { BRL, receiptText } from '@/lib/utils';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
-const DELIVERY_ZONES: Record<string, { name: string; fee: number }[]> = {
+const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
   'Santana do Livramento': [
     { name: 'Centro', fee: 5 }, { name: 'Boa Vista', fee: 5 }, { name: 'Sao Jose', fee: 6 },
     { name: 'Cidade Alta', fee: 6 }, { name: 'Liberdade', fee: 7 }, { name: 'Jardim do Sol', fee: 7 },
@@ -149,34 +149,66 @@ function CartItemNoteModal({ item, onSave, onClose }: { item: any; onSave: (note
   );
 }
 
+const PDV_STORAGE_KEY = 'pdv_state';
+
+function loadPdvState() {
+  if (typeof window === 'undefined') return null;
+  try { return JSON.parse(localStorage.getItem(PDV_STORAGE_KEY) || 'null'); } catch { return null; }
+}
+
 export default function PDV() {
+  const saved = loadPdvState();
   const [menu, setMenu] = useState<any>(null);
   const [tables, setTables] = useState<any[]>([]);
   const [cat, setCat] = useState('all');
-  const [cart, setCart] = useState<any[]>([]);
-  const [type, setType] = useState('balcao');
-  const [payment, setPayment] = useState('pix');
-  const [client, setClient] = useState('');
-  const [orderNote, setOrderNote] = useState('');
+  const [cart, setCart] = useState<any[]>(saved?.cart || []);
+  const [type, setType] = useState(saved?.type || 'balcao');
+  const [payment, setPayment] = useState(saved?.payment || 'pix');
+  const [client, setClient] = useState(saved?.client || '');
+  const [orderNote, setOrderNote] = useState(saved?.orderNote || '');
   const [search, setSearch] = useState('');
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [modalProduct, setModalProduct] = useState<any>(null);
   const [editNoteIdx, setEditNoteIdx] = useState<number | null>(null);
-  const [selectedTable, setSelectedTable] = useState('');
+  const [selectedTable, setSelectedTable] = useState(saved?.selectedTable || '');
   const [changeFor, setChangeFor] = useState(0);
   const [splitPayment, setSplitPayment] = useState(false);
   const [payments, setPayments] = useState<{ method: string; amount: number }[]>([{ method: 'pix', amount: 0 }]);
-  const [deliveryCity, setDeliveryCity] = useState('');
-  const [deliveryBairro, setDeliveryBairro] = useState('');
-  const [deliveryStreet, setDeliveryStreet] = useState('');
-  const [deliveryNum, setDeliveryNum] = useState('');
-  const [deliveryComp, setDeliveryComp] = useState('');
+  const [deliveryCity, setDeliveryCity] = useState(saved?.deliveryCity || '');
+  const [deliveryBairro, setDeliveryBairro] = useState(saved?.deliveryBairro || '');
+  const [deliveryStreet, setDeliveryStreet] = useState(saved?.deliveryStreet || '');
+  const [deliveryNum, setDeliveryNum] = useState(saved?.deliveryNum || '');
+  const [deliveryComp, setDeliveryComp] = useState(saved?.deliveryComp || '');
   const [showAddress, setShowAddress] = useState(false);
+  const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
   const catsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const state = { cart, type, payment, client, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp };
+    localStorage.setItem(PDV_STORAGE_KEY, JSON.stringify(state));
+  }, [cart, type, payment, client, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp]);
 
   useEffect(() => {
     fetch('/api/menu').then((r) => r.json()).then(setMenu);
     fetch('/api/tables').then((r) => r.json()).then(setTables);
+  }, []);
+
+  useEffect(() => {
+    const loadAreas = () => {
+      fetch('/api/delivery-areas', { cache: 'no-store' }).then((r) => r.json()).then((areas: any[]) => {
+        const zones: Record<string, { name: string; fee: number }[]> = {};
+        for (const a of areas) {
+          if (a.active === false) continue;
+          const city = a.city || 'Santana do Livramento';
+          if (!zones[city]) zones[city] = [];
+          zones[city].push({ name: a.name, fee: a.fee });
+        }
+        if (Object.keys(zones).length > 0) setDeliveryZones(zones);
+      }).catch(() => {});
+    };
+    loadAreas();
+    const t = setInterval(loadAreas, 15000);
+    return () => clearInterval(t);
   }, []);
 
   if (!menu) {
@@ -198,11 +230,18 @@ export default function PDV() {
 
   const sub = cart.reduce((s: number, i: any) => s + i.qty * (i.unitPrice + (i.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0)), 0);
   const deliveryFee = type === 'entrega' && deliveryCity && deliveryBairro
-    ? (DELIVERY_ZONES[deliveryCity]?.find(z => z.name === deliveryBairro)?.fee || 0)
+    ? (deliveryZones[deliveryCity]?.find(z => z.name === deliveryBairro)?.fee || 0)
     : 0;
   const total = Math.max(0, sub + deliveryFee);
   const itemCount = cart.reduce((s: number, i: any) => s + i.qty, 0);
-  const troco = payment === 'dinheiro' && changeFor > 0 ? Math.max(0, changeFor - total) : 0;
+  const troco = (() => {
+    if (changeFor <= 0) return 0;
+    if (splitPayment) {
+      const cashAmount = payments.find(p => p.method === 'dinheiro')?.amount || 0;
+      return Math.max(0, changeFor - cashAmount);
+    }
+    return payment === 'dinheiro' ? Math.max(0, changeFor - total) : 0;
+  })();
 
   const addToCartFromModal = (item: any) => {
     setLastAdded(item.productId);
@@ -237,7 +276,7 @@ export default function PDV() {
     const tableObj = tables.find((t: any) => t.id === selectedTable);
     const addressText = type === 'entrega'
       ? `${deliveryStreet}${deliveryNum ? ', ' + deliveryNum : ''}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`
-      : type === 'mesa' ? `Mesa ${tableObj?.number || selectedTable}` : type.toUpperCase();
+      : type === 'mesa' ? (tableObj?.number ? String(tableObj.number) : `Mesa ${selectedTable}`) : type.toUpperCase();
 
     const paymentMethod = splitPayment ? payments.map(p => `${p.method}:${p.amount}`).join(',') : payment;
     const splitNote = splitPayment ? `Pagamento dividido: ${payments.map(p => `${PAYMENT_OPTIONS.find(o => o.id === p.method)?.label || p.method} ${BRL(p.amount)}`).join(' + ')}` : '';
@@ -245,10 +284,10 @@ export default function PDV() {
     const o = await fetch('/api/orders', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        customerName: client || 'PDV', customerPhone: '',
+        customerName: client || (type === 'mesa' ? (tableObj?.number || 'Mesa') : 'PDV'), customerPhone: '',
         street: deliveryStreet, number: deliveryNum, complement: deliveryComp,
         district: deliveryBairro, addressText,
-        type, payment: paymentMethod, changeFor: payment === 'dinheiro' && !splitPayment ? changeFor : undefined,
+        type, payment: paymentMethod, changeFor: (payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0 ? changeFor : undefined,
         subtotal: sub, deliveryFee, discount: 0, source: 'pdv', note: [orderNote, splitNote].filter(Boolean).join(' | '),
         tableId: type === 'mesa' ? selectedTable : undefined,
         items: cart.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons || [], note: i.note || '' })),
@@ -262,8 +301,18 @@ export default function PDV() {
       await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: selectedTable, status: 'ocupada' }) });
     }
     alert(`Venda #${o.number} finalizada: ${BRL(o.total)}`);
+    const text = receiptText({
+      store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
+      customerName: client || 'PDV', customerPhone: '',
+      items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
+      payment, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
+      addressText, changeFor: changeFor > 0 ? changeFor : undefined,
+      width: '80mm',
+    });
+    fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) }).catch(() => {});
     setCart([]); setOrderNote(''); setClient(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
     setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp('');
+    localStorage.removeItem(PDV_STORAGE_KEY);
   };
 
   const scrollCats = (dir: number) => {
@@ -271,8 +320,8 @@ export default function PDV() {
   };
 
   const availableTables = tables.filter((t: any) => t.status === 'livre');
-  const cities = Object.keys(DELIVERY_ZONES);
-  const bairros = deliveryCity ? DELIVERY_ZONES[deliveryCity] || [] : [];
+  const cities = Object.keys(deliveryZones);
+  const bairros = deliveryCity ? deliveryZones[deliveryCity] || [] : [];
 
   return (
     <div className="min-h-[calc(100vh-48px)] rounded-2xl p-4 md:p-5" style={{ background: '#1a1520', color: '#f0e8e0' }}>
@@ -394,7 +443,7 @@ export default function PDV() {
                 <span className="text-sm font-bold text-white">Venda</span>
               </div>
               {cart.length > 0 && (
-                <button onClick={() => setCart([])} className="text-[11px] text-gray-500 hover:text-red-400 hover:scale-105 transition-all duration-200">Limpar</button>
+                <button onClick={() => { setCart([]); setOrderNote(''); setClient(''); setChangeFor(0); setSelectedTable(''); setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); localStorage.removeItem(PDV_STORAGE_KEY); }} className="text-[11px] text-gray-500 hover:text-red-400 hover:scale-105 transition-all duration-200">Limpar</button>
               )}
             </div>
 
@@ -590,8 +639,8 @@ export default function PDV() {
                   )}
                 </div>
 
-                {/* Troco (only for simple cash payment) */}
-                {payment === 'dinheiro' && !splitPayment && (
+                {/* Troco */}
+                {((payment === 'dinheiro' && !splitPayment) || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && (
                   <div className="px-4 pt-3">
                     <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Troco</p>
                     <div className="flex gap-2 items-center">

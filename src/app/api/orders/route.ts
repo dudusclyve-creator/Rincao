@@ -17,6 +17,23 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const b = await req.json();
 
+  if (b.action === 'removeItem') {
+    const order = await prisma.order.findUnique({ where: { id: b.orderId }, include: { items: true } });
+    if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    const item = order.items[b.itemIndex];
+    if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+    await prisma.orderItem.delete({ where: { id: item.id } });
+    const remaining = order.items.filter((_: any, i: number) => i !== b.itemIndex);
+    const newSubtotal = remaining.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+    const newTotal = Math.max(0, newSubtotal + (order.type === 'entrega' ? order.deliveryFee : 0) - order.discount);
+    if (remaining.length === 0) {
+      await prisma.order.delete({ where: { id: order.id } });
+    } else {
+      await prisma.order.update({ where: { id: order.id }, data: { subtotal: newSubtotal, total: newTotal } });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   if (b.action === 'addItems') {
     const order = await prisma.order.findUnique({ where: { id: b.orderId }, include: { items: true } });
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
@@ -69,12 +86,18 @@ export async function POST(req: Request) {
   const fee = b.type === 'entrega' ? Number(b.deliveryFee || 0) : 0;
   const total = Math.max(0, subtotal + fee - discount);
 
-  const last = await prisma.order.findFirst({ orderBy: { number: 'desc' }, select: { number: true } });
-  const seq = (last?.number || 1024) + 1;
+  const turnoSetting = await prisma.setting.findUnique({ where: { key: 'turno_number' } });
+  const turnoId = turnoSetting?.value || '1';
+  const lastOrder = await prisma.order.findFirst({
+    orderBy: { number: 'desc' },
+    select: { number: true },
+  });
+  const seq = lastOrder ? lastOrder.number + 1 : 1;
 
   const order = await prisma.order.create({
     data: {
       number: seq,
+      turnoId,
       customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
       addressText: b.addressText || '', type: b.type || 'entrega',
       status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
@@ -90,6 +113,14 @@ export async function POST(req: Request) {
     include: { items: true },
   });
   await prisma.notification.create({ data: { kind: 'novo_pedido', text: `Novo pedido #${order.number} — ${order.customerName} — R$ ${total.toFixed(2)}` } });
+
+  if (b.source === 'cardapio') {
+    const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
+    if (open) {
+      await prisma.cashMovement.create({ data: { registerId: open.id, kind: 'venda', method: b.payment || 'pix', amount: total, reason: `Pedido #${order.number}`, orderId: order.id } });
+    }
+  }
+
   return NextResponse.json(order);
 }
 

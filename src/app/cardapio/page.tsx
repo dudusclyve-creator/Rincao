@@ -28,7 +28,7 @@ const C = {
   border: '#4a3525',
 };
 
-const DELIVERY_ZONES: Record<string, { name: string; fee: number }[]> = {
+const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
   'Santana do Livramento': [
     { name: 'Centro', fee: 5 }, { name: 'Boa Vista', fee: 5 }, { name: 'Sao Jose', fee: 6 },
     { name: 'Cidade Alta', fee: 6 }, { name: 'Liberdade', fee: 7 }, { name: 'Jardim do Sol', fee: 7 },
@@ -60,8 +60,26 @@ export default function CardapioPage() {
   const [deliveryComp, setDeliveryComp] = useState('');
   const cart = useCart();
   const tabsRef = useRef<HTMLDivElement>(null);
+  const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
 
   useEffect(() => { fetch('/api/menu').then((r) => r.json()).then(setData); }, []);
+  useEffect(() => {
+    const loadAreas = () => {
+      fetch('/api/delivery-areas', { cache: 'no-store' }).then((r) => r.json()).then((areas: any[]) => {
+        const zones: Record<string, { name: string; fee: number }[]> = {};
+        for (const a of areas) {
+          if (a.active === false) continue;
+          const city = a.city || 'Santana do Livramento';
+          if (!zones[city]) zones[city] = [];
+          zones[city].push({ name: a.name, fee: a.fee });
+        }
+        if (Object.keys(zones).length > 0) setDeliveryZones(zones);
+      }).catch(() => {});
+    };
+    loadAreas();
+    const t = setInterval(loadAreas, 15000);
+    return () => clearInterval(t);
+  }, []);
 
   const selectCat = (id: string) => {
     setCat(id);
@@ -332,12 +350,12 @@ export default function CardapioPage() {
                 </button>
                 <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Qual sua cidade?</p>
                 <div className="space-y-1.5">
-                  {Object.keys(DELIVERY_ZONES).map((city) => (
+                  {Object.keys(deliveryZones).map((city) => (
                     <button key={city} onClick={() => { setDeliveryCity(city); setDeliveryStep(2); }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryCity === city ? '#6b3a1f' : '#f9f9f9', color: deliveryCity === city ? '#fff' : '#6b3a1f' }}>
                       <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: deliveryCity === city ? 'rgba(255,255,255,0.15)' : '#fff' }}>📍</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] font-bold">{city}</p>
-                        <p className="text-[9px] opacity-50">{DELIVERY_ZONES[city].length} bairros</p>
+                        <p className="text-[9px] opacity-50">{deliveryZones[city].length} bairros</p>
                       </div>
                       <svg className="w-4 h-4 shrink-0 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
                     </button>
@@ -352,7 +370,7 @@ export default function CardapioPage() {
                 </button>
                 <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Bairro em {deliveryCity}</p>
                 <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {(DELIVERY_ZONES[deliveryCity] || []).map((z) => (
+                  {(deliveryZones[deliveryCity] || []).map((z) => (
                     <button key={z.name} onClick={() => { setDeliveryBairro(z.name); setDeliveryStep(3); }} className="w-full flex items-center justify-between p-2.5 rounded-lg transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryBairro === z.name ? '#6b3a1f' : '#f9f9f9', color: deliveryBairro === z.name ? '#fff' : '#6b3a1f' }}>
                       <span className="text-[11px] font-bold">{z.name}</span>
                       <span className="text-[10px] font-bold" style={{ opacity: deliveryBairro === z.name ? 0.7 : 0.4 }}>+{BRL(z.fee)}</span>
@@ -376,7 +394,7 @@ export default function CardapioPage() {
                 </div>
                 <button onClick={() => {
                   if (!deliveryStreet || !deliveryNum) { alert('Informe rua e número'); return; }
-                  const zona = (DELIVERY_ZONES[deliveryCity] || []).find((z) => z.name === deliveryBairro);
+                  const zona = (deliveryZones[deliveryCity] || []).find((z) => z.name === deliveryBairro);
                   const fullAddr = `${deliveryStreet}, ${deliveryNum}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`;
                    setAddressText(fullAddr);
                    setAddressOpen(false);
@@ -559,10 +577,10 @@ function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryTy
             <button onClick={() => setStep(1)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Cidade</p>
             <div className="space-y-1.5">
-              {Object.keys(DELIVERY_ZONES).map((c) => (
+              {Object.keys(deliveryZones).map((c) => (
                 <button key={c} onClick={() => { setCity(c); setStep(3); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: city === c ? '#6b3a1f' : '#f5ebe0', color: city === c ? '#fff' : '#5a4030' }}>
                   <span className="text-[11px] font-bold">{c}</span>
-                  <span className="text-[9px]">{DELIVERY_ZONES[c].length} bairros</span>
+                  <span className="text-[9px]">{deliveryZones[c].length} bairros</span>
                 </button>
               ))}
             </div>
@@ -574,7 +592,7 @@ function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryTy
             <button onClick={() => setStep(2)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Bairro em {city}</p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
-              {(DELIVERY_ZONES[city] || []).map((z) => (
+              {(deliveryZones[city] || []).map((z) => (
                 <button key={z.name} onClick={() => { setBairro(z.name); setStep(4); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: bairro === z.name ? '#6b3a1f' : '#f5ebe0', color: bairro === z.name ? '#fff' : '#5a4030' }}>
                   <span className="text-[11px] font-bold">{z.name}</span>
                   <span className="text-[10px] font-bold">+{BRL(z.fee)}</span>

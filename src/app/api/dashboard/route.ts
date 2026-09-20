@@ -14,7 +14,14 @@ export async function GET(req: Request) {
   orders.forEach((o) => {
     const d = o.createdAt.toISOString().slice(0, 10);
     byDay[d] = (byDay[d] || 0) + o.total;
-    byPay[o.payment] = (byPay[o.payment] || 0) + o.total;
+    if (o.payment?.includes(',')) {
+      o.payment.split(',').forEach((part) => {
+        const [method, amount] = part.split(':');
+        byPay[method] = (byPay[method] || 0) + Number(amount);
+      });
+    } else {
+      byPay[o.payment] = (byPay[o.payment] || 0) + o.total;
+    }
     const h = `${String(o.createdAt.getHours()).padStart(2,'0')}h`;
     byHour[h] = (byHour[h] || 0) + 1;
     o.items.forEach((it) => {

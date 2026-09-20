@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { BRL, playNewOrderSound, receiptText } from '@/lib/utils';
-import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw } from 'lucide-react';
+import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard } from 'lucide-react';
 
 const COLUMNS = [
   { id: 'novo', label: 'Novos', icon: '🔔', color: '#3b82f6', gradient: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.08))', border: 'rgba(59,130,246,0.35)' },
@@ -44,6 +44,28 @@ function isOverdue(o: any): boolean {
   return limit ? elapsed > limit : false;
 }
 
+const PAYMENT_MAP: Record<string, { label: string; icon: string; color: string }> = {
+  pix: { label: 'PIX', icon: '📱', color: '#22c55e' },
+  dinheiro: { label: 'Dinheiro', icon: '💵', color: '#f59e0b' },
+  debito: { label: 'Débito', icon: '💳', color: '#3b82f6' },
+  credito: { label: 'Crédito', icon: '💳', color: '#8b5cf6' },
+};
+
+function getPaymentBadge(payment: string) {
+  if (!payment) return null;
+  if (payment.includes(',')) {
+    const parts = payment.split(',');
+    const labels = parts.map(p => {
+      const [method, amount] = p.split(':');
+      const info = PAYMENT_MAP[method];
+      return info ? `${info.icon} ${info.label} ${BRL(Number(amount))}` : method;
+    });
+    return { label: labels.join(' + '), color: '#f59e0b' };
+  }
+  const info = PAYMENT_MAP[payment];
+  return info ? { label: `${info.icon} ${info.label}`, color: info.color } : { label: payment, color: '#9ca3af' };
+}
+
 function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, draggable, onDragStart, onDragEnd }: any) {
   const orderType = getOrderType(o);
   const typeBadge = TYPE_BADGE[orderType];
@@ -52,6 +74,15 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
   const isExpanded = isSelected;
   const overdue = isOverdue(o);
   const wasOverdue = o.status === 'concluido' || o.status === 'cancelado' ? elapsed > 45 : false;
+
+  const troco = (() => {
+    if (!o.changeFor || o.changeFor <= 0) return 0;
+    if (o.payment?.includes(',')) {
+      const cashAmount = o.payment.split(',').filter((p: string) => p.startsWith('dinheiro:')).reduce((s: number, p: string) => s + Number(p.split(':')[1] || 0), 0);
+      return Math.max(0, o.changeFor - cashAmount);
+    }
+    return o.payment === 'dinheiro' ? Math.max(0, o.changeFor - o.total) : 0;
+  })();
 
   return (
     <div
@@ -70,7 +101,11 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-black text-white">#{o.number}</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: typeBadge.bg, color: typeBadge.text }}>{typeBadge.label}</span>
+            {orderType === 'mesa' ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: '#581c87', color: '#d8b4fe' }}>📍 {o.addressText || 'Mesa'}</span>
+            ) : (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: typeBadge.bg, color: typeBadge.text }}>{typeBadge.label}</span>
+            )}
             {overdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600 text-white">ATRASADO</span>}
             {wasOverdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600/80 text-white">ATRASADO</span>}
           </div>
@@ -82,7 +117,7 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
             {o.customerName?.charAt(0)?.toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-bold text-white truncate">{o.customerName}</p>
+            <p className="text-[13px] font-bold text-white truncate">{orderType === 'mesa' && (!o.customerName || o.customerName === 'PDV') ? (o.addressText || 'Mesa') : o.customerName}</p>
             <p className="text-[10px] flex items-center gap-1" style={{ color: overdue ? '#f87171' : '#9ca3af' }}>
               <Clock size={9} /> {new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               {elapsed > 0 && <span> • {elapsed}min</span>}
@@ -91,14 +126,37 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
           </div>
         </div>
 
+        {(() => {
+          const pay = getPaymentBadge(o.payment);
+          if (!pay) return null;
+          return (
+            <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg" style={{ background: `${pay.color}12`, border: `1px solid ${pay.color}25` }}>
+              <span className="text-[10px] font-bold" style={{ color: pay.color }}>{pay.label}</span>
+            </div>
+          );
+        })()}
+        {troco > 0 && (
+          <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <span className="text-[10px] font-bold" style={{ color: '#f59e0b' }}>💵 Troco {BRL(o.changeFor)} ({BRL(troco)})</span>
+          </div>
+        )}
+
         {isExpanded ? (
           <div className="space-y-1 mb-2 p-2 rounded-xl" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            {o.items.map((it: any) => (
-              <div key={it.id} className="flex items-center justify-between text-[11px]">
-                <span className="text-gray-300"><span className="font-bold text-white">{it.qty}x</span> {it.name}</span>
-                <span className="font-bold text-white">{BRL(it.unitPrice * it.qty)}</span>
-              </div>
-            ))}
+            {o.items.map((it: any) => {
+              const addons = JSON.parse(it.addonsJson || '[]');
+              return (
+                <div key={it.id}>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-gray-300"><span className="font-bold text-white">{it.qty}x</span> {it.name}</span>
+                    <span className="font-bold text-white">{BRL(it.unitPrice * it.qty)}</span>
+                  </div>
+                  {addons.map((a: any, j: number) => (
+                    <p key={j} className="text-[9px] text-gray-500 ml-4">+ {a.name}{a.price ? ` ${BRL(a.price)}` : ''}</p>
+                  ))}
+                </div>
+              );
+            })}
             {o.addressText && (
               <div className="flex items-start gap-1 mt-2 pt-2 text-[10px] text-gray-400 border-t border-gray-700">
                 <MapPin size={10} className="shrink-0 mt-0.5" /> {o.addressText}
@@ -183,39 +241,48 @@ export default function Pedidos() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [dispatchOrder, setDispatchOrder] = useState<any | null>(null);
   const [selectedDriver, setSelectedDriver] = useState<string>('');
+  const [confirmPopup, setConfirmPopup] = useState<any | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
 
   const load = async () => {
     const o = await fetch('/api/orders?limit=120').then((r) => r.json());
-    if (prevCount.current && o.length > prevCount.current) playNewOrderSound();
-    prevCount.current = o.length;
-    setOrders(o);
+    const turnoRes = await fetch('/api/cash').then((r) => r.json());
+    const turnoId = String(turnoRes.turno || '1');
+    const turnoOrders = o.filter((order: any) => (order.turnoId || '1') === turnoId);
+    if (prevCount.current && turnoOrders.length > prevCount.current) playNewOrderSound();
+    prevCount.current = turnoOrders.length;
+    setOrders(turnoOrders);
   };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
-  useEffect(() => { fetch('/api/users').then((r) => r.json()).then(setDrivers); }, []);
+  useEffect(() => { fetch('/api/drivers').then((r) => r.json()).then(setDrivers); }, []);
 
   const setStatus = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
     load();
   };
 
-  const dispatchWithDriver = async (orderId: string, userId: string) => {
-    const user = (drivers as any[]).find((u: any) => u.id === userId);
-    const drvRes = await fetch('/api/drivers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: user?.name || 'Entregador', phone: '' }) }).then((r) => r.json());
-    await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, status: 'entrega', driverId: drvRes.id }) });
-    setDispatchOrder(null);
-    setSelectedDriver('');
-    load();
+  const dispatchWithDriver = async (orderId: string, driverId: string) => {
+    try {
+      await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, status: 'entrega', driverId }) });
+      setDispatchOrder(null);
+      setConfirmPopup(null);
+      setSelectedDriver('');
+      load();
+    } catch (e) {
+      console.error('Erro ao despachar:', e);
+    }
   };
 
   const print = async (o: any) => {
     const text = receiptText({
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: o.customerName, customerPhone: o.customerPhone,
-      items: o.items.map((it: any) => ({ qty: it.qty, name: it.name, addons: JSON.parse(it.addonsJson || '[]'), note: it.note })),
-      payment: o.payment, subtotal: o.subtotal, fee: o.deliveryFee, discount: o.discount, total: o.total, width: '80mm',
+      items: o.items.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: JSON.parse(it.addonsJson || '[]'), note: it.note })),
+      payment: o.payment, subtotal: o.subtotal, fee: o.deliveryFee, discount: o.discount, total: o.total,
+      addressText: o.addressText, driverName: o.driver?.name, changeFor: o.changeFor,
+      width: '80mm',
     });
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
     const w = window.open('', '_blank', 'width=320');
@@ -407,12 +474,12 @@ export default function Pedidos() {
               </button>
             </div>
             <div className="space-y-2 mb-5">
-              {(drivers.filter((u: any) => u.role === 'entregador' && u.active)).map((d: any) => (
+              {(drivers as any[]).map((d: any) => (
                 <button key={d.id} onClick={() => setSelectedDriver(d.id)} className="w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left" style={selectedDriver === d.id ? { borderColor: '#22c55e', background: 'rgba(74,222,128,0.1)' } : { borderColor: 'rgba(255,255,255,0.12)', background: 'transparent' }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold" style={{ background: 'rgba(255,255,255,0.08)', color: '#f0e8e0' }}>{d.name.charAt(0)}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-bold text-white">{d.name}</p>
-                    <p className="text-[10px] text-gray-400">{d.email}</p>
+                    {d.phone && <p className="text-[10px] text-gray-400">{d.phone}</p>}
                   </div>
                   {selectedDriver === d.id && (
                     <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#22c55e' }}>
@@ -421,17 +488,79 @@ export default function Pedidos() {
                   )}
                 </button>
               ))}
-              {(drivers.filter((u: any) => u.role === 'entregador' && u.active)).length === 0 && (
+              {(drivers as any[]).length === 0 && (
                 <p className="text-center text-[11px] py-4 text-gray-500">Nenhum entregador cadastrado</p>
               )}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setDispatchOrder(null)} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Cancelar</button>
-              <button disabled={!selectedDriver} onClick={() => dispatchWithDriver(dispatchOrder.id, selectedDriver)} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold text-white disabled:opacity-40 transition-all hover:brightness-110 active:scale-95" style={{ background: '#22c55e' }}>Confirmar envio</button>
+              <button disabled={!selectedDriver} onClick={() => { setConfirmPopup(dispatchOrder); }} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold text-white disabled:opacity-40 transition-all hover:brightness-110 active:scale-95" style={{ background: '#22c55e' }}>Confirmar envio</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Popup confirmação com lembretes */}
+      {confirmPopup && (() => {
+        const pay = confirmPopup.payment || '';
+        const hasDinheiro = pay.includes('dinheiro');
+        const hasCartao = pay.includes('debito') || pay.includes('credito');
+        const hasBebida = confirmPopup.items?.some((it: any) => {
+          const n = (it.name || '').toLowerCase();
+          return n.includes('refri') || n.includes('cerv') || n.includes('suco') || n.includes('água') || n.includes('agua') || n.includes('饮') || n.includes('lata') || n.includes('garrafa') || n.includes('bebida') || n.includes('long neck') || n.includes('chopp') || n.includes('drink');
+        });
+        const trocoVal = (() => {
+          if (!confirmPopup.changeFor || confirmPopup.changeFor <= 0) return 0;
+          if (pay.includes(',')) {
+            const cashAmount = pay.split(',').filter((p: string) => p.startsWith('dinheiro:')).reduce((s: number, p: string) => s + Number(p.split(':')[1] || 0), 0);
+            return Math.max(0, confirmPopup.changeFor - cashAmount);
+          }
+          return pay === 'dinheiro' ? Math.max(0, confirmPopup.changeFor - confirmPopup.total) : 0;
+        })();
+        const reminders: { icon: string; text: string; color: string }[] = [];
+        if (trocoVal > 0) reminders.push({ icon: '💵', text: `Levar troco ${BRL(confirmPopup.changeFor)} (${BRL(trocoVal)})`, color: '#f59e0b' });
+        if (hasCartao) reminders.push({ icon: '💳', text: 'Levar maquininha', color: '#3b82f6' });
+        if (hasBebida) reminders.push({ icon: '🍺', text: 'Levar bebidas', color: '#22c55e' });
+
+        const driverName = (drivers as any[]).find((d: any) => d.id === selectedDriver)?.name || '';
+
+        return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setConfirmPopup(null)}>
+          <div className="rounded-2xl p-6 max-w-sm w-full" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.15)', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: 'rgba(74,222,128,0.15)' }}>
+                <span className="text-2xl">🛵</span>
+              </div>
+              <h3 className="font-black text-lg text-white">Confirmar despacho</h3>
+              <p className="text-[12px] mt-1" style={{ color: '#8a7a6a' }}>Pedido #{confirmPopup.number} → {driverName}</p>
+            </div>
+
+            {reminders.length > 0 && (
+              <div className="space-y-2 mb-5">
+                <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: '#8a7a6a' }}>⚠️ Lembrete para o motoboy</p>
+                {reminders.map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: `${r.color}12`, border: `1px solid ${r.color}30` }}>
+                    <span className="text-lg">{r.icon}</span>
+                    <span className="text-[12px] font-bold" style={{ color: r.color }}>{r.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {reminders.length === 0 && (
+              <div className="mb-5 px-4 py-3 rounded-xl text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-[11px]" style={{ color: '#8a7a6a' }}>Nenhum lembrete especial</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmPopup(null)} className="flex-1 rounded-xl py-3 text-[12px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Voltar</button>
+              <button onClick={() => { dispatchWithDriver(confirmPopup.id, selectedDriver); setConfirmPopup(null); }} className="flex-1 rounded-xl py-3 text-[12px] font-bold text-white transition-all hover:brightness-110 active:scale-95" style={{ background: '#22c55e' }}>✅ Confirmar</button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
     </div>
   );
 }

@@ -90,7 +90,90 @@ export function receiptText(o: {
   store: string; number: number; date: string; customerName: string;
   customerPhone: string; items: { qty: number; name: string; addons: CartAddon[]; note?: string }[];
   payment: string; subtotal: number; fee: number; discount: number; total: number;
+  addressText?: string; driverName?: string; changeFor?: number | null;
   width?: '58mm' | '80mm';
+}) {
+  const cols = o.width === '58mm' ? 32 : 48;
+  const line = '-'.repeat(cols);
+  const c = (s: string) => s.slice(0, cols);
+  const row = (l: string, r: string) => {
+    const sp = Math.max(1, cols - l.length - r.length);
+    return c(l + ' '.repeat(sp) + r);
+  };
+
+  const formatPayment = (pay: string) => {
+    if (!pay) return ['A definir'];
+    const map: Record<string, string> = { pix: 'PIX', dinheiro: 'Dinheiro', debito: 'Debito', credito: 'Credito' };
+    if (pay.includes(',')) {
+      return pay.split(',').map(p => {
+        const [method, amount] = p.split(':');
+        return `${map[method] || method} ${BRL(Number(amount))}`;
+      });
+    }
+    return [`${map[pay] || pay} ${BRL(o.total)}`];
+  };
+
+  const troco = (() => {
+    if (!o.changeFor || o.changeFor <= 0) return 0;
+    if (o.payment?.includes(',')) {
+      const cashAmount = o.payment.split(',').filter(p => p.startsWith('dinheiro:')).reduce((s, p) => s + Number(p.split(':')[1] || 0), 0);
+      return Math.max(0, o.changeFor - cashAmount);
+    }
+    return o.payment === 'dinheiro' ? Math.max(0, o.changeFor - o.total) : 0;
+  })();
+
+  const wrapAddress = (addr: string) => {
+    if (addr.length <= cols) return [addr];
+    const parts: string[] = [];
+    let remaining = addr;
+    while (remaining.length > cols) {
+      let breakAt = remaining.lastIndexOf(', ', cols);
+      if (breakAt <= 0) breakAt = remaining.lastIndexOf(' ', cols);
+      if (breakAt <= 0) breakAt = cols;
+      parts.push(remaining.slice(0, breakAt));
+      remaining = remaining.slice(breakAt).replace(/^[, ]+/, '');
+    }
+    if (remaining) parts.push(remaining);
+    return parts;
+  };
+
+  const out: string[] = [];
+  out.push(c(`*** ${o.store} ***`));
+  out.push(row(`PEDIDO #${o.number}`, o.date));
+  out.push(line);
+  out.push(`Cliente: ${o.customerName}${o.customerPhone ? ` ${o.customerPhone}` : ''}`);
+  if (o.addressText) {
+    wrapAddress(o.addressText).forEach((part, i) => {
+      out.push(i === 0 ? c(`Endereco: ${part}`) : c(`  ${part}`));
+    });
+  }
+  if (o.driverName) out.push(`Entregador: ${o.driverName}`);
+  out.push(line);
+  o.items.forEach((it) => {
+    out.push(row(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty)));
+    it.addons.forEach((a) => out.push(c(`  + ${a.name}${a.price ? ` ${BRL(a.price)}` : ''}`)));
+    if (it.note) out.push(c(`  obs: ${it.note}`));
+  });
+  out.push(line);
+  out.push(row('Subtotal', BRL(o.subtotal)));
+  out.push(row('Entrega', BRL(o.fee)));
+  if (o.discount) out.push(row('Desconto', '-' + BRL(o.discount)));
+  out.push(row('TOTAL', BRL(o.total)));
+  out.push(c(o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:'));
+  formatPayment(o.payment).forEach((line) => out.push(c(`  ${line}`)));
+  if (troco > 0) out.push(row('TROCO', `${BRL(o.changeFor!)} - devolver ${BRL(troco)}`));
+  out.push(line);
+  out.push(c('Obrigado pela preferencia!'));
+  return out.join('\n');
+}
+
+export function cashReceiptText(o: {
+  store: string; operator: string; openedAt: string; closedAt: string;
+  initial: number; vendas: number; entradas: number; saidas: number; expected: number;
+  informed: number; diff: number; byMethod: Record<string, number>; width?: '58mm' | '80mm';
+  driverTotal?: number;
+  orderNumbers?: number[];
+  driverBreakdown?: { name: string; total: number; paid: number; remaining: number }[];
 }) {
   const cols = o.width === '58mm' ? 32 : 48;
   const line = '-'.repeat(cols);
@@ -101,20 +184,36 @@ export function receiptText(o: {
   };
   const out: string[] = [];
   out.push(c(`*** ${o.store} ***`));
-  out.push(row(`PEDIDO #${o.number}`, o.date));
-  out.push(`Cliente: ${o.customerName} ${o.customerPhone}`);
+  out.push(c('FECHAMENTO DE CAIXA'));
+  out.push(row('Operador:', o.operator));
+  out.push(row('Abertura:', o.openedAt));
+  out.push(row('Fechamento:', o.closedAt));
   out.push(line);
-  o.items.forEach((it) => {
-    out.push(row(`${it.qty}x ${it.name}`, BRL(it.qty * 0 + 0)));
-    it.addons.forEach((a) => out.push(c(`  + ${a.name}`)));
-    if (it.note) out.push(c(`  obs: ${it.note}`));
+  out.push(row('Valor inicial', BRL(o.initial)));
+  out.push(row('Vendas', BRL(o.vendas)));
+  if (o.orderNumbers && o.orderNumbers.length > 0) {
+    out.push(c(`  Pedidos (#${o.orderNumbers[0]}-${o.orderNumbers[o.orderNumbers.length - 1]})`));
+    out.push(c(`  Qtd: ${o.orderNumbers.length} pedido(s)`));
+  }
+  if (o.entradas > 0) out.push(row('Suprimentos', BRL(o.entradas)));
+  if (o.saidas > 0) out.push(row('Sangrias', '-' + BRL(o.saidas)));
+  if (o.driverTotal && o.driverTotal > 0) {
+    out.push(row('Motoboys', '-' + BRL(o.driverTotal)));
+    if (o.driverBreakdown && o.driverBreakdown.length > 0) {
+      o.driverBreakdown.forEach((d) => {
+        out.push(row(`  ${d.name}`, BRL(d.total)));
+      });
+    }
+  }
+  out.push(line);
+  out.push(row('ESPERADO', BRL(o.expected)));
+  out.push(row('INFORMADO', BRL(o.informed)));
+  out.push(row('DIFERENCA', (o.diff >= 0 ? '+' : '') + BRL(o.diff)));
+  out.push(line);
+  out.push(c('Formas de pagamento:'));
+  Object.entries(o.byMethod).forEach(([k, v]) => {
+    out.push(row(`  ${k.toUpperCase()}`, BRL(v)));
   });
-  out.push(line);
-  out.push(row('Subtotal', BRL(o.subtotal)));
-  out.push(row('Entrega', BRL(o.fee)));
-  if (o.discount) out.push(row('Desconto', '-' + BRL(o.discount)));
-  out.push(row('TOTAL', BRL(o.total)));
-  out.push(row('PAGTO', o.payment.toUpperCase()));
   out.push(line);
   out.push(c('Obrigado pela preferencia!'));
   return out.join('\n');

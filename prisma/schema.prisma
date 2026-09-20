@@ -136,6 +136,7 @@ model Order {
   driverId    String?
   driver      Driver?  @relation(fields: [driverId], references: [id])
   source      String   @default("cardapio") // cardapio | pdv | mesa
+  turnoId     String   @default("1")
   createdAt   DateTime @default(now())
   items       OrderItem[]
   payments    Payment[]
