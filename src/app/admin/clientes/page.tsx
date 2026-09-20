@@ -252,48 +252,65 @@ export default function Clientes() {
 
               {/* Expanded Details */}
               {isExpanded && (
-                <div className="px-3 pb-3 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="px-4 pb-4 space-y-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  {/* Stats Row */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3">
-                    <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <p className="text-[9px] text-gray-500 uppercase mb-0.5">Total Gasto</p>
-                      <p className="text-xs font-bold text-green-400">{BRL(c.totalSpent)}</p>
-                    </div>
-                    <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <p className="text-[9px] text-gray-500 uppercase mb-0.5">Ticket Médio</p>
-                      <p className="text-xs font-bold text-amber-400">{BRL(c.ticketMedio)}</p>
-                    </div>
-                    <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <p className="text-[9px] text-gray-500 uppercase mb-0.5">Desde</p>
-                      <p className="text-xs font-bold text-blue-400">{c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-BR') : '—'}</p>
-                    </div>
-                    <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <p className="text-[9px] text-gray-500 uppercase mb-0.5">Último Pedido</p>
-                      <p className="text-xs font-bold text-purple-400">{c.lastOrder ? new Date(c.lastOrder).toLocaleDateString('pt-BR') : '—'}</p>
-                    </div>
+                    {[
+                      { label: 'Total Gasto', value: BRL(c.totalSpent), color: '#22c55e', icon: '💰', gradient: 'rgba(34,197,94,0.08)' },
+                      { label: 'Ticket Médio', value: BRL(c.ticketMedio), color: '#f59e0b', icon: '📊', gradient: 'rgba(245,158,11,0.08)' },
+                      { label: 'Desde', value: c.createdAt ? new Date(c.createdAt).toLocaleDateString('pt-BR') : '—', color: '#3b82f6', icon: '📅', gradient: 'rgba(59,130,246,0.08)' },
+                      { label: 'Último Pedido', value: c.lastOrder ? new Date(c.lastOrder).toLocaleDateString('pt-BR') : '—', color: '#a855f7', icon: '🕐', gradient: 'rgba(168,85,247,0.08)' },
+                    ].map((s, i) => (
+                      <div key={s.label} className="rounded-xl p-3" style={{ background: s.gradient, border: `1px solid ${s.color}15`, animation: `slideUp 0.3s ease ${i * 50}ms both` }}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="text-[11px]">{s.icon}</span>
+                          <p className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: s.color + '99' }}>{s.label}</p>
+                        </div>
+                        <p className="text-sm font-black" style={{ color: s.color }}>{s.value}</p>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Address */}
-                  <div className="rounded-lg p-2 flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    <MapPin size={12} className="text-gray-500 shrink-0" />
-                    <span className="text-[11px] text-gray-400">{getFullAddress(c) || 'Endereço não informado'}</span>
-                  </div>
-
-                  {/* Frequency */}
-                  {c.avgDaysBetween && (
-                    <div className="rounded-lg p-2 flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <Calendar size={12} className="text-gray-500 shrink-0" />
-                      <span className="text-[11px] text-gray-400">A cada {c.avgDaysBetween} dia(s) em média {c.daysSinceLast !== null && c.daysSinceLast > c.avgDaysBetween * 1.5 ? '· ⚠️ Ausente' : '· ✅ Ativo'}</span>
+                  {/* Address + Frequency Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(59,130,246,0.12)' }}>
+                        <MapPin size={14} className="text-blue-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-blue-400/60 mb-0.5">Endereço</p>
+                        <p className="text-[11px] text-gray-300 leading-snug">{getFullAddress(c) || <span className="text-gray-600 italic">Não informado</span>}</p>
+                      </div>
                     </div>
-                  )}
+                    {c.avgDaysBetween && (
+                      <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: c.daysSinceLast !== null && c.daysSinceLast > c.avgDaysBetween * 1.5 ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)' }}>
+                          <Calendar size={14} className={c.daysSinceLast !== null && c.daysSinceLast > c.avgDaysBetween * 1.5 ? 'text-red-400' : 'text-green-400'} />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: c.daysSinceLast !== null && c.daysSinceLast > c.avgDaysBetween * 1.5 ? 'rgba(239,68,68,0.6)' : 'rgba(34,197,94,0.6)' }}>Frequência</p>
+                          <p className="text-[11px] text-gray-300">A cada {c.avgDaysBetween} dia(s)</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: c.daysSinceLast !== null && c.daysSinceLast > c.avgDaysBetween * 1.5 ? '#ef4444' : '#22c55e' }}>
+                            {c.daysSinceLast !== null && c.daysSinceLast > c.avgDaysBetween * 1.5 ? `⚠️ Ausente há ${c.daysSinceLast} dias` : `✅ Ativo · último há ${c.daysSinceLast} dia(s)`}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Favorite Products */}
                   {c.favProducts?.length > 0 && (
-                    <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                      <p className="text-[9px] text-gray-500 uppercase mb-1.5 flex items-center gap-1"><Heart size={10} /> Favoritos</p>
+                    <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(225,29,72,0.12)' }}>
+                          <Heart size={14} className="text-rose-400" />
+                        </div>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-rose-400/60">Favoritos</p>
+                      </div>
                       <div className="flex flex-wrap gap-1.5">
                         {c.favProducts.map((fp: any) => (
-                          <span key={fp.name} className="text-[10px] px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(225,29,72,0.1)', color: '#e11d48' }}>
-                            {fp.name} ({fp.qty}x)
+                          <span key={fp.name} className="text-[11px] px-2.5 py-1 rounded-lg font-medium" style={{ background: 'rgba(225,29,72,0.1)', color: '#f472b6', border: '1px solid rgba(225,29,72,0.15)' }}>
+                            {fp.name} <span className="font-bold">({fp.qty}x)</span>
                           </span>
                         ))}
                       </div>
@@ -302,23 +319,28 @@ export default function Clientes() {
 
                   {/* Last 5 Orders */}
                   {c.last5Orders?.length > 0 && (
-                    <div>
-                      <p className="text-[9px] text-gray-500 uppercase mb-1.5 flex items-center gap-1"><Clock size={10} /> Últimos pedidos</p>
-                      <div className="space-y-1">
-                        {c.last5Orders.map((o: any) => (
-                          <div key={o.number} className="flex items-center justify-between px-2 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-gray-400">#{o.number}</span>
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                    <div className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.12)' }}>
+                          <Clock size={14} className="text-purple-400" />
+                        </div>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-purple-400/60">Últimos Pedidos</p>
+                      </div>
+                      <div className="divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+                        {c.last5Orders.map((o: any, idx: number) => (
+                          <div key={o.number} className="flex items-center justify-between px-3 py-2.5 transition-colors hover:bg-white/[0.02]" style={{ animation: `slideUp 0.2s ease ${idx * 40}ms both` }}>
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-[11px] font-black text-gray-300 min-w-[36px]">#{o.number}</span>
+                              <span className="text-[9px] px-2 py-0.5 rounded-md font-bold uppercase" style={{ background: o.type === 'entrega' ? 'rgba(34,197,94,0.12)' : o.type === 'mesa' ? 'rgba(59,130,246,0.12)' : 'rgba(245,158,11,0.12)', color: o.type === 'entrega' ? '#22c55e' : o.type === 'mesa' ? '#3b82f6' : '#f59e0b' }}>
                                 {TYPE_LABELS[o.type] || o.type}
                               </span>
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                              <span className="text-[9px] px-2 py-0.5 rounded-md font-bold uppercase" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
                                 {PAYMENT_LABELS[o.payment] || o.payment?.split(',')[0]?.split(':')[0] || '—'}
                               </span>
                             </div>
-                            <div className="text-right">
-                              <span className="text-[10px] font-bold text-white">{BRL(o.total)}</span>
-                              <span className="text-[9px] text-gray-600 ml-2">{new Date(o.date).toLocaleDateString('pt-BR')}</span>
+                            <div className="text-right flex items-center gap-3">
+                              <span className="text-xs font-black text-white">{BRL(o.total)}</span>
+                              <span className="text-[10px] text-gray-600 tabular-nums">{new Date(o.date).toLocaleDateString('pt-BR')}</span>
                             </div>
                           </div>
                         ))}
