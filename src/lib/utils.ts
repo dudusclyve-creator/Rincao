@@ -259,3 +259,29 @@ export function playMenuClick() {
     _menuAudio.play().catch(() => {});
   } catch {}
 }
+
+// Toast system
+type ToastType = 'success' | 'error' | 'info' | 'warning';
+let _toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+export function showToast(msg: string, type: ToastType = 'info', duration = 3000) {
+  if (_toastTimeout) clearTimeout(_toastTimeout);
+  const existing = document.getElementById('global-toast');
+  if (existing) existing.remove();
+
+  const colors: Record<ToastType, { bg: string; border: string; text: string; icon: string }> = {
+    success: { bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.3)', text: '#22c55e', icon: '✓' },
+    error: { bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)', text: '#ef4444', icon: '✕' },
+    info: { bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)', text: '#3b82f6', icon: 'ℹ' },
+    warning: { bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)', text: '#f59e0b', icon: '⚠' },
+  };
+  const c = colors[type];
+
+  const el = document.createElement('div');
+  el.id = 'global-toast';
+  el.style.cssText = `position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:${c.bg};border:1px solid ${c.border};color:${c.text};padding:10px 20px;border-radius:12px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.3);animation:slideDown 0.3s ease;font-family:system-ui;`;
+  el.innerHTML = `<span style="font-size:14px">${c.icon}</span>${msg}`;
+  document.body.appendChild(el);
+
+  _toastTimeout = setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, duration);
+}

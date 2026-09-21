@@ -130,7 +130,6 @@ model Order {
   subtotal    Float    @default(0)
   deliveryFee Float    @default(0)
   discount    Float    @default(0)
-  couponCode  String   @default("")
   total       Float    @default(0)
   note        String   @default("")
   tableId     String?
@@ -205,20 +204,6 @@ model Driver {
   orders Order[]
 }
 
-model Coupon {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  kind      String   @default("percent") // percent | fixed | frete_gratis
-  value     Float    @default(10)
-  minValue  Float    @default(0)
-  expiresAt DateTime?
-  maxUses   Int      @default(100)
-  used      Int      @default(0)
-  firstOnly Boolean  @default(false)
-  phoneOnly String   @default("")
-  active    Boolean  @default(true)
-}
-
 model Promotion {
   id        String   @id @default(cuid())
   title     String
@@ -228,14 +213,6 @@ model Promotion {
   startAt   DateTime @default(now())
   endAt     DateTime?
   active    Boolean  @default(true)
-}
-
-model Review {
-  id        String   @id @default(cuid())
-  orderId   String   @default("")
-  name      String   @default("")
-  stars     Int      @default(5)
-  comment   String   @default("")
   createdAt DateTime @default(now())
 }
 

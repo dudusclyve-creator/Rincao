@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from '@/lib/store';
-import { BRL, isOpenNow, buildWhatsMessage, type CartAddon } from '@/lib/utils';
+import { BRL, isOpenNow, buildWhatsMessage, showToast, type CartAddon } from '@/lib/utils';
 
 type Product = any;
 
@@ -393,7 +393,7 @@ export default function CardapioPage() {
                   </div>
                 </div>
                 <button onClick={() => {
-                  if (!deliveryStreet || !deliveryNum) { alert('Informe rua e número'); return; }
+                  if (!deliveryStreet || !deliveryNum) { showToast('Informe rua e número', 'warning'); return; }
                   const zona = (deliveryZones[deliveryCity] || []).find((z) => z.name === deliveryBairro);
                   const fullAddr = `${deliveryStreet}, ${deliveryNum}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`;
                    setAddressText(fullAddr);
@@ -438,7 +438,7 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
     let next: CartAddon[];
     if (has) next = cur.filter((x) => x.name !== a.name);
     else {
-      if (cur.reduce((s, x) => s + (x.qty || 1), 0) + 1 > g.maxSel) { alert(`Máximo de ${g.maxSel} em "${g.name}"`); return; }
+      if (cur.reduce((s, x) => s + (x.qty || 1), 0) + 1 > g.maxSel) { showToast(`Máximo de ${g.maxSel} em "${g.name}"`, 'warning'); return; }
       next = [...cur, { name: a.name, price: a.price, qty: 1 }];
     }
     setSel({ ...sel, [g.id]: next });
@@ -493,7 +493,7 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
               <button className="w-10 h-10 flex items-center justify-center text-lg font-bold text-gray-400 hover:text-gray-900 transition-all duration-200" onClick={() => setQty(qty + 1)}>+</button>
             </div>
             <button disabled={!valid || !product.available || !isOpen} onClick={() => {
-              if (!valid) { alert('Confira as escolhas obrigatórias'); return; }
+              if (!valid) { showToast('Confira as escolhas obrigatórias', 'warning'); return; }
               cart.add({ key: Math.random().toString(36), productId: product.id, name: product.name, unitPrice: price, qty, note, addons: Object.values(sel).flat() });
               onAdded();
             }} className="flex-1 rounded-xl py-3 text-xs font-bold text-white disabled:opacity-30 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#6b3a1f' }}>Adicionar • {BRL(total)}</button>
@@ -614,7 +614,7 @@ function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryTy
               </div>
             </div>
             <button onClick={() => {
-              if (!street || !num) { alert('Informe rua e número'); return; }
+              if (!street || !num) { showToast('Informe rua e número', 'warning'); return; }
               setAddressText(`${street}, ${num}${comp ? ' - ' + comp : ''} - ${bairro}, ${city}`);
               setStep(0);
             }} className="w-full rounded-lg py-2 font-bold text-white text-[11px] mt-2" style={{ background: '#6b3a1f' }}>Salvar</button>
@@ -663,7 +663,10 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
   const addr = parseAddress(addressText);
 
   const finish = async () => {
-    if (!f.name || !f.phone) { alert('Informe nome e telefone'); return; }
+    if (!f.name || !f.phone) { showToast('Informe nome e telefone', 'warning'); return; }
+    if (deliveryType === 'entrega' && restaurant.minOrder && cart.subtotal < restaurant.minOrder) {
+      showToast(`Pedido mínimo: ${BRL(restaurant.minOrder)}`, 'warning'); return;
+    }
     const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       customerName: f.name, customerPhone: f.phone, street: addr.street, number: addr.number, complement: addr.complement, district: addr.district, reference: '',
       addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
@@ -749,6 +752,11 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
           )}
 
           <div className="mt-5 p-4 rounded-xl bg-gray-50 border border-gray-100">
+            {deliveryType === 'entrega' && restaurant.minOrder > 0 && cart.subtotal < restaurant.minOrder && (
+              <div className="mb-2 p-2 rounded-lg text-[11px] font-bold text-center" style={{ background: '#fef2f2', color: '#dc2626' }}>
+                Pedido mínimo para entrega: {BRL(restaurant.minOrder)} · Faltam {BRL(restaurant.minOrder - cart.subtotal)}
+              </div>
+            )}
             <div className="flex justify-between text-xs mb-1.5 text-gray-400"><span>Subtotal</span><span className="text-gray-700">{BRL(cart.subtotal)}</span></div>
             {fee > 0 && <div className="flex justify-between text-xs mb-1.5 text-gray-400"><span>Entrega</span><span className="text-gray-700">{BRL(fee)}</span></div>}
             <div className="flex justify-between items-center text-base font-bold text-gray-900 mt-2.5 pt-2.5 border-t border-gray-200">
@@ -757,7 +765,10 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
             </div>
           </div>
 
-          <button onClick={finish} className="w-full rounded-xl py-3.5 font-bold text-white text-sm mt-5 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#6b3a1f' }}>Finalizar • {BRL(total)}</button>
+          {(() => {
+            const minOk = deliveryType !== 'entrega' || !restaurant.minOrder || cart.subtotal >= restaurant.minOrder;
+            return <button onClick={finish} disabled={!minOk} className="w-full rounded-xl py-3.5 font-bold text-white text-sm mt-5 transition-all duration-200 hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: minOk ? '#6b3a1f' : '#9ca3af' }}>Finalizar • {BRL(total)}</button>;
+          })()}
           <button onClick={onClose} className="w-full text-center text-[11px] mt-3 py-1 text-gray-400 hover:text-gray-600 transition-colors">Voltar</button>
         </div>
       </div>

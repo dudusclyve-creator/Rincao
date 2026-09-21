@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { BRL, receiptText } from '@/lib/utils';
+import { BRL, receiptText, showToast } from '@/lib/utils';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
@@ -300,7 +300,7 @@ export default function PDV() {
     if (type === 'mesa' && selectedTable) {
       await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: selectedTable, status: 'ocupada' }) });
     }
-    alert(`Venda #${o.number} finalizada: ${BRL(o.total)}`);
+    showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
     const text = receiptText({
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: client || 'PDV', customerPhone: '',

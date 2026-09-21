@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { playMenuClick } from '@/lib/utils';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const MENU: [string, string, string][] = [
   ['Dashboard','/admin','📊'],['Pedidos','/admin/pedidos','🧾'],['PDV','/admin/pdv','🛒'],
@@ -11,7 +12,6 @@ const MENU: [string, string, string][] = [
   ['Cardápio','/admin/produtos','🍔'],['Clientes','/admin/clientes','👥'],
   ['Entregas','/admin/entregas','🛵'],['Estoque','/admin/estoque','📦'],
   ['Relatórios','/admin/relatorios','📈'],['Promoções','/admin/promocoes','🔥'],
-  ['Cupons','/admin/cupons','🎟'],['Avaliações','/admin/avaliacoes','⭐'],
   ['Equipe','/admin/equipe','👔'],['Configurações','/admin/configuracoes','⚙'],
 ];
 
@@ -206,7 +206,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           ))}
         </div>
-        <main className="p-4 md:p-6 max-w-7xl mx-auto">{children}</main>
+        <main className="p-4 md:p-6 max-w-7xl mx-auto"><ErrorBoundary>{children}</ErrorBoundary></main>
       </div>
     </div>
   );
