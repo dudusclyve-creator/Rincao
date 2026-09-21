@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { playMenuClick } from '@/lib/utils';
+import { playMenuClick, preloadSounds } from '@/lib/utils';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const MENU: [string, string, string][] = [
@@ -42,6 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
+    preloadSounds();
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }

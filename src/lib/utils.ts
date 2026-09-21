@@ -243,9 +243,19 @@ function getAudio(cache: HTMLAudioElement | null, src: string, vol: number): HTM
     cache = new Audio(src);
     cache.volume = vol;
     cache.preload = 'auto';
+    cache.load();
   }
   cache.currentTime = 0;
   return cache;
+}
+
+export function preloadSounds() {
+  try {
+    _dropAudio = getAudio(null, '/drop.mp3', 0.6);
+    _menuAudio = getAudio(null, '/menu-click.mp3', 0.5);
+    _cashAudio = getAudio(null, '/cash-register.mp3', 0.7);
+    _storeCloseAudio = getAudio(null, '/store-closed.mp3', 0.7);
+  } catch {}
 }
 
 export function playDropSound() {

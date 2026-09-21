@@ -12,6 +12,7 @@ async function verifyToken(token: string): Promise<boolean> {
 }
 
 const PUBLIC_API = [
+  '/api/auth',
   '/api/menu',
   '/api/settings',
   '/api/upload',
