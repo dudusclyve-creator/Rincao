@@ -46,8 +46,8 @@ export default function Cozinha() {
 
   const sorted = useMemo(() => {
     return [...list].sort((a, b) => {
-      const order = { novo: 0, confirmado: 1, preparo: 2 };
-      const diff = (order[a.status] || 0) - (order[b.status] || 0);
+      const order: Record<string, number> = { novo: 0, confirmado: 1, preparo: 2 };
+      const diff = (order[a.status as string] || 0) - (order[b.status as string] || 0);
       if (diff !== 0) return diff;
       return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     });
