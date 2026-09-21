@@ -235,6 +235,7 @@ export function playNewOrderSound() {
 
 let _dropAudio: HTMLAudioElement | null = null;
 let _menuAudio: HTMLAudioElement | null = null;
+let _cashAudio: HTMLAudioElement | null = null;
 
 function getAudio(cache: HTMLAudioElement | null, src: string, vol: number): HTMLAudioElement {
   if (!cache) {
@@ -257,6 +258,13 @@ export function playMenuClick() {
   try {
     _menuAudio = getAudio(_menuAudio, '/menu-click.mp3', 0.5);
     _menuAudio.play().catch(() => {});
+  } catch {}
+}
+
+export function playCashSound() {
+  try {
+    _cashAudio = getAudio(_cashAudio, '/cash-register.mp3', 0.7);
+    _cashAudio.play().catch(() => {});
   } catch {}
 }
 

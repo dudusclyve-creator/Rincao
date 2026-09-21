@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { BRL, cashReceiptText } from '@/lib/utils';
+import { BRL, cashReceiptText, playCashSound } from '@/lib/utils';
 import {
   DollarSign, Lock, Unlock, ArrowDownCircle, ArrowUpCircle, History,
   Smartphone, Banknote, CreditCard, AlertTriangle, CheckCircle2, X,
@@ -310,6 +310,7 @@ export default function Caixa() {
   const openCash = async () => {
     if (!op.trim()) return;
     await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'open', operator: op.trim(), initial }) });
+    playCashSound();
     load();
   };
 
@@ -325,6 +326,7 @@ export default function Caixa() {
     const openData = data.open;
     const currentDriverTotal = driverTotal;
     const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) }).then((x) => x.json());
+    playCashSound();
     setShowCloseModal(false);
     setCloseResult({ ...openData, closedAt: new Date().toISOString(), expected: r.expected, informed: r.informed, diff: r.diff, driverTotal: currentDriverTotal });
     await load();
@@ -335,6 +337,7 @@ export default function Caixa() {
     const currentDriverTotal = driverTotal;
     await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) });
     await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'new_turno' }) });
+    playCashSound();
     setShowCloseModal(false);
     setDriverTotal(0);
     setDriverBreakdown([]);
