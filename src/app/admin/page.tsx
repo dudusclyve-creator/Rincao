@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { BRL } from '@/lib/utils';
+import { BRL, playStoreCloseSound } from '@/lib/utils';
 import { LayoutDashboard, TrendingUp, Receipt, Clock, ChefHat, CheckCircle2, XCircle, BarChart3, Wallet, Flame } from 'lucide-react';
 
 function useAnimatedValue(target: number, duration = 600) {
@@ -111,6 +111,7 @@ export default function Dashboard() {
     setToggling(true);
     const next = !isOpen;
     await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isOpenManual: next }) });
+    if (!next) playStoreCloseSound();
     setIsOpen(next);
     setToggling(false);
   };
