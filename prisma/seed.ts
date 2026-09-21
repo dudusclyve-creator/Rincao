@@ -150,9 +150,7 @@ async function main() {
     try { await prisma.productAddonGroup.create({ data: { productId: s.id, groupId: gAd.id } }); } catch {}
   }
 
-  // ---------- Cupons / promo ----------
-  await prisma.coupon.upsert({ where: { code: 'BEMVINDO10' }, update: {}, create: { code: 'BEMVINDO10', kind: 'percent', value: 10, minValue: 20, maxUses: 200, firstOnly: true } });
-  await prisma.coupon.upsert({ where: { code: 'RINCAO5' }, update: {}, create: { code: 'RINCAO5', kind: 'fixed', value: 5, minValue: 40, maxUses: 100 } });
+  // ---------- Promo ----------
   await prisma.promotion.upsert({ where: { id: 'promo1' }, update: {}, create: { id: 'promo1', title: 'Os Mais Pedidos', kind: 'percent', value: 0 } });
 
   // ---------- Mesas / entregador / estoque ----------
