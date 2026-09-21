@@ -122,7 +122,7 @@ export default function CardapioPage() {
   return (
     <div className="min-h-screen" style={{ background: C.bg, color: C.textLight }}>
       {/* ===== HEADER FIXO ===== */}
-      <header className="sticky top-0 z-30 backdrop-blur border-b" style={{ background: C.bg + 'f0', borderColor: C.border + '30' }}>
+      <header className="sticky top-0 z-30 backdrop-blur" style={{ background: C.bg + 'f0' }}>
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-12 flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <h1 className="font-black text-sm lg:text-base truncate" style={{ color: C.textLight }}>Rincão Lanches</h1>
@@ -249,7 +249,7 @@ export default function CardapioPage() {
                 </div>
                 <div>
                   <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-                  <p className="text-[10px]" style={{ color: '#b8906a' }}>{deliveryType !== 'entrega' ? 'R$ 0,00' : BRL(R.deliveryFee)}</p>
+                  <p className="text-[10px]" style={{ color: '#b8906a' }}>{deliveryType !== 'entrega' ? 'R$ 0,00' : addressText ? BRL(R.deliveryFee) : 'Defina o endereço'}</p>
                 </div>
               </div>
               <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
@@ -552,7 +552,7 @@ function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryTy
           </div>
           <div className="text-left flex-1 min-w-0">
             <p className="text-[11px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-            <p className="text-[9px]" style={{ color: '#b8906a' }}>{deliveryType !== 'entrega' ? 'R$ 0,00' : BRL(deliveryFee)}</p>
+            <p className="text-[9px]" style={{ color: '#b8906a' }}>{deliveryType !== 'entrega' ? 'R$ 0,00' : addressText ? BRL(deliveryFee) : 'Defina o endereço'}</p>
           </div>
           <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: step !== 0 ? 'rotate(180deg)' : '', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
         </button>
