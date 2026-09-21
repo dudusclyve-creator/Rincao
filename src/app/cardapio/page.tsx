@@ -249,7 +249,7 @@ export default function CardapioPage() {
                 </div>
                 <div>
                   <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-                  <p className="text-[10px]" style={{ color: '#b8906a' }}>{deliveryType === 'retirada' ? 'Sem frete' : deliveryType === 'local' ? 'Sem frete' : addressText ? BRL(R.deliveryFee) : 'Defina o endereço'}</p>
+                  {deliveryType === 'entrega' && <p className="text-[10px]" style={{ color: '#b8906a' }}>{addressText ? BRL(R.deliveryFee) : 'Defina o endereço'}</p>}
                 </div>
               </div>
               <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
@@ -552,7 +552,7 @@ function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryTy
           </div>
           <div className="text-left flex-1 min-w-0">
             <p className="text-[11px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-            <p className="text-[9px]" style={{ color: '#b8906a' }}>{deliveryType === 'retirada' ? 'Sem frete' : deliveryType === 'local' ? 'Sem frete' : addressText ? BRL(deliveryFee) : 'Defina o endereço'}</p>
+            {deliveryType === 'entrega' && <p className="text-[9px]" style={{ color: '#b8906a' }}>{addressText ? BRL(deliveryFee) : 'Defina o endereço'}</p>}
           </div>
           <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: step !== 0 ? 'rotate(180deg)' : '', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
         </button>
