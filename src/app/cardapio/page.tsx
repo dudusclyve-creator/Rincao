@@ -538,7 +538,7 @@ function CartDrawer(props: any) {
   const addressText = props.addressText;
   const setAddressText = props.setAddressText;
   const deliveryFee = props.deliveryFee;
-  const deliveryZones = props.deliveryZones || DELIVERY_ZONES_FALLBACK;
+  const deliveryZones: Record<string, { name: string; fee: number }[]> = DELIVERY_ZONES_FALLBACK;
   const cart = useCart();
   const [step, setStep] = useState(0);
   const [city, setCity] = useState('');
