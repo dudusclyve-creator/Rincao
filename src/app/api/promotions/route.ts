@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   const promos = await prisma.promotion.findMany({ orderBy: { startAt: 'desc' } });
   return NextResponse.json(promos);

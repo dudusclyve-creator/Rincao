@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 // Delivery areas stored in Setting table as JSON
 // Format: { areas: [{ id, city, name, fee, active }] }
 

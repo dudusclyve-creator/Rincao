@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   const drivers = await prisma.driver.findMany({ orderBy: { name: 'asc' } });
   // Remove duplicates by name

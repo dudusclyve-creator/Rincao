@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
 import { writeFile, mkdir } from 'fs/promises';
-
-export const dynamic = 'force-dynamic';
 import { join } from 'path';
 
 export const dynamic = 'force-dynamic';

@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: Request) {
   const days = Number(new URL(req.url).searchParams.get('days') || 7);
   const since = new Date(); since.setDate(since.getDate() - days);

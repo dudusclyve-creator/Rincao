@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   return NextResponse.json(await prisma.product.findMany({ include: { category: true, groups: { include: { group: { include: { addons: true } } } } }, orderBy: { order: 'asc' } }));
 }

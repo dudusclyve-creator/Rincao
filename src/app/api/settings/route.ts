@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
 export async function GET() {
   const r = await prisma.restaurant.findUnique({ where: { id: 'single' } });
   return NextResponse.json(r);

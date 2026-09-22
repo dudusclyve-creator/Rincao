@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
-
-export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
-
-export const dynamic = 'force-dynamic';
 import { signSession } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';

@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET() {
   const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, include: { movements: true }, orderBy: { openedAt: 'desc' } });
   const last = await prisma.cashRegister.findMany({ include: { movements: true }, orderBy: { openedAt: 'desc' }, take: 10 });
