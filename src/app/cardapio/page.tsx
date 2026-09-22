@@ -106,14 +106,20 @@ export default function CardapioPage() {
 
   const grouped = useMemo(() => {
     if (cat !== 'all' || search) return [{ name: catName, items: products }];
-    const map = new Map<string, Product[]>();
+    const catOrder = (data?.categories || []).reduce<Record<string, number>>((acc, c: any, i) => { acc[c.id] = c.order ?? i; return acc; }, {});
+    const catNameById = (data?.categories || []).reduce<Record<string, string>>((acc, c: any) => { acc[c.id] = c.name; return acc; }, {});
+    const groups = new Map<string, { order: number; items: Product[] }>();
     for (const p of products) {
       const cn = p.category?.name || 'Outros';
-      if (!map.has(cn)) map.set(cn, []);
-      map.get(cn)!.push(p);
+      const cid = p.categoryId || '';
+      if (!groups.has(cn)) groups.set(cn, { order: catOrder[cid] ?? 999, items: [] });
+      groups.get(cn)!.items.push(p);
     }
-    return Array.from(map.entries()).map(([name, items]) => ({ name, items }));
-  }, [products, cat, search, catName]);
+    return Array.from(groups.entries())
+      .map(([name, { order, items }]) => ({ name, items, order }))
+      .sort((a, b) => a.order - b.order)
+      .map(({ name, items }) => ({ name, items }));
+  }, [products, cat, search, catName, data?.categories]);
 
   if (!data) return <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}><p className="font-bold animate-pulse" style={{ color: C.textMuted }}>Carregando…</p></div>;
   const R = data.restaurant;
