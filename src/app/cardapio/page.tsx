@@ -414,7 +414,7 @@ export default function CardapioPage() {
         </button>
       )}
 
-      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={setAddressText} deliveryFee={R.deliveryFee} />}
+      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={setAddressText} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} />}
       {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} />}
       {modal && <ProductModal product={modal} onClose={() => setModal(null)} onAdded={() => setModal(null)} allProducts={data?.products || []} isOpen={open} />}
     </div>
@@ -529,7 +529,7 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
 }
 
 /* ======================== CART DRAWER (MOBILE) ======================== */
-function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryType, addressText, setAddressText, deliveryFee }: any) {
+function CartDrawer({ onClose, onCheckout, products, deliveryType, setDeliveryType, addressText, setAddressText, deliveryFee, deliveryZones }: any) {
   const cart = useCart();
   const [step, setStep] = useState(0);
   const [city, setCity] = useState('');
