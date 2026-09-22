@@ -4,24 +4,24 @@ import { prisma } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const restaurant = await prisma.restaurant.findUnique({ where: { id: 'single' } });
-  const categories = await prisma.category.findMany({ where: { active: true }, orderBy: { order: 'asc' } });
-  const products = await prisma.product.findMany({
-    include: { category: true, groups: { include: { group: { include: { addons: true } } } } },
-    orderBy: [{ order: 'asc' }],
-  });
-
-  // Active promotions
   const now = new Date();
-  const promos = await prisma.promotion.findMany({
-    where: {
-      active: true,
-      startAt: { lte: now },
-      OR: [{ endAt: null }, { endAt: { gte: now } }],
-    },
-  });
 
-  // Apply promotions to products
+  const [restaurant, categories, products, promos] = await Promise.all([
+    prisma.restaurant.findUnique({ where: { id: 'single' } }),
+    prisma.category.findMany({ where: { active: true }, orderBy: { order: 'asc' } }),
+    prisma.product.findMany({
+      include: { category: true, groups: { include: { group: { include: { addons: true } } } } },
+      orderBy: [{ order: 'asc' }],
+    }),
+    prisma.promotion.findMany({
+      where: {
+        active: true,
+        startAt: { lte: now },
+        OR: [{ endAt: null }, { endAt: { gte: now } }],
+      },
+    }),
+  ]);
+
   const promoProducts: Record<string, { kind: string; value: number; title: string }> = {};
   for (const p of promos) {
     if (p.productId && p.kind === 'produto') {
