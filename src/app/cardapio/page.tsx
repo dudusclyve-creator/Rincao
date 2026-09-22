@@ -665,6 +665,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
   const cart = useCart();
   const [f, setF] = useState({ name: '', phone: '', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
   const fee = deliveryType === 'entrega' ? deliveryFee : 0;
   const total = Math.max(0, cart.subtotal + fee);
 
@@ -678,10 +679,13 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
   const addr = parseAddress(addressText);
 
   const finish = async () => {
+    if (submitting) return;
     if (!f.name || !f.phone) { showToast('Informe nome e telefone', 'warning'); return; }
     if (deliveryType === 'entrega' && restaurant.minOrder && cart.subtotal < restaurant.minOrder) {
       showToast(`Pedido mínimo: ${BRL(restaurant.minOrder)}`, 'warning'); return;
     }
+    setSubmitting(true);
+    try {
     const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       customerName: f.name, customerPhone: f.phone, street: addr.street, number: addr.number, complement: addr.complement, district: addr.district, reference: '',
       addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
@@ -690,6 +694,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
     })}).then((r) => r.json());
     setDone({ ...order, addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL') });
+    } finally { setSubmitting(false); }
   };
 
   if (done) {
@@ -782,7 +787,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
 
           {(() => {
             const minOk = deliveryType !== 'entrega' || !restaurant.minOrder || cart.subtotal >= restaurant.minOrder;
-            return <button onClick={finish} disabled={!minOk} className="w-full rounded-xl py-3.5 font-bold text-white text-sm mt-5 transition-all duration-200 hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: minOk ? '#6b3a1f' : '#9ca3af' }}>Finalizar • {BRL(total)}</button>;
+            return <button onClick={finish} disabled={!minOk || submitting} className="w-full rounded-xl py-3.5 font-bold text-white text-sm mt-5 transition-all duration-200 hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: minOk ? '#6b3a1f' : '#9ca3af' }}>{submitting ? 'Enviando…' : `Finalizar • ${BRL(total)}`}</button>;
           })()}
           <button onClick={onClose} className="w-full text-center text-[11px] mt-3 py-1 text-gray-400 hover:text-gray-600 transition-colors">Voltar</button>
         </div>
