@@ -530,7 +530,15 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
 
 /* ======================== CART DRAWER (MOBILE) ======================== */
 function CartDrawer(props: any) {
-  const { onClose, onCheckout, products, deliveryType, setDeliveryType, addressText, setAddressText, deliveryFee, deliveryZones } = props;
+  const onClose = props.onClose;
+  const onCheckout = props.onCheckout;
+  const products = props.products;
+  const deliveryType = props.deliveryType;
+  const setDeliveryType = props.setDeliveryType;
+  const addressText = props.addressText;
+  const setAddressText = props.setAddressText;
+  const deliveryFee = props.deliveryFee;
+  const deliveryZones = props.deliveryZones || DELIVERY_ZONES_FALLBACK;
   const cart = useCart();
   const [step, setStep] = useState(0);
   const [city, setCity] = useState('');
