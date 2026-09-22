@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 import bcrypt from 'bcryptjs';
+
+export const dynamic = 'force-dynamic';
 export async function GET() { return NextResponse.json(await prisma.user.findMany({ select: { id: true, name: true, email: true, role: true, active: true, createdAt: true } })); }
 export async function POST(req: Request) {
   const b = await req.json();

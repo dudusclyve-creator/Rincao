@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 // Arquitetura de impressão real:
 // 1) Navegador: o painel usa window.print() com layout 58/80mm (CSS @media print).
 // 2) Bridge local (print-service/): POST aqui com { escpos, ip, porta } e o serviço

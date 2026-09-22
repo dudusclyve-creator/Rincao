@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 export async function GET() { return NextResponse.json(await prisma.tableMap.findMany({ orderBy: { number: 'asc' } })); }
 export async function POST(req: Request) {
   const b = await req.json();
