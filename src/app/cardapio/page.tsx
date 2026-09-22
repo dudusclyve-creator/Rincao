@@ -671,7 +671,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
       customerName: f.name, customerPhone: f.phone, street: addr.street, number: addr.number, complement: addr.complement, district: addr.district, reference: '',
       addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
       type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
-      subtotal: cart.subtotal, deliveryFee: fee, discount: 0, couponCode: '',
+      subtotal: cart.subtotal, deliveryFee: fee, discount: 0,
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
     })}).then((r) => r.json());
     setDone({ ...order, addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL') });

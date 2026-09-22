@@ -110,7 +110,7 @@ export async function POST(req: Request) {
       customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
       addressText: b.addressText || '', type: b.type || 'entrega',
       status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
-      subtotal, deliveryFee: fee, discount: Number(b.discount || 0), couponCode: '',
+      subtotal, deliveryFee: fee, discount: Number(b.discount || 0),
       total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
       source: b.source || 'cardapio',
       items: { create: (b.items || []).map((it: any) => ({
