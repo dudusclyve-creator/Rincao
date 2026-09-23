@@ -126,7 +126,7 @@ export default function CardapioPage() {
   const totalItems = cart.items.reduce((s: number, i: any) => s + i.qty, 0);
 
   return (
-    <div className="min-h-screen" style={{ background: C.bg, color: C.textLight }}>
+    <div className="min-h-screen overflow-x-hidden" style={{ background: C.bg, color: C.textLight }}>
       {/* ===== HEADER FIXO ===== */}
       <header className="sticky top-0 z-30 backdrop-blur" style={{ background: C.bg + 'f0' }}>
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-12 flex items-center justify-between">
@@ -146,26 +146,22 @@ export default function CardapioPage() {
       </header>
 
       {/* ===== BANNER ===== */}
-      <div className="relative w-full">
-        <div className="relative h-[240px] lg:h-[320px] overflow-hidden">
+      <div className="relative w-full overflow-hidden">
+        <div className="relative h-[200px] sm:h-[240px] lg:h-[320px] overflow-hidden">
           {R.bannerUrl
             ? <img src={R.bannerUrl} alt="" className="w-full h-full object-cover" />
             : <div className="w-full h-full" style={{ background: `linear-gradient(180deg, ${C.bgCard} 0%, ${C.bg} 100%)` }} />}
           <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${C.bg}, ${C.bg}80 40%, transparent)` }} />
         </div>
-        <div className="absolute bottom-0 inset-x-0 px-6 lg:px-10 pb-4">
-          <div className="flex items-end gap-4">
-            {R.logoUrl && <img src={R.logoUrl} alt={R.name} className="w-28 h-28 lg:w-36 lg:h-36 rounded-full object-cover shadow-2xl" style={{ border: `3px solid ${C.border}` }} />}
-            <div>
-              <h2 className="font-black text-xl lg:text-2xl" style={{ color: C.textLight }}>{R.name}</h2>
-              <p className="text-[10px] lg:text-xs mt-0.5 italic" style={{ color: C.textMuted }}>O melhor sabor da fronteira</p>
+        <div className="absolute bottom-0 inset-x-0 px-4 sm:px-6 lg:px-10 pb-3 lg:pb-4">
+          <div className="flex items-end gap-3 sm:gap-4">
+            {R.logoUrl && <img src={R.logoUrl} alt={R.name} className="w-20 h-20 sm:w-28 sm:h-28 lg:w-36 lg:h-36 rounded-full object-cover shadow-2xl shrink-0" style={{ border: `3px solid ${C.border}` }} />}
+            <div className="min-w-0">
+              <h2 className="font-black text-lg sm:text-xl lg:text-2xl truncate" style={{ color: C.textLight }}>{R.name}</h2>
+              <p className="text-[10px] lg:text-xs mt-0.5 italic truncate" style={{ color: C.textMuted }}>O melhor sabor da fronteira</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#d4a574' }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <div className="overflow-hidden flex-1">
-                  <div className="animate-marquee whitespace-nowrap">
-                    <span className="text-[10px] lg:text-xs" style={{ color: C.textMuted }}>{R.address}</span>
-                  </div>
-                </div>
+                <span className="text-[10px] lg:text-xs truncate" style={{ color: C.textMuted }}>{R.address}</span>
               </div>
             </div>
           </div>
@@ -191,7 +187,7 @@ export default function CardapioPage() {
 
       {/* ===== CONTEÚDO ===== */}
       <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
-        <div className="flex gap-4">
+        <div className="lg:flex lg:gap-4">
         <main className="flex-1 min-w-0 pb-32 lg:pb-8">
           {!open && <div className="rounded-xl p-3 text-sm font-bold text-center mb-4" style={{ background: '#3a1515', color: '#f87171', border: '1px solid #5a2020' }}>Estamos fechados no momento.</div>}
 
@@ -208,32 +204,35 @@ export default function CardapioPage() {
                   const price = p.promoPrice ?? p.price;
                   const soldOut = !p.available;
                   return (
-                    <button key={p.id} onClick={() => !soldOut && open && setModal(p)} disabled={soldOut || !open} className="flex gap-3 p-2.5 rounded-xl text-left transition disabled:cursor-not-allowed group relative" style={{ background: C.bgCard, border: soldOut ? '2px solid #dc2626' : `1px solid ${C.border}40` }}>
-                      <div className="relative w-20 h-20 lg:w-24 lg:h-24 rounded-lg shrink-0" style={{ background: C.bg }}>
+                    <button key={p.id} onClick={() => !soldOut && open && setModal(p)} disabled={soldOut || !open} className="flex gap-2.5 sm:gap-3 p-2 sm:p-2.5 rounded-xl text-left transition disabled:cursor-not-allowed group relative" style={{ background: C.bgCard, border: soldOut ? '2px solid #dc2626' : `1px solid ${C.border}40` }}>
+                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-lg shrink-0" style={{ background: C.bg }}>
                         <div className="w-full h-full rounded-lg overflow-hidden" style={{ filter: soldOut ? 'grayscale(0.5) brightness(0.8)' : 'none' }}>
-                          {p.photoUrl ? <img src={p.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" /> : <span className="flex items-center justify-center h-full text-3xl" style={{ color: C.textMuted }}>{EMOJI[p.category?.name] || '🍽'}</span>}
+                          {p.photoUrl ? <img src={p.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" /> : <span className="flex items-center justify-center h-full text-2xl sm:text-3xl" style={{ color: C.textMuted }}>{EMOJI[p.category?.name] || '🍽'}</span>}
                         </div>
-                        {p.promoPrice && <span className="absolute top-0 left-0 rounded-br-lg rounded-tl-lg px-1.5 py-0.5 text-[9px] font-bold text-white bg-red-600 z-10">-{Math.round(Math.abs((p.promoPrice - p.price) / p.price) * 100)}%</span>}
+                        {p.promoPrice && <span className="absolute top-0 left-0 rounded-br-lg rounded-tl-lg px-1 sm:px-1.5 py-0.5 text-[8px] sm:text-[9px] font-bold text-white bg-red-600 z-10">-{Math.round(Math.abs((p.promoPrice - p.price) / p.price) * 100)}%</span>}
                       </div>
-                      {soldOut && <span className="absolute top-2.5 left-2.5 rounded-md px-2 py-0.5 text-[9px] font-bold text-white bg-red-600 shadow-lg z-10">Indisponível</span>}
+                      {soldOut && <span className="absolute top-2 left-2 sm:top-2.5 sm:left-2.5 rounded-md px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-bold text-white bg-red-600 shadow-lg z-10">Indisponível</span>}
                       <div className="flex-1 min-w-0 flex flex-col justify-between" style={{ opacity: soldOut ? 0.5 : 1 }}>
-                        <div>
-                          <h3 className="font-bold text-xs lg:text-sm uppercase" style={{ color: C.textName }}>{p.name}</h3>
-                          <p className="text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{p.description}</p>
+                        <div className="min-w-0">
+                          <div className="flex items-start gap-1.5">
+                            <h3 className="font-bold text-[11px] sm:text-xs lg:text-sm uppercase truncate" style={{ color: C.textName }}>{p.name}</h3>
+                            <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0">
+                              {p.newArrival && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade</span>}
+                              {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥 Popular</span>}
+                              {p.category?.name === 'BEBIDAS' && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #0369a1, #38bdf8)' }}>❄️ Gelado</span>}
+                              {p.promoPrice && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
+                            </div>
+                          </div>
+                          <p className="text-[9px] sm:text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{p.description}</p>
                         </div>
-                        <p className="font-extrabold text-sm lg:text-base" style={{ color: p.promoPrice ? '#22c55e' : C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-0.5 flex-wrap shrink-0">
-                        {p.newArrival && (<span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade!</span>)}
-                        {p.bestSeller && (
-                          <span className="badge-popular inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>
-                            🔥Popular
-                          </span>
-                        )}
-                        {p.category?.name === 'BEBIDAS' && (
-                          <span className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #0369a1, #38bdf8)' }}>❄️ Gelado</span>
-                        )}
-                        {p.promoPrice && <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          <p className="font-extrabold text-xs sm:text-sm lg:text-base" style={{ color: p.promoPrice ? '#22c55e' : C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[9px] sm:text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
+                          <div className="sm:hidden flex items-center gap-0.5 flex-wrap">
+                            {p.newArrival && <span className="inline-flex items-center rounded-full px-1 py-0.5 text-[7px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨Novidade</span>}
+                            {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-1 py-0.5 text-[7px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥Popular</span>}
+                            {p.promoPrice && <span className="inline-flex items-center rounded-full px-1 py-0.5 text-[7px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
+                          </div>
+                        </div>
                       </div>
                     </button>
                   );
@@ -245,7 +244,7 @@ export default function CardapioPage() {
         </main>
 
         {/* CARRINHO LATERAL (desktop) */}
-        <aside className="hidden lg:flex w-[300px] shrink-0 flex-col sticky relative" style={{ top: '116px', alignSelf: 'flex-start' }}>
+        <aside className="hidden lg:block w-[300px] shrink-0"><div className="sticky top-[100px]">
           <div className="rounded-2xl w-full flex flex-col" style={{ background: 'white', border: '1px solid #f0f0f0', color: '#333', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
             {/* Endereço */}
             <button onClick={() => { setAddressOpen(!addressOpen); setDeliveryStep(0); }} className="flex items-center justify-between px-4 py-3 text-left w-full cursor-pointer hover:bg-amber-50/50 transition rounded-t-2xl">
@@ -408,7 +407,7 @@ export default function CardapioPage() {
               </>)}
             </div>
           )}
-        </aside>
+        </div></aside>
         </div>
       </div>
 
@@ -544,7 +543,7 @@ function CartDrawer(props: any) {
   const addressText = props.addressText;
   const setAddressText = props.setAddressText;
   const deliveryFee = props.deliveryFee;
-  const deliveryZones: Record<string, { name: string; fee: number }[]> = DELIVERY_ZONES_FALLBACK;
+  const deliveryZones: Record<string, { name: string; fee: number }[]> = props.deliveryZones || DELIVERY_ZONES_FALLBACK;
   const cart = useCart();
   const [step, setStep] = useState(0);
   const [city, setCity] = useState('');
