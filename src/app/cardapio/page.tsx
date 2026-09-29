@@ -64,6 +64,20 @@ export default function CardapioPage() {
   const cart = useCart();
   const tabsRef = useRef<HTMLDivElement>(null);
   const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [lastOrder, setLastOrder] = useState<any>(null);
+  const [savedAddress, setSavedAddress] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const fav = localStorage.getItem('cardapio_favorites');
+      if (fav) setFavorites(JSON.parse(fav));
+      const lo = localStorage.getItem('cardapio_last_order');
+      if (lo) setLastOrder(JSON.parse(lo));
+      const sa = localStorage.getItem('cardapio_saved_address');
+      if (sa) setSavedAddress(JSON.parse(sa));
+    } catch {}
+  }, []);
 
   useEffect(() => { fetch('/api/menu').then((r) => r.json()).then(setData); }, []);
   useEffect(() => {
@@ -92,18 +106,37 @@ export default function CardapioPage() {
     }
   };
 
+  const toggleFav = (id: string) => {
+    setFavorites((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try { localStorage.setItem('cardapio_favorites', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const repeatLastOrder = () => {
+    if (!lastOrder?.items?.length) return;
+    for (const it of lastOrder.items) {
+      cart.add({ key: Math.random().toString(36), productId: it.productId, name: it.name, unitPrice: it.unitPrice, qty: it.qty, note: it.note || '', addons: it.addons || [] });
+    }
+    showToast(`Pedido #${lastOrder.number} repetido!`, 'success');
+    setCartOpen(true);
+  };
+
   const open = useMemo(() => data?.restaurant ? isOpenNow(data.restaurant.hoursJson, data.restaurant.isOpenManual) : true, [data]);
   const products: Product[] = useMemo(() => {
     let p = data?.products || [];
     if (cat === 'best') p = p.filter((x: any) => x.bestSeller);
+    else if (cat === 'fav') p = p.filter((x: any) => favorites.includes(x.id));
     else if (cat !== 'all') p = p.filter((x: any) => x.categoryId === cat);
     if (search) p = p.filter((x: any) => (x.name + ' ' + x.description).toLowerCase().includes(search.toLowerCase()));
     return p;
-  }, [data, cat, search]);
+  }, [data, cat, search, favorites]);
 
   const catName = useMemo(() => {
     if (cat === 'all') return 'Todos';
     if (cat === 'best') return 'Mais pedidos';
+    if (cat === 'fav') return 'Favoritos';
     return data?.categories?.find((c: any) => c.id === cat)?.name || '';
   }, [cat, data]);
 
@@ -174,8 +207,9 @@ export default function CardapioPage() {
       <div className="sticky top-12 z-20 border-b" style={{ background: C.bg, borderColor: C.border + '30' }}>
         <div className="max-w-[1400px] mx-auto overflow-x-auto scrollbar-hide">
           <div className="flex gap-2 px-4 lg:px-8 py-2.5 min-w-max">
-            <button onClick={() => selectCat('all')} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'all' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>Todos</button>
-            <button onClick={() => selectCat('best')} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'best' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>⭐ Mais pedidos</button>
+            <button onClick={() => selectCat('all')} data-tab-id="all" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'all' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>Todos</button>
+            <button onClick={() => selectCat('best')} data-tab-id="best" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'best' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>⭐ Mais pedidos</button>
+            <button onClick={() => selectCat('fav')} data-tab-id="fav" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'fav' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>❤️ Favoritos</button>
             {data.categories.map((c: any) => (
               <button key={c.id} onClick={() => selectCat(c.id)} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold uppercase transition" style={cat === c.id ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>{c.name}</button>
             ))}
@@ -194,6 +228,12 @@ export default function CardapioPage() {
         <main className="flex-1 min-w-0 pb-32 lg:pb-8">
           {!open && <div className="rounded-xl p-3 text-sm font-bold text-center mb-4" style={{ background: '#3a1515', color: '#f87171', border: '1px solid #5a2020' }}>Estamos fechados no momento.</div>}
 
+          {lastOrder?.items?.length > 0 && cart.items.length === 0 && (
+            <button onClick={repeatLastOrder} className="w-full mb-4 rounded-xl px-4 py-3 text-xs font-bold flex items-center justify-center gap-2 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: 'rgba(107,58,31,0.15)', border: `1px solid ${C.border}`, color: C.textPrice }}>
+              🔁 Repetir pedido #{lastOrder.number} ({lastOrder.items.reduce((s: number, i: any) => s + i.qty, 0)} itens)
+            </button>
+          )}
+
           {search && <p className="text-xs mb-3" style={{ color: C.textMuted }}>Resultados para "{search}"</p>}
 
           {grouped.map((group) => (
@@ -208,6 +248,9 @@ export default function CardapioPage() {
                   const soldOut = !p.available;
                   return (
                     <button key={p.id} onClick={() => !soldOut && open && setModal(p)} disabled={soldOut || !open} className="flex gap-2.5 sm:gap-3 p-2 sm:p-2.5 rounded-xl text-left transition disabled:cursor-not-allowed group relative" style={{ background: C.bgCard, border: soldOut ? '2px solid #dc2626' : `1px solid ${C.border}40` }}>
+                      <span onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }} className="absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer transition-all duration-200 hover:scale-125" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }}>
+                        {favorites.includes(p.id) ? '❤️' : '🤍'}
+                      </span>
                       <div className="relative w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-lg shrink-0" style={{ background: C.bg }}>
                         <div className="w-full h-full rounded-lg overflow-hidden" style={{ filter: soldOut ? 'grayscale(0.5) brightness(0.8)' : 'none' }}>
                           {p.photoUrl ? <img src={p.photoUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" /> : <span className="flex items-center justify-center h-full text-2xl sm:text-3xl" style={{ color: C.textMuted }}>{EMOJI[p.category?.name] || '🍽'}</span>}
@@ -423,7 +466,18 @@ export default function CardapioPage() {
       )}
 
       {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={setAddressText} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} />}
-      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} />}
+      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} setAddressText={setAddressText} cart={cart} onOrderDone={(order: any) => {
+        try {
+          const lo = { number: order.number, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, addons: i.addons })) };
+          localStorage.setItem('cardapio_last_order', JSON.stringify(lo));
+          setLastOrder(lo);
+          if (order.customerPhone && addressText && deliveryType === 'entrega') {
+            const sa = { phone: order.customerPhone, addressText, deliveryType };
+            localStorage.setItem('cardapio_saved_address', JSON.stringify(sa));
+            setSavedAddress(sa);
+          }
+        } catch {}
+      }} savedAddress={savedAddress} />}
       {modal && <ProductModal product={modal} onClose={() => setModal(null)} onAdded={() => setModal(null)} allProducts={data?.products || []} isOpen={open} />}
     </div>
   );
@@ -663,7 +717,7 @@ function CartDrawer(props: any) {
 }
 
 /* ======================== CHECKOUT ======================== */
-function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, addressText }: any) {
+function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, deliveryFee, addressText, setAddressText, onOrderDone, savedAddress }: any) {
   const cart = useCart();
   const [f, setF] = useState({ name: '', phone: '', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
@@ -696,6 +750,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
     })}).then((r) => r.json());
     setDone({ ...order, addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL') });
+    onOrderDone?.({ ...order, customerPhone: f.phone });
     } finally { setSubmitting(false); }
   };
 
@@ -737,7 +792,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, deliveryFee, address
 
           <div className="space-y-2.5">
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Seu nome *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ''); setF({ ...f, phone: e.target.value }); if (savedAddress && digits.length >= 8 && savedAddress.phone === digits && !addressText && savedAddress.addressText) { setAddressText(savedAddress.addressText); setDeliveryType(savedAddress.deliveryType || 'entrega'); showToast('Endereço salvo carregado!', 'success'); } }} />
           </div>
 
           <div className="mt-5">
