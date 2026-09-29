@@ -9,6 +9,9 @@ const EMOJI: Record<string, string> = {
   COMBOS: '🍔', 'CAIXAS E TÁBUAS': '🍱', XIS: '🍔', TORRADAS: '🥪',
   'CACHORRO QUENTE': '🌭', PASTÉIS: '🥟', PIZZAS: '🍕', PORÇÕES: '🍟',
   ADICIONAIS: '🧀', BEBIDAS: '🥤',
+  Combos: '🍔', 'Caixas e Tábuas': '🍱', Xis: '🍔', Torradas: '🥪',
+  'Cachorro Quente': '🌭', Pastéis: '🥟', Pizzas: '🍕', Porções: '🍟',
+  Adicionais: '🧀', Bebidas: '🥤',
 };
 
 const WA_GREEN = '#25D366';
@@ -219,7 +222,7 @@ export default function CardapioPage() {
                             <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0">
                               {p.newArrival && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade</span>}
                               {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥 Popular</span>}
-                              {p.category?.name === 'BEBIDAS' && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #0369a1, #38bdf8)' }}>❄️ Gelado</span>}
+                              {p.category?.name?.toLowerCase() === 'bebidas' && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #0369a1, #38bdf8)' }}>❄️ Gelado</span>}
                               {p.promoPrice && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
                             </div>
                           </div>
@@ -429,7 +432,7 @@ export default function CardapioPage() {
 /* ======================== PRODUCT MODAL ======================== */
 function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
   const drinksRef = useRef<HTMLDivElement>(null);
-  const drinks = (allProducts || []).filter((p: any) => p.category?.name === 'BEBIDAS' && p.id !== product.id && p.available).slice(0, 8);
+  const drinks = (allProducts || []).filter((p: any) => p.category?.name?.toLowerCase() === 'bebidas' && p.id !== product.id && p.available).slice(0, 8);
   const cart = useCart();
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
