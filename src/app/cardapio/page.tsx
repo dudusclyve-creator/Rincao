@@ -444,11 +444,12 @@ export default function CardapioPage() {
                   </div>
                 </div>
                 <button onClick={() => {
-                  if (!deliveryStreet || !deliveryNum) { showToast('Informe rua e número', 'warning'); return; }
-                  const zona = (deliveryZones[deliveryCity] || []).find((z) => z.name === deliveryBairro);
-                  const fullAddr = `${deliveryStreet}, ${deliveryNum}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`;
-                   setAddressText(fullAddr);
-                   setAddressOpen(false);
+                   if (!deliveryStreet || !deliveryNum) { showToast('Informe rua e número', 'warning'); return; }
+                   const zona = (deliveryZones[deliveryCity] || []).find((z) => z.name === deliveryBairro);
+                   const fullAddr = `${deliveryStreet}, ${deliveryNum}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`;
+                    setAddressText(fullAddr);
+                    try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: fullAddr, deliveryType: 'entrega' }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {}
+                    setAddressOpen(false);
                 }} className="w-full rounded-xl py-2.5 font-bold text-white text-[12px] mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#6b3a1f' }}>Salvar endereço</button>
               </>)}
             </div>
@@ -465,14 +466,15 @@ export default function CardapioPage() {
         </button>
       )}
 
-      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={setAddressText} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} />}
-      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} setAddressText={setAddressText} cart={cart} onOrderDone={(order: any) => {
+      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} />}
+      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} setAddressText={setAddressText} cart={cart}       onOrderDone={(order: any) => {
         try {
           const lo = { number: order.number, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, addons: i.addons })) };
           localStorage.setItem('cardapio_last_order', JSON.stringify(lo));
           setLastOrder(lo);
-          if (order.customerPhone && addressText && deliveryType === 'entrega') {
-            const sa = { phone: order.customerPhone, addressText, deliveryType };
+          const phoneDigits = String(order.customerPhone || '').replace(/\D/g, '');
+          if (phoneDigits.length >= 8 && addressText) {
+            const sa = { phone: phoneDigits, addressText, deliveryType };
             localStorage.setItem('cardapio_saved_address', JSON.stringify(sa));
             setSavedAddress(sa);
           }
@@ -792,7 +794,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
 
           <div className="space-y-2.5">
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Seu nome *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ''); setF({ ...f, phone: e.target.value }); if (savedAddress && digits.length >= 8 && savedAddress.phone === digits && !addressText && savedAddress.addressText) { setAddressText(savedAddress.addressText); setDeliveryType(savedAddress.deliveryType || 'entrega'); showToast('Endereço salvo carregado!', 'success'); } }} />
+            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ''); setF({ ...f, phone: e.target.value }); if (savedAddress?.addressText && digits.length >= 8 && savedAddress.phone && digits === savedAddress.phone && !addressText) { setAddressText(savedAddress.addressText); if (savedAddress.deliveryType) setDeliveryType(savedAddress.deliveryType); showToast('Endereço salvo carregado!', 'success'); } }} />
           </div>
 
           <div className="mt-5">
