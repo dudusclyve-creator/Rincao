@@ -75,7 +75,14 @@ export default function CardapioPage() {
       const lo = localStorage.getItem('cardapio_last_order');
       if (lo) setLastOrder(JSON.parse(lo));
       const sa = localStorage.getItem('cardapio_saved_address');
-      if (sa) setSavedAddress(JSON.parse(sa));
+      if (sa) {
+        const parsed = JSON.parse(sa);
+        setSavedAddress(parsed);
+        if (parsed?.addressText) {
+          setAddressText(parsed.addressText);
+          if (parsed.deliveryType) setDeliveryType(parsed.deliveryType);
+        }
+      }
     } catch {}
   }, []);
 
@@ -794,7 +801,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
 
           <div className="space-y-2.5">
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Seu nome *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
-            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ''); setF({ ...f, phone: e.target.value }); if (savedAddress?.addressText && digits.length >= 8 && savedAddress.phone && digits === savedAddress.phone && !addressText) { setAddressText(savedAddress.addressText); if (savedAddress.deliveryType) setDeliveryType(savedAddress.deliveryType); showToast('Endereço salvo carregado!', 'success'); } }} />
+            <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
           </div>
 
           <div className="mt-5">
