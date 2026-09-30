@@ -263,10 +263,10 @@ export default function CardapioPage() {
                           <div className="flex items-start gap-1.5">
                             <h3 className="font-bold text-[11px] sm:text-xs lg:text-sm uppercase truncate" style={{ color: C.textName }}>{p.name}</h3>
                             <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0">
-                              {p.newArrival && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade</span>}
-                              {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥 Popular</span>}
-                              {p.category?.name?.toLowerCase() === 'bebidas' && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #0369a1, #38bdf8)' }}>❄️ Gelado</span>}
-                              {p.promoPrice && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
+                              {p.newArrival && <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade</span>}
+                              {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥 Popular</span>}
+                              {p.category?.name?.toLowerCase() === 'bebidas' && <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold text-white" style={{ background: 'linear-gradient(to right, #0369a1, #38bdf8)' }}>❄️ Gelado</span>}
+                              {p.promoPrice && <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
                             </div>
                           </div>
                           <p className="text-[9px] sm:text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{p.description}</p>
@@ -274,9 +274,9 @@ export default function CardapioPage() {
                         <div className="flex items-center gap-1.5 sm:gap-2">
                           <p className="font-extrabold text-xs sm:text-sm lg:text-base" style={{ color: p.promoPrice ? '#22c55e' : C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[9px] sm:text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
                           <div className="sm:hidden flex items-center gap-0.5 flex-wrap">
-                            {p.newArrival && <span className="inline-flex items-center rounded-full px-1 py-0.5 text-[7px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨Novidade</span>}
-                            {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-1 py-0.5 text-[7px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥Popular</span>}
-                            {p.promoPrice && <span className="inline-flex items-center rounded-full px-1 py-0.5 text-[7px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
+                            {p.newArrival && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade</span>}
+                            {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥 Popular</span>}
+                            {p.promoPrice && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
                           </div>
                         </div>
                       </div>
