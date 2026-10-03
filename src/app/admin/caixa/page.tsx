@@ -534,48 +534,48 @@ export default function Caixa() {
               </div>
             </div>
 
-            <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-3">Registrar movimentação</p>
-              <div className="flex gap-1.5 mb-3">
+            <div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-xs uppercase tracking-wider font-bold text-gray-500 mb-4">Registrar movimentação</p>
+              <div className="flex gap-2 mb-4">
                 {MOVEMENT_TYPES.map((t) => {
                   const Icon = t.icon;
                   return (
                     <button key={t.id} onClick={() => setMovType(t.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold pdv-btn-hover transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 py-4 rounded-xl text-sm font-bold pdv-btn-hover transition-all"
                       style={movType === t.id
                         ? { background: `${t.color}15`, color: t.color, border: `1px solid ${t.color}40` }
                         : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <Icon size={12} />{t.label}
+                      <Icon size={17} />{t.label}
                     </button>
                   );
                 })}
               </div>
-              <div className="flex gap-1.5 mb-3">
+              <div className="grid grid-cols-4 gap-2 mb-4">
                 {PAYMENT_METHODS.map((p) => {
                   const Icon = p.icon;
                   return (
                     <button key={p.id} onClick={() => setMovMethod(p.id)}
-                      className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[9px] font-bold pdv-btn-hover transition-all"
+                      className="flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-xs font-bold pdv-btn-hover transition-all"
                       style={movMethod === p.id
                         ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}30` }
                         : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
-                      <Icon size={9} />{p.label}
+                      <Icon size={16} />{p.label}
                     </button>
                   );
                 })}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-bold">R$</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-bold">R$</span>
                   <input type="number" value={movAmount || ''} onChange={(e) => setMovAmount(Number(e.target.value))} placeholder="0,00"
-                    className="w-full pl-9 pr-3 py-2 rounded-xl text-xs font-bold outline-none transition-all duration-200 focus:border-rose-500/50"
+                    className="w-full pl-11 pr-4 py-4 rounded-xl text-lg font-bold outline-none transition-all duration-200 focus:border-rose-500/50"
                     style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 </div>
                 <input value={movReason} onChange={(e) => setMovReason(e.target.value)} placeholder="Motivo"
-                  className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 focus:border-rose-500/50"
+                  className="w-full px-4 py-4 rounded-xl text-base outline-none transition-all duration-200 focus:border-rose-500/50"
                   style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 <button disabled={movAmount <= 0} onClick={addMovement}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white pdv-btn-hover disabled:opacity-30"
+                  className="w-full py-4 rounded-xl text-base font-bold text-white pdv-btn-hover disabled:opacity-30"
                   style={{ background: movType === 'sangria' ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #22c55e, #16a34a)' }}>
                   {movType === 'sangria' ? 'Registrar sangria' : 'Registrar suprimento'}
                 </button>
