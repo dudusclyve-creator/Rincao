@@ -193,7 +193,7 @@ export default function PDV() {
   useEffect(() => {
     fetch('/api/menu').then((r) => r.json()).then(setMenu);
     fetch('/api/tables').then((r) => r.json()).then(setTables);
-    fetch('/api/customers').then((r) => r.json()).then(setCustomers).catch(() => {});
+    fetch('/api/customers').then((r) => r.json()).then((d) => setCustomers(Array.isArray(d) ? d : d.customers || [])).catch(() => setCustomers([]));
   }, []);
 
   useEffect(() => {
