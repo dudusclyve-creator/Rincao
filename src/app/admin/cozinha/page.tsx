@@ -3,9 +3,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { ChefHat, Clock, AlertTriangle, Check, Flame, Timer } from 'lucide-react';
 
 const STATUS_FLOW = ['novo', 'confirmado', 'preparo', 'pronto'];
-const STATUS_NEXT: Record<string, string> = { novo: 'confirmado', confirmado: 'preparo', preparo: 'pronto' };
-const STATUS_LABEL: Record<string, string> = { novo: 'NOVO', confirmado: 'ACEITO', preparo: 'PREPARO', pronto: 'PRONTO' };
-const STATUS_COLOR: Record<string, string> = { novo: '#ef4444', confirmado: '#f59e0b', preparo: '#3b82f6', pronto: '#22c55e' };
+const STATUS_NEXT: Record<string, string> = { novo: 'preparo', confirmado: 'preparo', preparo: 'pronto' };
+const STATUS_LABEL: Record<string, string> = { novo: 'NOVO', confirmado: 'PREPARO', preparo: 'PREPARO', pronto: 'PRONTO' };
+const STATUS_COLOR: Record<string, string> = { novo: '#f59e0b', confirmado: '#3b82f6', preparo: '#3b82f6', pronto: '#22c55e' };
 
 function TimerBadge({ createdAt }: { createdAt: string }) {
   const [elapsed, setElapsed] = useState(0);
@@ -15,16 +15,20 @@ function TimerBadge({ createdAt }: { createdAt: string }) {
     const t = setInterval(() => setElapsed(calc()), 1000);
     return () => clearInterval(t);
   }, [createdAt]);
-  const min = Math.floor(elapsed / 60);
+  const hours = Math.floor(elapsed / 3600);
+  const min = Math.floor((elapsed % 3600) / 60);
   const sec = elapsed % 60;
   const isUrgent = elapsed > 900; // 15 min
   const isWarning = elapsed > 600; // 10 min
+  const time = hours > 0
+    ? `${hours}:${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
+    : `${min}:${sec.toString().padStart(2, '0')}`;
   return (
-    <span className="flex items-center gap-1 text-[11px] font-bold tabular-nums"
+    <span className="flex items-center gap-1 text-xs font-bold tabular-nums"
       style={{ color: isUrgent ? '#ef4444' : isWarning ? '#f59e0b' : '#6b7280' }}>
-      <Timer size={12} />
-      {min}:{sec.toString().padStart(2, '0')}
-      {isUrgent && <AlertTriangle size={12} className="animate-pulse" />}
+      <Timer size={13} />
+      {time}
+      {isUrgent && <AlertTriangle size={13} className="animate-pulse" />}
     </span>
   );
 }
@@ -58,35 +62,35 @@ export default function Cozinha() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>
-            <ChefHat size={18} className="text-white" />
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+            <ChefHat size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-lg font-black text-white">Cozinha</h1>
-            <p className="text-[10px] text-gray-500">
-              {novoCount > 0 && <span style={{ color: '#ef4444' }}>{novoCount} novo(s) · </span>}
+            <h1 className="text-xl font-black text-white">Cozinha</h1>
+            <p className="text-xs text-gray-500">
+              {novoCount > 0 && <span style={{ color: '#f59e0b' }}>{novoCount} novo(s) · </span>}
               {list.length} pedido(s) em andamento
             </p>
           </div>
         </div>
         {novoCount > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl animate-pulse" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>
-            <Flame size={14} style={{ color: '#ef4444' }} />
-            <span className="text-[11px] font-bold" style={{ color: '#ef4444' }}>{novoCount} NOVO(S)</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <Flame size={14} style={{ color: '#f59e0b' }} />
+            <span className="text-xs font-bold" style={{ color: '#f59e0b' }}>{novoCount} AGUARDANDO</span>
           </div>
         )}
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 mb-5">
+      <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          { label: 'Aguardando', count: list.filter(o => o.status === 'novo').length, color: '#ef4444' },
-          { label: 'Em Preparo', count: list.filter(o => o.status === 'confirmado' || o.status === 'preparo').length, color: '#f59e0b' },
+          { label: 'Aguardando', count: list.filter(o => o.status === 'novo').length, color: '#f59e0b' },
+          { label: 'Em Preparo', count: list.filter(o => o.status === 'confirmado' || o.status === 'preparo').length, color: '#3b82f6' },
           { label: 'Prontos Hoje', count: orders.filter(o => o.status === 'pronto').length, color: '#22c55e' },
         ].map((s, i) => (
-          <div key={s.label} className="rounded-xl p-3 text-center" style={{ background: `${s.color}08`, border: `1px solid ${s.color}15` }}>
-            <p className="text-2xl font-black" style={{ color: s.color }}>{s.count}</p>
-            <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: `${s.color}99` }}>{s.label}</p>
+          <div key={s.label} className="rounded-xl p-4 text-center" style={{ background: `${s.color}08`, border: `1px solid ${s.color}18` }}>
+            <p className="text-3xl font-black" style={{ color: s.color }}>{s.count}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: `${s.color}99` }}>{s.label}</p>
           </div>
         ))}
       </div>
@@ -101,16 +105,15 @@ export default function Cozinha() {
           return (
             <div key={o.id} className="rounded-xl overflow-hidden transition-all duration-300"
               style={{
-                background: isNew ? 'rgba(239,68,68,0.04)' : 'rgba(255,255,255,0.03)',
-                border: `1px solid ${isNew ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                background: 'rgba(255,255,255,0.03)',
+                border: `1px solid ${isNew ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.06)'}`,
                 animation: `slideUp 0.3s ease ${i * 40}ms both`,
-                boxShadow: isNew ? '0 0 20px rgba(239,68,68,0.05)' : 'none',
               }}>
               {/* Header */}
               <div className="flex items-center justify-between px-4 pt-3 pb-2" style={{ borderBottom: `2px solid ${sColor}20` }}>
                 <div className="flex items-center gap-2">
-                  <span className="text-lg font-black text-white">#{o.number}</span>
-                  <span className="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase" style={{ background: `${sColor}15`, color: sColor }}>
+                  <span className="text-xl font-black text-white">#{o.number}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase" style={{ background: `${sColor}15`, color: sColor }}>
                     {STATUS_LABEL[o.status]}
                   </span>
                 </div>
@@ -118,32 +121,32 @@ export default function Cozinha() {
               </div>
 
               {/* Items */}
-              <div className="px-4 py-3 space-y-2">
+              <div className="px-4 py-3 space-y-2.5">
                 {o.items.map((it: any) => (
                   <div key={it.id}>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-black" style={{ color: sColor }}>{it.qty}x</span>
-                      <span className="text-[13px] font-bold text-white">{it.name}</span>
+                      <span className="text-sm font-black" style={{ color: sColor }}>{it.qty}x</span>
+                      <span className="text-[15px] font-bold text-white">{it.name}</span>
                     </div>
                     {JSON.parse(it.addonsJson || '[]').length > 0 && (
-                      <div className="ml-6 mt-0.5 space-y-0.5">
+                      <div className="ml-7 mt-0.5 space-y-0.5">
                         {JSON.parse(it.addonsJson || '[]').map((a: any, k: number) => (
-                          <p key={k} className="text-[10px] text-gray-500">+ {a.name}</p>
+                          <p key={k} className="text-xs text-gray-500">+ {a.name}</p>
                         ))}
                       </div>
                     )}
                     {it.note && (
-                      <p className="ml-6 text-[10px] italic mt-0.5" style={{ color: '#f59e0b' }}>obs: {it.note}</p>
+                      <p className="ml-7 text-xs italic mt-0.5" style={{ color: '#f59e0b' }}>obs: {it.note}</p>
                     )}
                   </div>
                 ))}
                 {o.note && (
                   <div className="rounded-lg px-3 py-2 mt-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                    <p className="text-[11px] font-bold" style={{ color: '#f59e0b' }}>OBS: {o.note}</p>
+                    <p className="text-xs font-bold" style={{ color: '#f59e0b' }}>OBS: {o.note}</p>
                   </div>
                 )}
                 {o.type === 'entrega' && o.customerName && (
-                  <p className="text-[10px] text-gray-600">🛵 {o.customerName}</p>
+                  <p className="text-xs text-gray-600">🛵 {o.customerName}</p>
                 )}
               </div>
 
@@ -151,11 +154,12 @@ export default function Cozinha() {
               <div className="px-3 pb-3">
                 {next && (
                   <button onClick={() => set(o.id, next)}
-                    className="w-full py-2.5 rounded-xl text-[12px] font-bold text-white transition-all duration-200 active:scale-[0.98]"
-                    style={{ background: next === 'pronto' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : `${STATUS_COLOR[next]}20`, color: next === 'pronto' ? '#fff' : STATUS_COLOR[next] }}>
-                    {next === 'confirmado' && '✓ ACEITAR'}
-                    {next === 'preparo' && '👨‍🍳 EM PREPARO'}
-                    {next === 'pronto' && '✓ PRONTO'}
+                    className="w-full py-4 rounded-xl text-[15px] font-bold text-white transition-all duration-200 active:scale-[0.98]"
+                    style={next === 'pronto'
+                      ? { background: 'linear-gradient(135deg, #22c55e, #16a34a)', boxShadow: '0 4px 16px rgba(34,197,94,0.25)' }
+                      : { background: 'rgba(59,130,246,0.18)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.35)' }}>
+                    {next === 'preparo' && '👨‍🍳 PREPARAR'}
+                    {next === 'pronto' && '✓ PEDIDO PRONTO'}
                   </button>
                 )}
               </div>
