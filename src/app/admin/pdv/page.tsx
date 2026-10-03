@@ -438,9 +438,9 @@ export default function PDV() {
 
         {/* Right: Cart */}
         <div className="w-full lg:w-[360px] flex-shrink-0">
-          <div className="rounded-2xl overflow-hidden lg:sticky lg:top-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="rounded-2xl lg:sticky lg:top-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             {/* Cart Header */}
-            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="px-4 py-3 flex items-center justify-between rounded-t-2xl" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="flex items-center gap-2">
                 <ShoppingBag size={15} className="text-rose-400" />
                 <span className="text-sm font-bold text-white">Venda</span>
@@ -689,7 +689,7 @@ export default function PDV() {
                 </div>
 
                 {/* Totals + Finish */}
-                <div className="p-4 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
+                <div className="p-4 mt-2 rounded-b-2xl" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
                   <div className="space-y-2 mb-3">
                     <div className="flex justify-between text-sm text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
                     {deliveryFee > 0 && <div className="flex justify-between text-sm text-gray-400"><span>Taxa entrega</span><span>{BRL(deliveryFee)}</span></div>}
