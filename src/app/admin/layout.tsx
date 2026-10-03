@@ -207,7 +207,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
           ))}
         </div>
-        <main className="p-4 md:p-6 max-w-7xl mx-auto"><ErrorBoundary>{children}</ErrorBoundary></main>
+        <main className="p-4 md:p-6"><ErrorBoundary>{children}</ErrorBoundary></main>
       </div>
     </div>
   );
