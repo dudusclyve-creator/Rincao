@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
-import { ChefHat, AlertTriangle, Flame, Timer, MessageSquare, PlusCircle } from 'lucide-react';
+import { ChefHat, AlertTriangle, Flame, Timer, MessageSquare, PlusCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STATUS_NEXT: Record<string, string> = { confirmado: 'preparo', preparo: 'pronto' };
 const STATUS_LABEL: Record<string, string> = { confirmado: 'A PREPARAR', preparo: 'EM PREPARO', pronto: 'PRONTO' };
@@ -41,12 +41,14 @@ function TimerBadge({ createdAt }: { createdAt: string }) {
 
 export default function Cozinha() {
   const [orders, setOrders] = useState<any[]>([]);
+  const [showReady, setShowReady] = useState(true);
 
   const load = async () => setOrders(await fetch('/api/orders?limit=60').then((r) => r.json()));
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
 
   const pendingCount = orders.filter(o => o.status === 'novo').length;
   const list = orders.filter((o) => ['confirmado', 'preparo'].includes(o.status));
+  const readyList = orders.filter((o) => o.status === 'pronto');
 
   const set = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
@@ -204,11 +206,82 @@ export default function Cozinha() {
         })}
       </div>
 
-      {sorted.length === 0 && (
+      {sorted.length === 0 && readyList.length === 0 && (
         <div className="text-center py-20">
           <ChefHat size={48} className="mx-auto mb-4 text-gray-600" />
           <p className="text-lg font-bold text-gray-500">Cozinha limpa!</p>
           <p className="text-xs text-gray-600 mt-1">Pedidos aceitos nos Pedidos aparecem aqui</p>
+        </div>
+      )}
+
+      {sorted.length === 0 && readyList.length > 0 && (
+        <div className="text-center py-10 mb-2">
+          <ChefHat size={36} className="mx-auto mb-3 text-gray-600" />
+          <p className="text-sm font-bold text-gray-500">Nenhum pedido em preparo</p>
+        </div>
+      )}
+
+      {/* Ready orders menu */}
+      {readyList.length > 0 && (
+        <div className="mt-4">
+          <button onClick={() => setShowReady(!showReady)}
+            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all duration-200"
+            style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)' }}>
+            <CheckCircle2 size={18} style={{ color: '#22c55e' }} />
+            <span className="text-sm font-black uppercase tracking-wider" style={{ color: '#22c55e' }}>
+              Pedidos prontos ({readyList.length})
+            </span>
+            <span className="ml-auto text-gray-500">
+              {showReady ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
+          </button>
+
+          {showReady && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+              {readyList.map((o, i) => {
+                const type = TYPE_META[o.type] || TYPE_META.balcao;
+                return (
+                  <div key={o.id} className="rounded-xl overflow-hidden"
+                    style={{ background: 'rgba(34,197,94,0.04)', border: '1px solid rgba(34,197,94,0.2)', animation: `slideUp 0.3s ease ${i * 40}ms both` }}>
+                    {/* Type strip */}
+                    <div className="px-3 py-1.5 flex items-center justify-between" style={{ background: `${type.color}12`, borderBottom: `1px solid ${type.color}25` }}>
+                      <span className="flex items-center gap-1 text-[11px] font-black uppercase" style={{ color: type.color }}>
+                        {type.icon} {o.type === 'mesa' && o.table?.number ? `MESA ${o.table.number}` : type.label}
+                      </span>
+                      <span className="text-sm font-black text-white">#{o.number}</span>
+                    </div>
+
+                    <div className="px-3 py-2 space-y-1">
+                      {o.items.map((it: any) => {
+                        const addons = JSON.parse(it.addonsJson || '[]');
+                        return (
+                          <div key={it.id}>
+                            <p className="text-xs font-bold text-gray-300">
+                              <span style={{ color: '#22c55e' }}>{it.qty}x</span> {it.name}
+                            </p>
+                            {addons.length > 0 && (
+                              <p className="ml-5 text-[10px] font-bold" style={{ color: '#c4b5fd' }}>
+                                + {addons.map((a: any) => a.name).join(', ')}
+                              </p>
+                            )}
+                            {it.note && (
+                              <p className="ml-5 text-[10px] font-black" style={{ color: '#fbbf24' }}>OBS: {it.note}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {o.note && (
+                        <p className="text-[11px] font-black pt-1" style={{ color: '#fbbf24' }}>⚠️ {o.note}</p>
+                      )}
+                      {o.customerName && (
+                        <p className="text-[10px] text-gray-500 pt-1">👤 {o.customerName}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
