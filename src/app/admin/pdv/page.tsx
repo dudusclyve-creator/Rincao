@@ -438,9 +438,9 @@ export default function PDV() {
 
         {/* Right: Cart */}
         <div className="w-full lg:w-[420px] xl:w-[460px] flex-shrink-0">
-          <div className="rounded-2xl lg:sticky lg:top-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="rounded-2xl lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:flex lg:flex-col" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             {/* Cart Header */}
-            <div className="px-5 py-4 flex items-center justify-between rounded-t-2xl" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="shrink-0 px-5 py-4 flex items-center justify-between rounded-t-2xl" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="flex items-center gap-2.5">
                 <ShoppingBag size={20} className="text-rose-400" />
                 <span className="text-lg font-bold text-white">Venda</span>
@@ -450,8 +450,10 @@ export default function PDV() {
               )}
             </div>
 
+            {/* Scrollable body */}
+            <div className="lg:flex-1 lg:min-h-0 lg:overflow-y-auto scrollbar-hide">
             {/* Cart Items */}
-            <div className="max-h-[260px] overflow-y-auto scrollbar-hide">
+            <div>
               {cart.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-gray-500">
                   <ShoppingBag size={28} className="mb-2 opacity-30" />
@@ -672,7 +674,7 @@ export default function PDV() {
                       const filtered = customers.filter((c: any) => !q || c.name?.toLowerCase().includes(q) || c.phone?.includes(q)).slice(0, 15);
                       if (filtered.length === 0) return null;
                       return (
-                        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl overflow-hidden shadow-2xl overflow-y-auto" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.12)', maxHeight: '280px' }}>
+                        <div className="absolute left-0 right-0 bottom-full mb-1 z-50 rounded-xl overflow-hidden shadow-2xl overflow-y-auto" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.12)', maxHeight: '280px' }}>
                           {q === '' && <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider font-bold text-gray-500">Clientes salvos ({filtered.length})</div>}
                           {filtered.map((c: any) => (
                             <button key={c.id} onMouseDown={() => { setClient(c.name); setShowSuggestions(false); }} className="w-full px-3 py-3.5 text-left text-base hover:bg-white/10 transition-all duration-150 flex items-center justify-between" style={{ color: '#f0e8e0' }}>
@@ -687,25 +689,28 @@ export default function PDV() {
                   <input value={orderNote} onChange={(e) => setOrderNote(e.target.value)} placeholder="Observação do pedido"
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 </div>
-
-                {/* Totals + Finish */}
-                <div className="p-4 mt-2 rounded-b-2xl" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
-                  <div className="space-y-2 mb-3">
-                    <div className="flex justify-between text-base text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
-                    {deliveryFee > 0 && <div className="flex justify-between text-base text-gray-400"><span>Taxa entrega</span><span>{BRL(deliveryFee)}</span></div>}
-                  </div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-2xl font-black text-white">Total</span>
-                    <span className="text-2xl font-black text-white">{BRL(total)}</span>
-                  </div>
-                  <button onClick={finish}
-                    disabled={!cart.length || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
-                    className="w-full py-5 rounded-xl text-lg font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
-                    style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
-                    Finalizar + Imprimir
-                  </button>
-                </div>
               </>
+            )}
+            </div>
+
+            {/* Totals + Finish */}
+            {cart.length > 0 && (
+              <div className="shrink-0 p-4 rounded-b-2xl" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between text-base text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
+                  {deliveryFee > 0 && <div className="flex justify-between text-base text-gray-400"><span>Taxa entrega</span><span>{BRL(deliveryFee)}</span></div>}
+                </div>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-2xl font-black text-white">Total</span>
+                  <span className="text-2xl font-black text-white">{BRL(total)}</span>
+                </div>
+                <button onClick={finish}
+                  disabled={!cart.length || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
+                  className="w-full py-5 rounded-xl text-lg font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
+                  style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
+                  Finalizar + Imprimir
+                </button>
+              </div>
             )}
           </div>
         </div>
