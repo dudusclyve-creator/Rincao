@@ -205,7 +205,7 @@ export default function CardapioAdmin() {
   const deleteAddonGroup = async (id: string) => { if (confirm('Excluir grupo e todos os adicionais?')) { await fetch(`/api/addon-groups?id=${id}`, { method: 'DELETE' }); load(); } };
 
   return (
-    <div className="min-h-[calc(100vh-48px)] rounded-2xl p-4 md:p-5 max-w-5xl" style={{ background: '#1a1520', color: '#f0e8e0' }}>
+    <div className="min-h-[calc(100vh-48px)] rounded-2xl p-4 md:p-5" style={{ background: '#1a1520', color: '#f0e8e0' }}>
       <div className="flex items-end justify-between mb-5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>
