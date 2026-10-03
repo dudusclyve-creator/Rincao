@@ -667,15 +667,17 @@ export default function PDV() {
                   <div className="relative">
                     <input value={client} onChange={(e) => { setClient(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="Cliente (opcional)"
                       className="w-full px-3 py-3 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                    {showSuggestions && client.length >= 1 && (() => {
-                      const filtered = customers.filter((c: any) => c.name?.toLowerCase().includes(client.toLowerCase()) || c.phone?.includes(client)).slice(0, 5);
+                    {showSuggestions && (() => {
+                      const q = client.trim().toLowerCase();
+                      const filtered = customers.filter((c: any) => !q || c.name?.toLowerCase().includes(q) || c.phone?.includes(q)).slice(0, 15);
                       if (filtered.length === 0) return null;
                       return (
-                        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl overflow-hidden shadow-2xl" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.12)' }}>
+                        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl overflow-hidden shadow-2xl overflow-y-auto" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.12)', maxHeight: '280px' }}>
+                          {q === '' && <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider font-bold text-gray-500">Clientes salvos ({filtered.length})</div>}
                           {filtered.map((c: any) => (
-                            <button key={c.id} onMouseDown={() => { setClient(c.name); setShowSuggestions(false); }} className="w-full px-3 py-2.5 text-left text-sm hover:bg-white/10 transition-all duration-150 flex items-center justify-between" style={{ color: '#f0e8e0' }}>
+                            <button key={c.id} onMouseDown={() => { setClient(c.name); setShowSuggestions(false); }} className="w-full px-3 py-3 text-left text-sm hover:bg-white/10 transition-all duration-150 flex items-center justify-between" style={{ color: '#f0e8e0' }}>
                               <span className="font-bold">{c.name}</span>
-                              <span className="text-[11px] text-gray-500">{c.phone}</span>
+                              <span className="text-xs text-gray-500">{c.phone}</span>
                             </button>
                           ))}
                         </div>
