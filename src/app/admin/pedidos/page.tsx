@@ -6,17 +6,19 @@ import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateC
 const COLUMNS = [
   { id: 'novo', label: 'Novos', icon: '🔔', color: '#3b82f6', gradient: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.08))', border: 'rgba(59,130,246,0.35)' },
   { id: 'confirmado', label: 'Preparando', icon: '👨‍🍳', color: '#f59e0b', gradient: 'linear-gradient(135deg, rgba(251,146,60,0.2), rgba(251,146,60,0.08))', border: 'rgba(251,146,60,0.35)' },
+  { id: 'pronto', label: 'Pronto', icon: '✅', color: '#8b5cf6', gradient: 'linear-gradient(135deg, rgba(139,92,246,0.2), rgba(139,92,246,0.08))', border: 'rgba(139,92,246,0.35)' },
   { id: 'despachado', label: 'Saiu pra entrega', icon: '🛵', color: '#22c55e', gradient: 'linear-gradient(135deg, rgba(74,222,128,0.2), rgba(74,222,128,0.08))', border: 'rgba(74,222,128,0.35)' },
 ];
 
 const STATUS_MAP: Record<string, string> = {
-  novo: 'novo', confirmado: 'confirmado', preparo: 'confirmado', pronto: 'despachado',
+  novo: 'novo', confirmado: 'confirmado', preparo: 'confirmado', pronto: 'pronto',
   entrega: 'despachado', concluido: 'concluido', cancelado: 'cancelado',
 };
 
 const NEXT_STATUS: Record<string, { status: string; label: string; icon: string; color: string; deliveryOnly?: boolean }[]> = {
   novo: [{ status: 'confirmado', label: 'Aceitar', icon: '✅', color: '#3b82f6' }],
-  confirmado: [{ status: 'entrega', label: 'Saiu pra entrega', icon: '🛵', color: '#22c55e' }],
+  confirmado: [{ status: 'pronto', label: 'Pronto', icon: '🔔', color: '#8b5cf6' }],
+  pronto: [{ status: 'entrega', label: 'Saiu pra entrega', icon: '🛵', color: '#22c55e' }],
   despachado: [{ status: 'concluido', label: 'Concluir', icon: '✅', color: '#22c55e' }],
 };
 
@@ -36,7 +38,7 @@ function getOrderType(o: any): string {
   return 'entrega';
 }
 
-const OVERDUE_MIN = { novo: 15, confirmado: 30, preparo: 30, despachado: 45 };
+const OVERDUE_MIN = { novo: 15, confirmado: 30, preparo: 30, pronto: 45, despachado: 45 };
 
 function isOverdue(o: any): boolean {
   const elapsed = Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 60000);
@@ -185,9 +187,10 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
 
       <div className="px-4 py-2.5 flex items-center gap-2" style={{ background: 'rgba(0,0,0,0.15)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         {NEXT_STATUS[STATUS_MAP[o.status]]?.map((next) => {
-          const isLocal = ['mesa', 'balcao', 'retirada', 'local'].includes(o.type);
-          const label = next.status === 'entrega' && isLocal ? 'Pronto' : next.label;
-          const icon = next.status === 'entrega' && isLocal ? '🔔' : next.icon;
+          const isDeliveryOrder = o.type === 'entrega' && !(o.addressText || '').toUpperCase().includes('RETIRADA') && !(o.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL');
+          const toConcluido = next.status === 'entrega' && !isDeliveryOrder;
+          const label = toConcluido ? 'Concluir' : next.label;
+          const icon = toConcluido ? '✅' : next.icon;
           return (
             <button
               key={next.status}
@@ -195,8 +198,9 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
               onClick={(e) => {
                 e.stopPropagation();
                 if (next.status === 'entrega') {
-                  const isDelivery = o.type === 'entrega' && !(o.addressText || '').toUpperCase().includes('RETIRADA') && !(o.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL');
-                  if (isDelivery) { onDispatch(o); return; }
+                  if (isDeliveryOrder) { onDispatch(o); return; }
+                  onStatus(o.id, 'concluido');
+                  return;
                 }
                 onStatus(o.id, next.status);
               }}
@@ -306,7 +310,7 @@ export default function Pedidos() {
       if (colId === 'despachado' && order.type === 'entrega' && !(order.addressText || '').toUpperCase().includes('RETIRADA') && !(order.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL')) {
         setDispatchOrder(order);
       } else {
-        const targetStatus = colId === 'novo' ? 'novo' : colId === 'confirmado' ? 'confirmado' : 'entrega';
+        const targetStatus = colId === 'novo' ? 'novo' : colId === 'confirmado' ? 'confirmado' : colId === 'pronto' ? 'pronto' : 'entrega';
         await setStatus(order.id, targetStatus);
       }
     }
@@ -357,7 +361,7 @@ export default function Pedidos() {
       </div>
 
       {/* Kanban */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
         {grouped.map((col) => (
           <div
             key={col.id}
