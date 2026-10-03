@@ -181,6 +181,8 @@ export default function PDV() {
   const [deliveryComp, setDeliveryComp] = useState(saved?.deliveryComp || '');
   const [showAddress, setShowAddress] = useState(false);
   const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const catsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -191,6 +193,7 @@ export default function PDV() {
   useEffect(() => {
     fetch('/api/menu').then((r) => r.json()).then(setMenu);
     fetch('/api/tables').then((r) => r.json()).then(setTables);
+    fetch('/api/customers').then((r) => r.json()).then(setCustomers).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -351,7 +354,7 @@ export default function PDV() {
           <div className="relative mb-3">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produto..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50 focus:shadow-[0_0_0_2px_rgba(225,29,72,0.15)]"
+              className="w-full pl-10 pr-4 py-3 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50 focus:shadow-[0_0_0_2px_rgba(225,29,72,0.15)]"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
           </div>
 
@@ -362,7 +365,7 @@ export default function PDV() {
             </button>
             <div ref={catsRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide px-9 pb-1">
               <button onClick={() => setCat('all')}
-                className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
+                className="flex-shrink-0 px-5 py-2.5 rounded-full text-sm font-bold pdv-btn-hover whitespace-nowrap"
                 style={cat === 'all'
                   ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff', boxShadow: '0 2px 12px rgba(225,29,72,0.3)' }
                   : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -372,7 +375,7 @@ export default function PDV() {
                 const count = menu.products.filter((p: any) => p.categoryId === c.id).length;
                 return (
                   <button key={c.id} onClick={() => setCat(c.id)}
-                    className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
+                    className="flex-shrink-0 px-5 py-2.5 rounded-full text-sm font-bold pdv-btn-hover whitespace-nowrap"
                     style={cat === c.id
                       ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff', boxShadow: '0 2px 12px rgba(225,29,72,0.3)' }
                       : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -400,25 +403,25 @@ export default function PDV() {
                     animation: justAdded ? 'cardPulse 0.4s ease' : undefined,
                   }}>
                   {/* Image */}
-                  <div className="w-full h-28 overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                  <div className="w-full h-20 overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
                     {p.photoUrl
                       ? <img src={p.photoUrl} alt="" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                      : <div className="w-full h-full flex items-center justify-center text-3xl text-gray-700">🍽</div>}
+                      : <div className="w-full h-full flex items-center justify-center text-2xl text-gray-700">🍽</div>}
                   </div>
                   {/* Info */}
                   <div className="p-3">
                     {inCart && (
-                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black text-white" style={{ background: '#e11d48' }}>
+                      <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white" style={{ background: '#e11d48' }}>
                         {inCart.qty}
                       </div>
                     )}
-                    <p className="text-xs font-bold text-white leading-tight truncate">{p.name}</p>
-                    <p className="text-[11px] font-black mt-1" style={{ color: p.promoPrice ? '#22c55e' : '#d4a574' }}>
+                    <p className="text-sm font-bold text-white leading-tight truncate">{p.name}</p>
+                    <p className="text-sm font-black mt-1" style={{ color: p.promoPrice ? '#22c55e' : '#d4a574' }}>
                       {BRL(p.promoPrice ?? p.price)}
                     </p>
-                    {p.promoPrice && <p className="text-[9px] line-through text-gray-600">{BRL(p.price)}</p>}
+                    {p.promoPrice && <p className="text-[10px] line-through text-gray-600">{BRL(p.price)}</p>}
                     {p.groups?.length > 0 && (
-                      <p className="text-[9px] text-rose-400 mt-1 font-bold">+ adicionais</p>
+                      <p className="text-[10px] text-rose-400 mt-1 font-bold">+ adicionais</p>
                     )}
                   </div>
                 </button>
@@ -508,11 +511,11 @@ export default function PDV() {
 
                 {/* Type */}
                 <div className="px-4 pt-3">
-                  <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Tipo</p>
-                  <div className="grid grid-cols-4 gap-1.5">
+                  <p className="text-xs uppercase tracking-wider text-gray-500 font-bold mb-2">Tipo</p>
+                  <div className="grid grid-cols-4 gap-2">
                     {TYPE_OPTIONS.map((t) => (
                       <button key={t.id} onClick={() => { setType(t.id); setShowAddress(t.id === 'entrega'); }}
-                        className="flex flex-col items-center gap-1 py-2 rounded-xl text-[10px] font-bold pdv-btn-hover"
+                        className="flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-bold pdv-btn-hover"
                         style={type === t.id
                           ? { background: 'rgba(225,29,72,0.15)', color: '#fb7185', border: '1px solid rgba(225,29,72,0.3)' }
                           : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -576,19 +579,19 @@ export default function PDV() {
                 {/* Payment */}
                 <div className="px-4 pt-3">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Pagamento</p>
+                    <p className="text-xs uppercase tracking-wider text-gray-500 font-bold">Pagamento</p>
                         <button onClick={() => { setSplitPayment(!splitPayment); if (!splitPayment) setPayments([{ method: payment, amount: total }]); }}
-                      className="text-[10px] font-bold pdv-btn-hover px-2 py-1 rounded-lg" style={{ color: splitPayment ? '#fb7185' : '#6b7280' }}>
+                      className="text-xs font-bold pdv-btn-hover px-3 py-1.5 rounded-lg" style={{ color: splitPayment ? '#fb7185' : '#6b7280' }}>
                       {splitPayment ? '✕ Dividir' : '÷ Dividir conta'}
                     </button>
                   </div>
                   {!splitPayment ? (
-                    <div className="grid grid-cols-2 gap-1.5">
+                    <div className="grid grid-cols-2 gap-2">
                       {PAYMENT_OPTIONS.map((p) => {
                         const Icon = p.icon;
                         return (
                           <button key={p.id} onClick={() => setPayment(p.id)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold pdv-btn-hover"
+                            className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-bold pdv-btn-hover"
                             style={payment === p.id
                               ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` }
                               : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -661,25 +664,41 @@ export default function PDV() {
 
                 {/* Client + Note */}
                 <div className="px-4 pt-3 space-y-2">
-                  <input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Cliente (opcional)"
-                    className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                  <div className="relative">
+                    <input value={client} onChange={(e) => { setClient(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="Cliente (opcional)"
+                      className="w-full px-3 py-3 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                    {showSuggestions && client.length >= 1 && (() => {
+                      const filtered = customers.filter((c: any) => c.name?.toLowerCase().includes(client.toLowerCase()) || c.phone?.includes(client)).slice(0, 5);
+                      if (filtered.length === 0) return null;
+                      return (
+                        <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl overflow-hidden shadow-2xl" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.12)' }}>
+                          {filtered.map((c: any) => (
+                            <button key={c.id} onMouseDown={() => { setClient(c.name); setShowSuggestions(false); }} className="w-full px-3 py-2.5 text-left text-sm hover:bg-white/10 transition-all duration-150 flex items-center justify-between" style={{ color: '#f0e8e0' }}>
+                              <span className="font-bold">{c.name}</span>
+                              <span className="text-[11px] text-gray-500">{c.phone}</span>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <input value={orderNote} onChange={(e) => setOrderNote(e.target.value)} placeholder="Observação do pedido"
-                    className="w-full px-3 py-2 rounded-xl text-xs outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                    className="w-full px-3 py-3 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 </div>
 
                 {/* Totals + Finish */}
                 <div className="p-4 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
                   <div className="space-y-2 mb-3">
-                    <div className="flex justify-between text-xs text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
-                    {deliveryFee > 0 && <div className="flex justify-between text-xs text-gray-400"><span>Taxa entrega</span><span>{BRL(deliveryFee)}</span></div>}
+                    <div className="flex justify-between text-sm text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
+                    {deliveryFee > 0 && <div className="flex justify-between text-sm text-gray-400"><span>Taxa entrega</span><span>{BRL(deliveryFee)}</span></div>}
                   </div>
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-lg font-black text-white">Total</span>
-                    <span className="text-lg font-black text-white">{BRL(total)}</span>
+                    <span className="text-xl font-black text-white">Total</span>
+                    <span className="text-xl font-black text-white">{BRL(total)}</span>
                   </div>
                   <button onClick={finish}
                     disabled={!cart.length || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
-                    className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
+                    className="w-full py-4 rounded-xl text-base font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
                     style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
                     Finalizar + Imprimir
                   </button>
