@@ -21,15 +21,4 @@ export async function getSession(): Promise<Session | null> {
   } catch { return null; }
 }
 
-export const ROLE_PERMS: Record<string, string[]> = {
-  admin: ['*'],
-  gerente: ['dashboard','pedidos','pdv','mesas','caixa','cardapio','clientes','entregas','relatorios','promocoes','estoque','cozinha','config'],
-  caixa: ['dashboard','pedidos','pdv','mesas','caixa','clientes'],
-  cozinha: ['cozinha','pedidos'],
-  entregador: ['entregas'],
-};
-
-export function can(role: string, area: string) {
-  const p = ROLE_PERMS[role] || [];
-  return p.includes('*') || p.includes(area);
-}
+export { ROLE_PERMS, can } from '@/lib/roles';

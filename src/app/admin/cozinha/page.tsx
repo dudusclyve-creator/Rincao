@@ -124,7 +124,7 @@ export default function Cozinha() {
                   {o.type === 'mesa' && o.table?.number ? `MESA ${o.table.number}` : type.label}
                 </span>
                 {o.customerName && (
-                  <span className="text-xs font-bold text-gray-400 truncate max-w-[55%] text-right">{o.customerName}</span>
+                  <span className="text-[15px] font-black text-white truncate max-w-[55%] text-right">👤 {o.customerName}</span>
                 )}
               </div>
 
@@ -274,7 +274,7 @@ export default function Cozinha() {
                         <p className="text-[11px] font-black pt-1" style={{ color: '#fbbf24' }}>⚠️ {o.note}</p>
                       )}
                       {o.customerName && (
-                        <p className="text-[10px] text-gray-500 pt-1">👤 {o.customerName}</p>
+                        <p className="text-xs font-black text-gray-300 pt-1">👤 {o.customerName}</p>
                       )}
                     </div>
                   </div>

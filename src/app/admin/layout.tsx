@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { playMenuClick, preloadSounds } from '@/lib/utils';
+import { can, areaForPath } from '@/lib/roles';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const MENU: [string, string, string][] = [
@@ -19,8 +20,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const [notif, setNotif] = useState<any>(null);
+  const [role, setRole] = useState<string>('');
   const prevCount = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.role) setRole(d.role); }).catch(() => {});
+  }, []);
+
+  const visibleMenu = MENU.filter(([, href]) => !role || role === 'admin' || can(role, areaForPath(href)));
 
   const playNotifSound = useCallback(() => {
     try {
@@ -137,7 +145,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Menu */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-0.5">
-          {MENU.map(([label, href, icon]) => {
+          {visibleMenu.map(([label, href, icon]) => {
             const active = isActive(href);
             return (
               <Link
@@ -198,7 +206,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Mobile top bar */}
       <div className="flex-1 min-w-0">
         <div className="md:hidden text-white p-3 flex gap-2 overflow-x-auto no-print" style={{ background: '#141018', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          {MENU.map(([label, href]) => (
+          {visibleMenu.map(([label, href]) => (
             <Link key={href} href={href} onClick={() => playMenuClick()} className="text-[11px] rounded-lg px-2.5 py-1.5 whitespace-nowrap transition-all duration-200"
               style={isActive(href)
                 ? { background: 'rgba(225,29,72,0.12)', color: '#f0e8e0', border: '1px solid rgba(225,29,72,0.2)' }
