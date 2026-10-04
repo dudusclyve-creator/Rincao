@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { BRL, playDropSound } from '@/lib/utils';
+import { BRL, playDropSound, showToast } from '@/lib/utils';
 import {
   ChevronDown, ChevronRight, Plus, Trash2, Pencil,
   Copy, Eye, EyeOff, ChevronUp, Package, Star, Flame, X, Check,
@@ -18,8 +18,16 @@ function ImageUpload({ value, onChange }: { value: string; onChange: (url: strin
       const fd = new window.FormData();
       fd.append('file', file);
       const r = await fetch('/api/upload', { method: 'POST', body: fd });
-      const d = await r.json();
-      if (d.url) onChange(d.url);
+      const d = await r.json().catch(() => ({} as any));
+      if (d.url) {
+        onChange(d.url);
+        if (String(d.url).startsWith('/uploads/')) showToast('Imagem salva só no local — não vai aparecer no cardápio online', 'warning', 5000);
+        else showToast('Imagem enviada pro Supabase!', 'success');
+      } else {
+        showToast('Falha no upload da imagem — tente de novo', 'error', 5000);
+      }
+    } catch {
+      showToast('Falha no upload (servidor reiniciando?) — tente de novo', 'error', 5000);
     } finally { setUploading(false); }
   };
   return (
