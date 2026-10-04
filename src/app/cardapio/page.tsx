@@ -67,6 +67,7 @@ export default function CardapioPage() {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [lastOrder, setLastOrder] = useState<any>(null);
   const [hideRepeat, setHideRepeat] = useState(false);
+  const [repeatItems, setRepeatItems] = useState<any[]>([]);
   const [savedAddress, setSavedAddress] = useState<any>(null);
 
   useEffect(() => {
@@ -87,6 +88,7 @@ export default function CardapioPage() {
     } catch {}
   }, []);
 
+  useEffect(() => { setRepeatItems(lastOrder?.items || []); }, [lastOrder]);
   useEffect(() => { fetch('/api/menu').then((r) => r.json()).then(setData); }, []);
   useEffect(() => {
     const loadAreas = () => {
@@ -123,13 +125,16 @@ export default function CardapioPage() {
   };
 
   const repeatLastOrder = () => {
-    if (!lastOrder?.items?.length) return;
-    for (const it of lastOrder.items) {
+    if (!repeatItems.length) return;
+    for (const it of repeatItems) {
       cart.add({ key: Math.random().toString(36), productId: it.productId, name: it.name, unitPrice: it.unitPrice, qty: it.qty, note: it.note || '', addons: it.addons || [] });
     }
     showToast(`Pedido #${lastOrder.number} repetido!`, 'success');
     setCartOpen(true);
   };
+
+  const repeatQty = repeatItems.reduce((s: number, i: any) => s + i.qty, 0);
+  const repeatTotal = repeatItems.reduce((s: number, i: any) => s + i.unitPrice * i.qty + (i.addons || []).reduce((s2: number, a: any) => s2 + (a.price || 0) * (a.qty || 1), 0), 0);
 
   const open = useMemo(() => data?.restaurant ? isOpenNow(data.restaurant.hoursJson, data.restaurant.isOpenManual) : true, [data]);
   const products: Product[] = useMemo(() => {
@@ -236,21 +241,21 @@ export default function CardapioPage() {
         <main className="flex-1 min-w-0 pb-32 lg:pb-8">
           {!open && <div className="rounded-xl p-3 text-sm font-bold text-center mb-4" style={{ background: '#3a1515', color: '#f87171', border: '1px solid #5a2020' }}>Estamos fechados no momento.</div>}
 
-          {lastOrder?.items?.length > 0 && cart.items.length === 0 && !hideRepeat && (
+          {repeatItems.length > 0 && cart.items.length === 0 && !hideRepeat && (
             <div className="mb-4 rounded-2xl overflow-hidden" style={{ background: 'rgba(107,58,31,0.25)', border: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-3 px-4 pt-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0" style={{ background: C.bgChip, border: `1px solid ${C.border}` }}>🔁</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-bold" style={{ color: C.textName }}>Seu último pedido</p>
                   <p className="text-[10px] truncate" style={{ color: C.textMuted }}>
-                    #{lastOrder.number}{lastOrder.date ? ` • ${lastOrder.date}` : ''} • {lastOrder.items.reduce((s: number, i: any) => s + i.qty, 0)} {lastOrder.items.reduce((s: number, i: any) => s + i.qty, 0) === 1 ? 'item' : 'itens'}
+                    #{lastOrder?.number}{lastOrder?.date ? ` • ${lastOrder.date}` : ''} • {repeatQty} {repeatQty === 1 ? 'item' : 'itens'}
                   </p>
                 </div>
-                {lastOrder.total > 0 && <span className="text-sm font-extrabold shrink-0" style={{ color: C.textPrice }}>{BRL(lastOrder.total)}</span>}
+                <span className="text-sm font-extrabold shrink-0" style={{ color: C.textPrice }}>{BRL(repeatTotal)}</span>
                 <button onClick={() => setHideRepeat(true)} title="Não mostrar mais" className="w-7 h-7 rounded-full flex items-center justify-center text-xs shrink-0 transition hover:opacity-70" style={{ background: 'rgba(0,0,0,0.25)', color: C.textMuted }}>✕</button>
               </div>
               <ul className="px-4 py-2.5 space-y-1.5 max-h-40 overflow-y-auto">
-                {lastOrder.items.map((it: any, idx: number) => (
+                {repeatItems.map((it: any, idx: number) => (
                   <li key={idx} className="flex items-start gap-2 text-[11px]">
                     <span className="font-bold shrink-0 w-6 text-right" style={{ color: C.textPrice }}>{it.qty}×</span>
                     <span className="flex-1 min-w-0">
@@ -263,12 +268,13 @@ export default function CardapioPage() {
                       )}
                     </span>
                     <span className="shrink-0 font-semibold" style={{ color: C.textDesc }}>{BRL(it.unitPrice * it.qty)}</span>
+                    <button onClick={() => setRepeatItems((prev) => prev.filter((_, i) => i !== idx))} title="Remover da repetição" className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition hover:scale-110" style={{ background: 'rgba(0,0,0,0.3)', color: C.textMuted }}>✕</button>
                   </li>
                 ))}
               </ul>
               <div className="px-4 pb-3">
                 <button onClick={repeatLastOrder} className="w-full rounded-xl py-3 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-110 active:scale-[0.98]" style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 4px 14px rgba(217,119,6,0.3)' }}>
-                  🔁 Repetir este pedido
+                  🔁 Repetir este pedido{repeatQty < (lastOrder?.items || []).reduce((s: number, i: any) => s + i.qty, 0) ? ' (selecionados)' : ''}
                 </button>
               </div>
             </div>
