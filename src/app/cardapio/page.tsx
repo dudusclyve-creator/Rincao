@@ -66,6 +66,7 @@ export default function CardapioPage() {
   const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [lastOrder, setLastOrder] = useState<any>(null);
+  const [hideRepeat, setHideRepeat] = useState(false);
   const [savedAddress, setSavedAddress] = useState<any>(null);
 
   useEffect(() => {
@@ -235,10 +236,42 @@ export default function CardapioPage() {
         <main className="flex-1 min-w-0 pb-32 lg:pb-8">
           {!open && <div className="rounded-xl p-3 text-sm font-bold text-center mb-4" style={{ background: '#3a1515', color: '#f87171', border: '1px solid #5a2020' }}>Estamos fechados no momento.</div>}
 
-          {lastOrder?.items?.length > 0 && cart.items.length === 0 && (
-            <button onClick={repeatLastOrder} className="w-full mb-4 rounded-xl px-4 py-3 text-xs font-bold flex items-center justify-center gap-2 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: 'rgba(107,58,31,0.15)', border: `1px solid ${C.border}`, color: C.textPrice }}>
-              🔁 Repetir pedido #{lastOrder.number} ({lastOrder.items.reduce((s: number, i: any) => s + i.qty, 0)} itens)
-            </button>
+          {lastOrder?.items?.length > 0 && cart.items.length === 0 && !hideRepeat && (
+            <div className="mb-4 rounded-2xl overflow-hidden" style={{ background: 'rgba(107,58,31,0.25)', border: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-3 px-4 pt-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0" style={{ background: C.bgChip, border: `1px solid ${C.border}` }}>🔁</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold" style={{ color: C.textName }}>Seu último pedido</p>
+                  <p className="text-[10px] truncate" style={{ color: C.textMuted }}>
+                    #{lastOrder.number}{lastOrder.date ? ` • ${lastOrder.date}` : ''} • {lastOrder.items.reduce((s: number, i: any) => s + i.qty, 0)} {lastOrder.items.reduce((s: number, i: any) => s + i.qty, 0) === 1 ? 'item' : 'itens'}
+                  </p>
+                </div>
+                {lastOrder.total > 0 && <span className="text-sm font-extrabold shrink-0" style={{ color: C.textPrice }}>{BRL(lastOrder.total)}</span>}
+                <button onClick={() => setHideRepeat(true)} title="Não mostrar mais" className="w-7 h-7 rounded-full flex items-center justify-center text-xs shrink-0 transition hover:opacity-70" style={{ background: 'rgba(0,0,0,0.25)', color: C.textMuted }}>✕</button>
+              </div>
+              <ul className="px-4 py-2.5 space-y-1.5 max-h-40 overflow-y-auto">
+                {lastOrder.items.map((it: any, idx: number) => (
+                  <li key={idx} className="flex items-start gap-2 text-[11px]">
+                    <span className="font-bold shrink-0 w-6 text-right" style={{ color: C.textPrice }}>{it.qty}×</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="font-semibold" style={{ color: C.textName }}>{it.name}</span>
+                      {it.note && <span className="block text-[9px] italic" style={{ color: C.textMuted }}>obs: {it.note}</span>}
+                      {it.addons?.length > 0 && (
+                        <span className="block text-[9px]" style={{ color: C.textMuted }}>
+                          + {it.addons.map((a: any) => a.qty > 1 ? `${a.qty}x ${a.name}` : a.name).join(', ')}
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 font-semibold" style={{ color: C.textDesc }}>{BRL(it.unitPrice * it.qty)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="px-4 pb-3">
+                <button onClick={repeatLastOrder} className="w-full rounded-xl py-3 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all duration-200 hover:brightness-110 active:scale-[0.98]" style={{ background: 'linear-gradient(135deg, #d97706, #b45309)', boxShadow: '0 4px 14px rgba(217,119,6,0.3)' }}>
+                  🔁 Repetir este pedido
+                </button>
+              </div>
+            </div>
           )}
 
           {search && <p className="text-xs mb-3" style={{ color: C.textMuted }}>Resultados para "{search}"</p>}
@@ -476,9 +509,10 @@ export default function CardapioPage() {
       {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} />}
       {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} setAddressText={setAddressText} cart={cart}       onOrderDone={(order: any) => {
         try {
-          const lo = { number: order.number, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, addons: i.addons })) };
+          const lo = { number: order.number, date: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), total: cart.subtotal, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, addons: i.addons })) };
           localStorage.setItem('cardapio_last_order', JSON.stringify(lo));
           setLastOrder(lo);
+          setHideRepeat(false);
           const phoneDigits = String(order.customerPhone || '').replace(/\D/g, '');
           if (phoneDigits.length >= 8 && addressText) {
             const sa = { phone: phoneDigits, addressText, deliveryType };
