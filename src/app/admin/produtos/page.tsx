@@ -221,12 +221,12 @@ export default function CardapioAdmin() {
       {/* HEADER ACTIONS */}
       <div className="flex flex-wrap gap-2 items-center mb-4">
         <button onClick={() => { setShowNew(!showNew); if (!showNew && cats.length > 0 && !np.categoryId) setNp({ ...np, categoryId: cats[0].id }); }}
-          className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 pdv-btn-hover"
+          className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5"
           style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff', boxShadow: '0 4px 15px rgba(225,29,72,0.3)' }}>
           <Plus size={14} /> Novo Produto
         </button>
         <button onClick={() => { const allOpen = cats.every((c) => expanded[c.id]); allOpen ? collapseAll() : expandAll(); }}
-          className="text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1 pdv-btn-hover"
+          className="text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1"
           style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>
           {cats.every((c) => expanded[c.id]) ? <><ChevronUp size={13} /> Recolher</> : <><ChevronDown size={13} /> Abrir tudo</>}
         </button>
@@ -234,7 +234,7 @@ export default function CardapioAdmin() {
         <div className="flex gap-2 items-center">
           <input className="input text-xs w-48" placeholder="Nova categoria..." value={newCatName} onChange={(e) => setNewCatName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createCategory()} />
           <button onClick={createCategory}
-            className="text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1 pdv-btn-hover"
+            className="text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1"
             style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>
             <Plus size={13} /> Categoria
           </button>
@@ -274,9 +274,9 @@ export default function CardapioAdmin() {
             ))}
           </div>
           <div className="flex gap-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <button className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 pdv-btn-hover"
+            <button className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5"
               style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }} onClick={createProduct}><Check size={14} /> Criar</button>
-            <button className="text-xs font-medium px-4 py-2 rounded-xl pdv-btn-hover"
+            <button className="text-xs font-medium px-4 py-2 rounded-xl"
               style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} onClick={() => setShowNew(false)}>Cancelar</button>
           </div>
         </div>
@@ -322,8 +322,8 @@ export default function CardapioAdmin() {
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5">
-                    <button onClick={() => renameCategory(cat.id, cat.name)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400" title="Renomear"><Pencil size={13} /></button>
-                    <button onClick={() => deleteCategory(cat.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                    <button onClick={() => renameCategory(cat.id, cat.name)} className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Renomear"><Pencil size={13} /></button>
+                    <button onClick={() => deleteCategory(cat.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
                   </div>
                 </div>
               </div>
@@ -368,11 +368,11 @@ export default function CardapioAdmin() {
                             </div>
                             <div className="flex items-center gap-0.5 justify-self-end">
                               <button onClick={() => { setEditingProduct(editingProduct === p.id ? null : p.id); setProductEditForm({ name: p.name, price: String(p.price), promoPrice: p.promoPrice ? String(p.promoPrice) : '', description: p.description || '', photoUrl: p.photoUrl || '', categoryId: p.categoryId, available: p.available, featured: p.featured, bestSeller: p.bestSeller, newArrival: p.newArrival, groupIds: p.groups?.map((g: any) => g.groupId) || [] }); }}
-                                className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400" title="Editar"><Pencil size={13} /></button>
-                              <button onClick={() => { fetch(`/api/products?id=${p.id}&duplicate=1`, { method: 'DELETE' }); load(); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-gray-300" title="Duplicar"><Copy size={13} /></button>
+                                className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Editar"><Pencil size={13} /></button>
+                              <button onClick={() => { fetch(`/api/products?id=${p.id}&duplicate=1`, { method: 'DELETE' }); load(); }} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300" title="Duplicar"><Copy size={13} /></button>
                               <button onClick={() => { fetch('/api/products', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, available: !p.available }) }); load(); }}
-                                className={`p-1.5 rounded-lg pdv-hover ${p.available ? 'text-amber-500' : 'text-gray-600'}`} title={p.available ? 'Desativar' : 'Ativar'}>{p.available ? <Eye size={13} /> : <EyeOff size={13} />}</button>
-                              <button onClick={() => { if (confirm('Excluir?')) { fetch(`/api/products?id=${p.id}`, { method: 'DELETE' }); load(); } }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                                className={`p-1.5 rounded-lg ${p.available ? 'text-amber-500' : 'text-gray-600'}`} title={p.available ? 'Desativar' : 'Ativar'}>{p.available ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+                              <button onClick={() => { if (confirm('Excluir?')) { fetch(`/api/products?id=${p.id}`, { method: 'DELETE' }); load(); } }} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
                             </div>
                           </div>
                         </div>
@@ -406,10 +406,10 @@ export default function CardapioAdmin() {
                                 </label>
                               ))}
                               <div className="flex-1" />
-                              <button className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1 pdv-btn-hover"
+                              <button className="text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1"
                                 style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }}
                                 onClick={() => { updateProduct(p.id, { ...productEditForm, price: Number(productEditForm.price), promoPrice: productEditForm.promoPrice ? Number(productEditForm.promoPrice) : null }); setEditingProduct(null); }}><Check size={13} /> Salvar</button>
-                              <button className="text-xs font-medium px-3 py-2 rounded-xl pdv-btn-hover"
+                              <button className="text-xs font-medium px-3 py-2 rounded-xl"
                                 style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} onClick={() => setEditingProduct(null)}>Cancelar</button>
                             </div>
                           </div>
@@ -447,14 +447,14 @@ export default function CardapioAdmin() {
                 <input className="input text-center w-full" type="number" value={newGroupMax} onChange={(e) => setNewGroupMax(Number(e.target.value))} />
               </div>
               <button onClick={() => setNewGroupRequired(!newGroupRequired)}
-                className="text-[10px] font-bold px-2.5 py-2 rounded-xl transition-all pdv-btn-hover"
+                className="text-[10px] font-bold px-2.5 py-2 rounded-xl transition-all"
                 style={newGroupRequired
                   ? { background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }
                   : { background: 'rgba(255,255,255,0.06)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.08)' }}>
                 {newGroupRequired ? 'obrig.' : 'opcional'}
               </button>
               <button onClick={createAddonGroup}
-                className="text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1 pdv-btn-hover"
+                className="text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1"
                 style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff' }}>
                 <Plus size={14} /> Grupo
               </button>
@@ -474,8 +474,8 @@ export default function CardapioAdmin() {
                     {gr.required && <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>obrig.</span>}
                     <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280' }}>{gr.addons.length}</span>
                     <button onClick={() => { setEditingGroup(isEditingGroup ? null : gr.id); setGroupEditForm({ name: gr.name, minSel: gr.minSel, maxSel: gr.maxSel, required: gr.required }); }}
-                      className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400" title="Editar"><Pencil size={13} /></button>
-                    <button onClick={() => deleteAddonGroup(gr.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                      className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Editar"><Pencil size={13} /></button>
+                    <button onClick={() => deleteAddonGroup(gr.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
                   </div>
 
                   {isEditingGroup && (
@@ -490,9 +490,9 @@ export default function CardapioAdmin() {
                         </label>
                       </div>
                       <div className="flex gap-2 pt-1">
-                        <button className="text-xs font-bold px-4 py-1.5 rounded-lg flex items-center gap-1 pdv-btn-hover"
+                        <button className="text-xs font-bold px-4 py-1.5 rounded-lg flex items-center gap-1"
                           style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }} onClick={() => saveGroupEdit(gr.id)}><Check size={12} /> Salvar</button>
-                        <button className="text-xs font-medium px-3 py-1.5 rounded-lg pdv-btn-hover"
+                        <button className="text-xs font-medium px-3 py-1.5 rounded-lg"
                           style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} onClick={() => setEditingGroup(null)}>Cancelar</button>
                       </div>
                     </div>
@@ -504,13 +504,13 @@ export default function CardapioAdmin() {
                         const isAddonEditing = editingAddon === ad.id;
                         return (
                           <div key={ad.id}>
-                            <div className="flex items-center gap-2 py-1.5 px-1 rounded-md pdv-hover">
+                            <div className="flex items-center gap-2 py-1.5 px-1 rounded-md">
                               <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#3b82f6' }} />
                               <span className="flex-1 text-sm text-gray-300">{ad.name}</span>
                               <span className="text-xs font-bold" style={{ color: '#d4a574' }}>{BRL(ad.price)}</span>
                               <button onClick={() => { setEditingAddon(isAddonEditing ? null : ad.id); setAddonEditForm({ name: ad.name, price: ad.price }); }}
-                                className="p-1 rounded-lg pdv-hover text-gray-600 hover:text-blue-400"><Pencil size={11} /></button>
-                              <button onClick={() => deleteAddon(ad.id)} className="p-1 rounded-lg pdv-hover text-gray-600 hover:text-red-400"><Trash2 size={11} /></button>
+                                className="p-1 rounded-lg text-gray-600 hover:text-blue-400"><Pencil size={11} /></button>
+                              <button onClick={() => deleteAddon(ad.id)} className="p-1 rounded-lg text-gray-600 hover:text-red-400"><Trash2 size={11} /></button>
                             </div>
                             {isAddonEditing && (
                               <div className="grid gap-2 py-2 px-2 ml-3 rounded-lg mb-1" style={{ gridTemplateColumns: '1fr 80px auto auto', background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
@@ -526,7 +526,7 @@ export default function CardapioAdmin() {
                       <div className="grid gap-2 mt-2 pt-2" style={{ gridTemplateColumns: '1fr 80px auto', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                         <input className="input" placeholder="Novo item" value={addonInputs[gr.id]?.name || ''} onChange={(e) => setAddonInputs((p) => ({ ...p, [gr.id]: { name: e.target.value, price: p[gr.id]?.price || '' } }))} onKeyDown={(e) => { if (e.key === 'Enter') { const nm = addonInputs[gr.id]?.name; const pr = Number(addonInputs[gr.id]?.price || 0); if (nm?.trim()) { saveAddon(gr.id, nm, pr); setAddonInputs((p) => ({ ...p, [gr.id]: { name: '', price: '' } })); } } }} />
                         <input className="input" type="number" placeholder="R$" value={addonInputs[gr.id]?.price || ''} onChange={(e) => setAddonInputs((p) => ({ ...p, [gr.id]: { name: p[gr.id]?.name || '', price: e.target.value } }))} />
-                        <button className="text-xs font-bold px-3 py-2 rounded-lg pdv-btn-hover"
+                        <button className="text-xs font-bold px-3 py-2 rounded-lg"
                           style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' }}
                           onClick={() => { const nm = addonInputs[gr.id]?.name; const pr = Number(addonInputs[gr.id]?.price || 0); if (nm?.trim()) { saveAddon(gr.id, nm, pr); setAddonInputs((p) => ({ ...p, [gr.id]: { name: '', price: '' } })); } }}>+</button>
                       </div>
