@@ -139,6 +139,8 @@ export default function CardapioPage() {
   const open = useMemo(() => data?.restaurant ? isOpenNow(data.restaurant.hoursJson, data.restaurant.isOpenManual) : true, [data]);
   const products: Product[] = useMemo(() => {
     let p = data?.products || [];
+    const activeCats = new Set((data?.categories || []).map((c: any) => c.id));
+    p = p.filter((x: any) => !x.categoryId || activeCats.has(x.categoryId));
     if (cat === 'best') p = p.filter((x: any) => x.bestSeller);
     else if (cat === 'fav') p = p.filter((x: any) => favorites.includes(x.id));
     else if (cat !== 'all') p = p.filter((x: any) => x.categoryId === cat);

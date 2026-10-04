@@ -110,6 +110,13 @@ export default function CardapioAdmin() {
   const deleteCategory = async (id: string) => {
     if (confirm('Excluir categoria e todos os produtos?')) { await fetch(`/api/categories?id=${id}`, { method: 'DELETE' }); load(); }
   };
+  const toggleCategoryActive = async (cat: any) => {
+    const next = !(cat.active !== false);
+    if (!next && !confirm(`Desativar a categoria "${cat.name}"? Ela some do cardápio online — os produtos ficam guardados e voltam quando ativar de novo.`)) return;
+    await fetch('/api/categories', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: cat.id, active: next }) });
+    showToast(next ? `Categoria "${cat.name}" ativada` : `Categoria "${cat.name}" desativada do cardápio`, next ? 'success' : 'warning');
+    load();
+  };
 
   const createProduct = async () => {
     if (!np.name || !np.price || !np.categoryId) return;
@@ -313,7 +320,7 @@ export default function CardapioAdmin() {
                 style={{
                   background: isDragOverCat ? 'rgba(225,29,72,0.08)' : 'rgba(255,255,255,0.03)',
                   border: isDragOverCat ? '1px solid rgba(225,29,72,0.3)' : '1px solid rgba(255,255,255,0.06)',
-                  opacity: isDraggingCat ? 0.5 : 1,
+                  opacity: isDraggingCat ? 0.5 : (cat.active !== false ? 1 : 0.6),
                 }}>
                 <div className="grid items-center gap-3 px-3 py-2.5" style={{ gridTemplateColumns: '24px 4px 1fr auto auto' }}>
                   <div draggable onDragStart={(e) => handleDragStartCat(e, cat.id)} className="flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-600 hover:text-gray-400">
@@ -325,11 +332,12 @@ export default function CardapioAdmin() {
                       {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </button>
                     <div className="min-w-0">
-                      <span className="text-sm font-bold text-white block">{cat.name}</span>
-                      <span className="text-[10px] text-gray-500">{prods.length} produtos</span>
+                      <span className="text-sm font-bold block truncate" style={{ color: cat.active !== false ? '#fff' : '#6b7280' }}>{cat.name}</span>
+                      <span className="text-[10px] text-gray-500">{prods.length} produtos{cat.active === false && <span className="ml-1 font-bold" style={{ color: '#f59e0b' }}>· desativada do cardápio</span>}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5">
+                    <button onClick={() => toggleCategoryActive(cat)} className={`p-1.5 rounded-lg ${cat.active !== false ? 'text-gray-500 hover:text-amber-400' : 'text-amber-500 hover:text-emerald-400'}`} title={cat.active !== false ? 'Desativar categoria (some do cardápio)' : 'Ativar categoria'}>{cat.active !== false ? <Eye size={13} /> : <EyeOff size={13} />}</button>
                     <button onClick={() => renameCategory(cat.id, cat.name)} className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Renomear"><Pencil size={13} /></button>
                     <button onClick={() => deleteCategory(cat.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
                   </div>
