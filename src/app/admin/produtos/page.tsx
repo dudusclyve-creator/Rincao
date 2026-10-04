@@ -381,22 +381,31 @@ export default function CardapioAdmin() {
                         {editingProduct === p.id && (
                           <div className="rounded-lg p-3 space-y-2 mb-0.5" style={{ background: 'rgba(225,29,72,0.05)', border: '1px solid rgba(225,29,72,0.15)' }}>
                             <div className="grid grid-cols-3 gap-2">
-                              <input className="input w-full" placeholder="Nome *" value={productEditForm.name} onChange={(e) => setProductEditForm({ ...productEditForm, name: e.target.value })} />
-                              <input className="input w-full" placeholder="Preço *" type="number" value={productEditForm.price} onChange={(e) => setProductEditForm({ ...productEditForm, price: e.target.value })} />
-                              <input className="input w-full" placeholder="Preço promo" type="number" value={productEditForm.promoPrice || ''} onChange={(e) => setProductEditForm({ ...productEditForm, promoPrice: e.target.value })} />
+                              <label className="flex flex-col gap-1"><span className="label">Nome do produto</span>
+                                <input className="input w-full" placeholder="Nome *" value={productEditForm.name} onChange={(e) => setProductEditForm({ ...productEditForm, name: e.target.value })} /></label>
+                              <label className="flex flex-col gap-1"><span className="label">Preço normal (R$)</span>
+                                <input className="input w-full" placeholder="Preço *" type="number" value={productEditForm.price} onChange={(e) => setProductEditForm({ ...productEditForm, price: e.target.value })} /></label>
+                              <label className="flex flex-col gap-1"><span className="label">Preço promo (R$)</span>
+                                <input className="input w-full" placeholder="Preço promo" type="number" value={productEditForm.promoPrice || ''} onChange={(e) => setProductEditForm({ ...productEditForm, promoPrice: e.target.value })} /></label>
                             </div>
-                            <input className="input w-full" placeholder="Descrição" value={productEditForm.description || ''} onChange={(e) => setProductEditForm({ ...productEditForm, description: e.target.value })} />
+                            <label className="flex flex-col gap-1"><span className="label">Descrição</span>
+                              <input className="input w-full" placeholder="Descrição" value={productEditForm.description || ''} onChange={(e) => setProductEditForm({ ...productEditForm, description: e.target.value })} /></label>
                             <div className="grid grid-cols-2 gap-2">
-                              <ImageUpload value={productEditForm.photoUrl || ''} onChange={(url) => setProductEditForm({ ...productEditForm, photoUrl: url })} />
-                              <select className="input w-full" value={productEditForm.categoryId} onChange={(e) => setProductEditForm({ ...productEditForm, categoryId: e.target.value })}>{cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+                              <div className="flex flex-col gap-1"><span className="label">Foto</span>
+                                <ImageUpload value={productEditForm.photoUrl || ''} onChange={(url) => setProductEditForm({ ...productEditForm, photoUrl: url })} /></div>
+                              <div className="flex flex-col gap-1"><span className="label">Categoria</span>
+                                <select className="input w-full" value={productEditForm.categoryId} onChange={(e) => setProductEditForm({ ...productEditForm, categoryId: e.target.value })}>{cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                             </div>
-                            <div className="flex flex-wrap gap-2 items-center">
-                              {groupsList.map((g) => (
-                                <label key={g.id} className="flex items-center gap-1 rounded-lg px-2 py-1 cursor-pointer transition-colors" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                                  <input type="checkbox" className="accent-rose-500 scale-90" checked={productEditForm.groupIds.includes(g.id)} onChange={(e) => setProductEditForm({ ...productEditForm, groupIds: e.target.checked ? [...productEditForm.groupIds, g.id] : productEditForm.groupIds.filter((x: string) => x !== g.id) })} />
-                                  <span className="text-xs text-gray-400">{g.name}</span>
-                                </label>
-                              ))}
+                            <div>
+                              <span className="label">Grupos de adicionais</span>
+                              <div className="flex flex-wrap gap-2 items-center mt-1">
+                                {groupsList.map((g) => (
+                                  <label key={g.id} className="flex items-center gap-1 rounded-lg px-2 py-1 cursor-pointer transition-colors" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                    <input type="checkbox" className="accent-rose-500 scale-90" checked={productEditForm.groupIds.includes(g.id)} onChange={(e) => setProductEditForm({ ...productEditForm, groupIds: e.target.checked ? [...productEditForm.groupIds, g.id] : productEditForm.groupIds.filter((x: string) => x !== g.id) })} />
+                                    <span className="text-xs text-gray-400">{g.name}</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
                             <div className="flex gap-2 items-center pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                               {['featured', 'bestSeller', 'newArrival', 'available'].map((k) => (
@@ -480,14 +489,26 @@ export default function CardapioAdmin() {
 
                   {isEditingGroup && (
                     <div className="mx-3 mb-2 p-3 rounded-lg space-y-2" style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                      <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 60px 60px auto' }}>
-                        <input className="input text-sm" placeholder="Nome do grupo" defaultValue={gr.name} onChange={(e) => setGroupEditForm({ ...groupEditForm, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveGroupEdit(gr.id)} autoFocus />
-                        <input className="input text-sm text-center" type="number" title="Mín" defaultValue={gr.minSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, minSel: Number(e.target.value) })} />
-                        <input className="input text-sm text-center" type="number" title="Máx" defaultValue={gr.maxSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, maxSel: Number(e.target.value) })} />
-                        <label className="flex items-center gap-1 text-xs text-gray-500">
-                          <input type="checkbox" className="accent-rose-500 scale-90" defaultChecked={gr.required} onChange={(e) => setGroupEditForm({ ...groupEditForm, required: e.target.checked })} />
-                          obrig.
-                        </label>
+                      <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 60px 60px 70px' }}>
+                        <div className="flex flex-col gap-1">
+                          <span className="label">Nome do grupo</span>
+                          <input className="input text-sm" placeholder="Ex.: Molhos, Bebidas..." defaultValue={gr.name} onChange={(e) => setGroupEditForm({ ...groupEditForm, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveGroupEdit(gr.id)} autoFocus />
+                        </div>
+                        <div className="flex flex-col gap-1 items-center">
+                          <span className="label">Mín</span>
+                          <input className="input text-sm text-center w-full" type="number" title="Mínimo de itens que o cliente precisa escolher" defaultValue={gr.minSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, minSel: Number(e.target.value) })} />
+                        </div>
+                        <div className="flex flex-col gap-1 items-center">
+                          <span className="label">Máx</span>
+                          <input className="input text-sm text-center w-full" type="number" title="Máximo de itens que o cliente pode escolher" defaultValue={gr.maxSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, maxSel: Number(e.target.value) })} />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="label">Obrig.</span>
+                          <label className="flex items-center gap-1 text-xs text-gray-500 h-[42px] px-1">
+                            <input type="checkbox" className="accent-rose-500 scale-90" defaultChecked={gr.required} onChange={(e) => setGroupEditForm({ ...groupEditForm, required: e.target.checked })} />
+                            sim
+                          </label>
+                        </div>
                       </div>
                       <div className="flex gap-2 pt-1">
                         <button className="text-xs font-bold px-4 py-1.5 rounded-lg flex items-center gap-1"
@@ -513,11 +534,19 @@ export default function CardapioAdmin() {
                               <button onClick={() => deleteAddon(ad.id)} className="p-1 rounded-lg text-gray-600 hover:text-red-400"><Trash2 size={11} /></button>
                             </div>
                             {isAddonEditing && (
-                              <div className="grid gap-2 py-2 px-2 ml-3 rounded-lg mb-1" style={{ gridTemplateColumns: '1fr 80px auto auto', background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                                <input className="input text-xs py-1" placeholder="Nome" defaultValue={ad.name} onChange={(e) => setAddonEditForm({ name: e.target.value, price: ad.price })} onKeyDown={(e) => e.key === 'Enter' && saveAddonEdit(ad.id)} autoFocus />
-                                <input className="input text-xs py-1" type="number" placeholder="R$" defaultValue={ad.price} onChange={(e) => setAddonEditForm({ name: ad.name, price: Number(e.target.value) })} />
-                                <button className="p-1 rounded-md" style={{ background: '#22c55e', color: '#fff' }} onClick={() => saveAddonEdit(ad.id)}><Check size={12} /></button>
-                                <button className="p-1 rounded-md" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} onClick={() => setEditingAddon(null)}><X size={12} /></button>
+                              <div className="grid gap-2 py-2 px-2 ml-3 rounded-lg mb-1" style={{ gridTemplateColumns: '1fr 80px auto', background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
+                                <div className="flex flex-col gap-1">
+                                  <span className="label">Nome do adicional</span>
+                                  <input className="input text-xs py-1" placeholder="Ex.: Bacon, Cheddar..." defaultValue={ad.name} onChange={(e) => setAddonEditForm({ name: e.target.value, price: ad.price })} onKeyDown={(e) => e.key === 'Enter' && saveAddonEdit(ad.id)} autoFocus />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <span className="label">Preço (R$)</span>
+                                  <input className="input text-xs py-1" type="number" placeholder="0" defaultValue={ad.price} onChange={(e) => setAddonEditForm({ name: ad.name, price: Number(e.target.value) })} />
+                                </div>
+                                <div className="flex gap-1 items-end pb-0.5">
+                                  <button className="p-1.5 rounded-md" style={{ background: '#22c55e', color: '#fff' }} title="Salvar" onClick={() => saveAddonEdit(ad.id)}><Check size={12} /></button>
+                                  <button className="p-1.5 rounded-md" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} title="Cancelar" onClick={() => setEditingAddon(null)}><X size={12} /></button>
+                                </div>
                               </div>
                             )}
                           </div>
