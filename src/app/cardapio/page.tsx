@@ -255,7 +255,7 @@ export default function CardapioPage() {
                   const soldOut = !p.available;
                   return (
                     <button key={p.id} onClick={() => !soldOut && open && setModal(p)} disabled={soldOut || !open} className="flex gap-2.5 sm:gap-3 p-2 sm:p-2.5 rounded-xl text-left transition disabled:cursor-not-allowed group relative" style={{ background: C.bgCard, border: soldOut ? '2px solid #dc2626' : `1px solid ${C.border}40` }}>
-                      <span onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }} className="absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer transition-all duration-200 hover:scale-125" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }}>
+                      <span onClick={(e) => { e.stopPropagation(); toggleFav(p.id); }} className="absolute bottom-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer transition-all duration-200 hover:scale-125" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }} title="Favoritar">
                         {favorites.includes(p.id) ? '❤️' : '🤍'}
                       </span>
                       <div className="relative w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 rounded-lg shrink-0" style={{ background: C.bg }}>
@@ -278,7 +278,7 @@ export default function CardapioPage() {
                           </div>
                           <p className="text-[9px] sm:text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{p.description}</p>
                         </div>
-                        <div className="flex items-center gap-1.5 sm:gap-2">
+                        <div className="flex items-center gap-1.5 sm:gap-2 pr-8">
                           <p className="font-extrabold text-xs sm:text-sm lg:text-base" style={{ color: p.promoPrice ? '#22c55e' : C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[9px] sm:text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
                           <div className="sm:hidden flex items-center gap-0.5 flex-wrap">
                             {p.newArrival && <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade</span>}

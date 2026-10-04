@@ -445,15 +445,15 @@ export default function CardapioAdmin() {
 
         {showAddons && (
           <div className="space-y-2">
-            <div className="grid gap-2 items-center mb-3" style={{ gridTemplateColumns: '1fr 56px 56px auto auto' }}>
-              <input className="input" placeholder="Nome do grupo (Molhos, Bebidas...)" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createAddonGroup()} />
-              <div className="flex flex-col items-center">
-                <span className="text-[9px] text-gray-500 mb-0.5">min</span>
-                <input className="input text-center w-full" type="number" value={newGroupMin} onChange={(e) => setNewGroupMin(Number(e.target.value))} />
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <input className="input flex-1 min-w-[220px]" placeholder="Nome do grupo (Molhos, Bebidas...)" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createAddonGroup()} />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#6b7280' }}>mín</span>
+                <input className="input text-center w-16" type="number" title="Mínimo de itens obrigatórios" value={newGroupMin} onChange={(e) => setNewGroupMin(Number(e.target.value))} />
               </div>
-              <div className="flex flex-col items-center">
-                <span className="text-[9px] text-gray-500 mb-0.5">max</span>
-                <input className="input text-center w-full" type="number" value={newGroupMax} onChange={(e) => setNewGroupMax(Number(e.target.value))} />
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#6b7280' }}>máx</span>
+                <input className="input text-center w-16" type="number" title="Máximo de itens que o cliente pode escolher" value={newGroupMax} onChange={(e) => setNewGroupMax(Number(e.target.value))} />
               </div>
               <button onClick={() => setNewGroupRequired(!newGroupRequired)}
                 className="text-[10px] font-bold px-2.5 py-2 rounded-xl transition-all"
@@ -489,26 +489,23 @@ export default function CardapioAdmin() {
 
                   {isEditingGroup && (
                     <div className="mx-3 mb-2 p-3 rounded-lg space-y-2" style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                      <div className="grid gap-2" style={{ gridTemplateColumns: '1fr 60px 60px 70px' }}>
-                        <div className="flex flex-col gap-1">
-                          <span className="label">Nome do grupo</span>
-                          <input className="input text-sm" placeholder="Ex.: Molhos, Bebidas..." defaultValue={gr.name} onChange={(e) => setGroupEditForm({ ...groupEditForm, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveGroupEdit(gr.id)} autoFocus />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-1 min-w-[220px]">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide shrink-0" style={{ color: '#6b7280' }}>Nome do grupo</span>
+                          <input className="input text-sm flex-1" placeholder="Ex.: Molhos, Bebidas..." defaultValue={gr.name} onChange={(e) => setGroupEditForm({ ...groupEditForm, name: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && saveGroupEdit(gr.id)} autoFocus />
                         </div>
-                        <div className="flex flex-col gap-1 items-center">
-                          <span className="label">Mín</span>
-                          <input className="input text-sm text-center w-full" type="number" title="Mínimo de itens que o cliente precisa escolher" defaultValue={gr.minSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, minSel: Number(e.target.value) })} />
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#6b7280' }}>mín</span>
+                          <input className="input text-sm text-center w-16" type="number" title="Mínimo de itens que o cliente precisa escolher" defaultValue={gr.minSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, minSel: Number(e.target.value) })} />
                         </div>
-                        <div className="flex flex-col gap-1 items-center">
-                          <span className="label">Máx</span>
-                          <input className="input text-sm text-center w-full" type="number" title="Máximo de itens que o cliente pode escolher" defaultValue={gr.maxSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, maxSel: Number(e.target.value) })} />
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#6b7280' }}>máx</span>
+                          <input className="input text-sm text-center w-16" type="number" title="Máximo de itens que o cliente pode escolher" defaultValue={gr.maxSel} onChange={(e) => setGroupEditForm({ ...groupEditForm, maxSel: Number(e.target.value) })} />
                         </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="label">Obrig.</span>
-                          <label className="flex items-center gap-1 text-xs text-gray-500 h-[42px] px-1">
-                            <input type="checkbox" className="accent-rose-500 scale-90" defaultChecked={gr.required} onChange={(e) => setGroupEditForm({ ...groupEditForm, required: e.target.checked })} />
-                            sim
-                          </label>
-                        </div>
+                        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                          <input type="checkbox" className="accent-rose-500 scale-90" defaultChecked={gr.required} onChange={(e) => setGroupEditForm({ ...groupEditForm, required: e.target.checked })} />
+                          obrig.
+                        </label>
                       </div>
                       <div className="flex gap-2 pt-1">
                         <button className="text-xs font-bold px-4 py-1.5 rounded-lg flex items-center gap-1"
@@ -534,16 +531,12 @@ export default function CardapioAdmin() {
                               <button onClick={() => deleteAddon(ad.id)} className="p-1 rounded-lg text-gray-600 hover:text-red-400"><Trash2 size={11} /></button>
                             </div>
                             {isAddonEditing && (
-                              <div className="grid gap-2 py-2 px-2 ml-3 rounded-lg mb-1" style={{ gridTemplateColumns: '1fr 80px auto', background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                                <div className="flex flex-col gap-1">
-                                  <span className="label">Nome do adicional</span>
-                                  <input className="input text-xs py-1" placeholder="Ex.: Bacon, Cheddar..." defaultValue={ad.name} onChange={(e) => setAddonEditForm({ name: e.target.value, price: ad.price })} onKeyDown={(e) => e.key === 'Enter' && saveAddonEdit(ad.id)} autoFocus />
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                  <span className="label">Preço (R$)</span>
-                                  <input className="input text-xs py-1" type="number" placeholder="0" defaultValue={ad.price} onChange={(e) => setAddonEditForm({ name: ad.name, price: Number(e.target.value) })} />
-                                </div>
-                                <div className="flex gap-1 items-end pb-0.5">
+                              <div className="flex flex-wrap items-center gap-2 py-2 px-2 ml-3 rounded-lg mb-1" style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.15)' }}>
+                                <span className="text-[11px] font-semibold uppercase tracking-wide shrink-0" style={{ color: '#6b7280' }}>Adicional</span>
+                                <input className="input text-xs py-1.5 flex-1 min-w-[160px]" placeholder="Ex.: Bacon, Cheddar..." defaultValue={ad.name} onChange={(e) => setAddonEditForm({ name: e.target.value, price: ad.price })} onKeyDown={(e) => e.key === 'Enter' && saveAddonEdit(ad.id)} autoFocus />
+                                <span className="text-[11px] font-semibold uppercase tracking-wide shrink-0" style={{ color: '#6b7280' }}>Preço (R$)</span>
+                                <input className="input text-xs py-1.5 w-24 text-center" type="number" placeholder="0" defaultValue={ad.price} onChange={(e) => setAddonEditForm({ name: ad.name, price: Number(e.target.value) })} />
+                                <div className="flex gap-1">
                                   <button className="p-1.5 rounded-md" style={{ background: '#22c55e', color: '#fff' }} title="Salvar" onClick={() => saveAddonEdit(ad.id)}><Check size={12} /></button>
                                   <button className="p-1.5 rounded-md" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} title="Cancelar" onClick={() => setEditingAddon(null)}><X size={12} /></button>
                                 </div>
