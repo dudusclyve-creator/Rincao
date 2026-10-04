@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { BRL, cashReceiptText, playCashSound } from '@/lib/utils';
+import { BRL, cashReceiptText, playCashSound, printReceiptText } from '@/lib/utils';
 import {
   DollarSign, Lock, Unlock, ArrowDownCircle, ArrowUpCircle, History,
   Smartphone, Banknote, CreditCard, AlertTriangle, CheckCircle2, X,
@@ -303,8 +303,7 @@ export default function Caixa() {
       orderNumbers: turnoOrderNumbers, driverBreakdown: driverBreakdown,
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
-    const w = window.open('', '_blank', 'width=320');
-    w?.document.write(`<pre class="receipt">${text}</pre><script>window.print()</script>`);
+    printReceiptText(text);
   };
 
   const openCash = async () => {
@@ -610,8 +609,7 @@ export default function Caixa() {
                 byMethod, width: '80mm', orderNumbers: turnoOrderNumbers, driverBreakdown,
               });
               await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
-              const w = window.open('', '_blank', 'width=320');
-              w?.document.write(`<pre class="receipt">${text}</pre><script>window.print()</script>`);
+              printReceiptText(text);
             }}
               className="flex-1 py-3 rounded-xl text-xs font-bold pdv-btn-hover"
               style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>

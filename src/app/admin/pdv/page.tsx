@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { BRL, receiptText, showToast } from '@/lib/utils';
+import { BRL, receiptText, showToast, printReceiptText } from '@/lib/utils';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
@@ -313,6 +313,7 @@ export default function PDV() {
       width: '80mm',
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) }).catch(() => {});
+    printReceiptText(text);
     setCart([]); setOrderNote(''); setClient(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
     setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp('');
     localStorage.removeItem(PDV_STORAGE_KEY);

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText } from '@/lib/utils';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard } from 'lucide-react';
 
 const COLUMNS = [
@@ -289,8 +289,7 @@ export default function Pedidos() {
       width: '80mm',
     });
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
-    const w = window.open('', '_blank', 'width=320');
-    w?.document.write(`<pre class="receipt">${text}</pre><script>window.print()</script>`);
+    printReceiptText(text);
   };
 
   const dup = async (o: any) => {

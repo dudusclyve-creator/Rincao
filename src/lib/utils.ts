@@ -219,6 +219,36 @@ export function cashReceiptText(o: {
   return out.join('\n');
 }
 
+export function printReceiptText(text: string) {
+  try {
+    const w = window.open('', '_blank', 'width=420,height=700');
+    if (!w) return;
+    w.document.write(`<!doctype html>
+<html><head><meta charset="utf-8"><title>Impressao</title>
+<style>
+  @page { size: 80mm auto; margin: 3mm; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  pre.receipt {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 9.5px;
+    line-height: 1.2;
+    margin: 0;
+    padding: 0;
+    white-space: pre;
+    color: #000;
+  }
+  @media screen {
+    body { padding: 12px; background: #f0f0f0; }
+    pre.receipt { background: #fff; padding: 12px; width: 300px; white-space: pre-wrap; box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
+  }
+</style></head>
+<body><pre class="receipt">${text}</pre>
+<script>window.onload = function () { setTimeout(function () { window.print(); }, 200); };<\/script>
+</body></html>`);
+    w.document.close();
+  } catch {}
+}
+
 export function playNewOrderSound() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
