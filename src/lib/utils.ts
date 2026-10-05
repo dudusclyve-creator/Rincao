@@ -96,6 +96,7 @@ export function receiptText(o: {
   const cols = o.width === '58mm' ? 32 : 48;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
+  const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
   const row = (l: string, r: string) => {
     const sp = Math.max(1, cols - l.length - r.length);
     return c(l + ' '.repeat(sp) + r);
@@ -138,9 +139,9 @@ export function receiptText(o: {
   };
 
   const out: string[] = [];
-  out.push(c(`*** ${o.store} ***`));
+  out.push(center(`*** ${o.store.toUpperCase()} ***`));
   out.push(row(`PEDIDO #${o.number}`, o.date));
-  out.push(line);
+  out.push('='.repeat(cols));
   out.push(`Cliente: ${o.customerName}${o.customerPhone ? ` ${o.customerPhone}` : ''}`);
   if (o.addressText) {
     wrapAddress(o.addressText).forEach((part, i) => {
@@ -163,7 +164,7 @@ export function receiptText(o: {
   formatPayment(o.payment).forEach((line) => out.push(c(`  ${line}`)));
   if (troco > 0) out.push(row('TROCO', `${BRL(o.changeFor!)} - devolver ${BRL(troco)}`));
   out.push(line);
-  out.push(c('Obrigado pela preferencia!'));
+  out.push(center('Obrigado pela preferencia!'));
   return out.join('\n');
 }
 
@@ -174,17 +175,21 @@ export function cashReceiptText(o: {
   driverTotal?: number;
   orderNumbers?: number[];
   driverBreakdown?: { name: string; total: number; paid: number; remaining: number }[];
+  deliveryDayCount?: number;
+  driverDay?: { label: string; count: number; fee: number }[];
 }) {
   const cols = o.width === '58mm' ? 32 : 48;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
+  const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
   const row = (l: string, r: string) => {
     const sp = Math.max(1, cols - l.length - r.length);
     return c(l + ' '.repeat(sp) + r);
   };
   const out: string[] = [];
-  out.push(c(`*** ${o.store} ***`));
-  out.push(c('FECHAMENTO DE CAIXA'));
+  out.push(center(`*** ${o.store.toUpperCase()} ***`));
+  out.push(center('FECHAMENTO DE CAIXA'));
+  out.push('='.repeat(cols));
   out.push(row('Operador:', o.operator));
   out.push(row('Abertura:', o.openedAt));
   out.push(row('Fechamento:', o.closedAt));
@@ -194,6 +199,11 @@ export function cashReceiptText(o: {
   if (o.orderNumbers && o.orderNumbers.length > 0) {
     out.push(c(`  Pedidos (#${o.orderNumbers[0]}-${o.orderNumbers[o.orderNumbers.length - 1]})`));
     out.push(c(`  Qtd: ${o.orderNumbers.length} pedido(s)`));
+  }
+  if (o.deliveryDayCount !== undefined) out.push(row('Entregas do dia', String(o.deliveryDayCount)));
+  if (o.driverDay && o.driverDay.length > 0) {
+    out.push(c('  Por motoboy (hoje):'));
+    o.driverDay.forEach((d) => out.push(row(`    ${d.label}`, `${d.count}x ${BRL(d.fee)}`)));
   }
   if (o.entradas > 0) out.push(row('Suprimentos', BRL(o.entradas)));
   if (o.saidas > 0) out.push(row('Sangrias', '-' + BRL(o.saidas)));
@@ -215,7 +225,7 @@ export function cashReceiptText(o: {
     out.push(row(`  ${k.toUpperCase()}`, BRL(v)));
   });
   out.push(line);
-  out.push(c('Obrigado pela preferencia!'));
+  out.push(center('Obrigado pela preferencia!'));
   return out.join('\n');
 }
 

@@ -213,6 +213,7 @@ export default function Caixa() {
   const [showDriverModal, setShowDriverModal] = useState(false);
   const [payingDriver, setPayingDriver] = useState<{ id: string; name: string; total: number } | null>(null);
   const [turnoOrderNumbers, setTurnoOrderNumbers] = useState<number[]>([]);
+  const [dayDelivery, setDayDelivery] = useState<{ count: number; drivers: { label: string; count: number; fee: number }[] }>({ count: 0, drivers: [] });
 
   const load = useCallback(async () => {
     const [d, orders, drivers] = await Promise.all([
@@ -241,6 +242,20 @@ export default function Caixa() {
       return { id, name, total: t, paid, remaining: Math.max(0, t - paid), phone: drv?.phone };
     });
     setDriverBreakdown(breakdown);
+    const today = new Date().toDateString();
+    const dayOrders = turnoOrders.filter((o: any) => new Date(o.createdAt).toDateString() === today);
+    const deliveryDayCount = dayOrders.filter((o: any) => o.type === 'entrega').length;
+    const dayDelivered = dayOrders.filter((o: any) => o.type === 'entrega' && o.status === 'concluido' && o.driverId);
+    const byLabel: Record<string, { count: number; fee: number }> = {};
+    dayDelivered.forEach((o: any) => {
+      const motoboy = (o.note || '').match(/Motoboy:\s*([^|]+)/)?.[1]?.trim();
+      const drv = (drivers as any[]).find((x: any) => x.id === o.driverId);
+      const label = motoboy || drv?.name || 'Desconhecido';
+      if (!byLabel[label]) byLabel[label] = { count: 0, fee: 0 };
+      byLabel[label].count++;
+      byLabel[label].fee += (o.deliveryFee || 0);
+    });
+    setDayDelivery({ count: deliveryDayCount, drivers: Object.entries(byLabel).map(([label, v]) => ({ label, ...v })) });
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -301,6 +316,7 @@ export default function Caixa() {
       initial: h.initial || 0, vendas, entradas, saidas, expected, informed, diff: informed - expected,
       byMethod, width: '80mm', driverTotal: h.driverTotal || 0,
       orderNumbers: turnoOrderNumbers, driverBreakdown: driverBreakdown,
+      deliveryDayCount: dayDelivery.count, driverDay: dayDelivery.drivers,
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
     printReceiptText(text);
@@ -607,6 +623,7 @@ export default function Caixa() {
                 initial: data.open.initial, vendas: totals.vendas, entradas: totals.entradas,
                 saidas: totals.saidas, expected: totals.expected, informed: totals.expected, diff: 0,
                 byMethod, width: '80mm', orderNumbers: turnoOrderNumbers, driverBreakdown,
+                deliveryDayCount: dayDelivery.count, driverDay: dayDelivery.drivers,
               });
               await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
               printReceiptText(text);

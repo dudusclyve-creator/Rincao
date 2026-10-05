@@ -165,11 +165,14 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
               </div>
             )}
             {o.note && <p className="text-[10px] italic text-gray-400 mt-1">obs: {o.note}</p>}
-            {o.driver && (
-              <div className="flex items-center gap-1 mt-2 pt-2 text-[10px] font-bold text-purple-400 border-t border-gray-700">
-                <Truck size={10} /> {o.driver.name} — {o.driver.phone}
-              </div>
-            )}
+            {o.driver && (() => {
+              const motoboy = (o.note || '').match(/Motoboy:\s*([^|]+)/)?.[1]?.trim();
+              return (
+                <div className="flex items-center gap-1 mt-2 pt-2 text-[10px] font-bold text-purple-400 border-t border-gray-700">
+                  <Truck size={10} /> {o.driver.name}{motoboy ? ` → ${motoboy}` : ''}{o.driver.phone ? ` — ${o.driver.phone}` : ''}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="flex flex-wrap gap-1 mb-2">
@@ -245,6 +248,7 @@ export default function Pedidos() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [dispatchOrder, setDispatchOrder] = useState<any | null>(null);
   const [selectedDriver, setSelectedDriver] = useState<string>('');
+  const [driverNote, setDriverNote] = useState<string>('');
   const [confirmPopup, setConfirmPopup] = useState<any | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -261,18 +265,22 @@ export default function Pedidos() {
   };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
   useEffect(() => { fetch('/api/drivers').then((r) => r.json()).then(setDrivers); }, []);
+  useEffect(() => { setDriverNote(''); }, [dispatchOrder]);
 
   const setStatus = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
     load();
   };
 
-  const dispatchWithDriver = async (orderId: string, driverId: string) => {
+  const dispatchWithDriver = async (orderId: string, driverId: string, motoboy?: string) => {
     try {
-      await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: orderId, status: 'entrega', driverId }) });
+      const payload: any = { id: orderId, status: 'entrega', driverId };
+      if (motoboy?.trim()) payload.note = [confirmPopup?.note, `Motoboy: ${motoboy.trim()}`].filter(Boolean).join(' | ');
+      await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       setDispatchOrder(null);
       setConfirmPopup(null);
       setSelectedDriver('');
+      setDriverNote('');
       load();
     } catch (e) {
       console.error('Erro ao despachar:', e);
@@ -496,6 +504,13 @@ export default function Pedidos() {
                 <p className="text-center text-[11px] py-4 text-gray-500">Nenhum entregador cadastrado</p>
               )}
             </div>
+            {(drivers as any[]).find((d: any) => d.id === selectedDriver)?.name?.match(/ponto/i) && (
+              <div className="mb-5">
+                <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>✍️ Nome do motoboy (anotação)</label>
+                <input value={driverNote} onChange={(e) => setDriverNote(e.target.value)} placeholder="Ex.: Joãozinho — quem tá levando hoje"
+                  className="w-full px-3 py-3 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20 focus:border-amber-400/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#f0e8e0' }} />
+              </div>
+            )}
             <div className="flex gap-2">
               <button onClick={() => setDispatchOrder(null)} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Cancelar</button>
               <button disabled={!selectedDriver} onClick={() => { setConfirmPopup(dispatchOrder); }} className="flex-1 rounded-xl py-2.5 text-[11px] font-bold text-white disabled:opacity-40 transition-all hover:brightness-110 active:scale-95" style={{ background: '#22c55e' }}>Confirmar envio</button>
@@ -536,7 +551,7 @@ export default function Pedidos() {
                 <span className="text-2xl">🛵</span>
               </div>
               <h3 className="font-black text-lg text-white">Confirmar despacho</h3>
-              <p className="text-[12px] mt-1" style={{ color: '#8a7a6a' }}>Pedido #{confirmPopup.number} → {driverName}</p>
+              <p className="text-[12px] mt-1" style={{ color: '#8a7a6a' }}>Pedido #{confirmPopup.number} → {driverName}{driverNote.trim() ? ` (${driverNote.trim()})` : ''}</p>
             </div>
 
             {reminders.length > 0 && (
@@ -559,7 +574,7 @@ export default function Pedidos() {
 
             <div className="flex gap-2">
               <button onClick={() => setConfirmPopup(null)} className="flex-1 rounded-xl py-3 text-[12px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Voltar</button>
-              <button onClick={() => { dispatchWithDriver(confirmPopup.id, selectedDriver); setConfirmPopup(null); }} className="flex-1 rounded-xl py-3 text-[12px] font-bold text-white transition-all hover:brightness-110 active:scale-95" style={{ background: '#22c55e' }}>✅ Confirmar</button>
+              <button onClick={() => { dispatchWithDriver(confirmPopup.id, selectedDriver, driverNote); setConfirmPopup(null); }} className="flex-1 rounded-xl py-3 text-[12px] font-bold text-white transition-all hover:brightness-110 active:scale-95" style={{ background: '#22c55e' }}>✅ Confirmar</button>
             </div>
           </div>
         </div>
