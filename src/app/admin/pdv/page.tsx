@@ -684,9 +684,10 @@ export default function PDV() {
                             <button key={c.id} onMouseDown={() => {
                               setClient(c.name);
                               setClientPhone(c.phone || '');
-                              if (c.street) setDeliveryStreet(c.street);
-                              if (c.number) setDeliveryNum(c.number);
-                              if (c.complement) setDeliveryComp(c.complement);
+                              const junkAddr = /^\s*(retirada|consumo|balcao|pdv)/i;
+                              if (c.street && !junkAddr.test(c.street)) setDeliveryStreet(c.street);
+                              if (c.number && !junkAddr.test(c.number)) setDeliveryNum(c.number);
+                              if (c.complement && !junkAddr.test(c.complement)) setDeliveryComp(c.complement);
                               if (c.district) {
                                 const raw = String(c.district);
                                 const hasComma = raw.includes(',');
@@ -707,7 +708,7 @@ export default function PDV() {
                             }} className="w-full px-3 py-3.5 text-left text-base hover:bg-white/10 transition-all duration-150 flex items-center justify-between gap-3" style={{ color: '#f0e8e0' }}>
                               <span className="min-w-0">
                                 <span className="font-bold block truncate">{c.name}</span>
-                                {c.street || c.district ? <span className="text-[11px] text-gray-600 block truncate">{[c.street, c.number && `nº ${c.number}`, c.district].filter(Boolean).join(', ')}</span> : null}
+                                {(() => { const parts = [c.street, c.number && `nº ${c.number}`, c.district].filter((v: any) => v && !/^\s*(retirada|consumo|balcao|pdv)/i.test(String(v))); return parts.length ? <span className="text-[11px] text-gray-600 block truncate">{parts.join(', ')}</span> : null; })()}
                               </span>
                               <span className="text-sm text-gray-500 shrink-0">{c.phone}</span>
                             </button>
