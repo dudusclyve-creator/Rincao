@@ -165,6 +165,7 @@ export default function PDV() {
   const [type, setType] = useState(saved?.type || 'balcao');
   const [payment, setPayment] = useState(saved?.payment || 'pix');
   const [client, setClient] = useState(saved?.client || '');
+  const [clientPhone, setClientPhone] = useState(saved?.clientPhone || '');
   const [orderNote, setOrderNote] = useState(saved?.orderNote || '');
   const [search, setSearch] = useState('');
   const [lastAdded, setLastAdded] = useState<string | null>(null);
@@ -179,6 +180,7 @@ export default function PDV() {
   const [deliveryStreet, setDeliveryStreet] = useState(saved?.deliveryStreet || '');
   const [deliveryNum, setDeliveryNum] = useState(saved?.deliveryNum || '');
   const [deliveryComp, setDeliveryComp] = useState(saved?.deliveryComp || '');
+  const [feeOverride, setFeeOverride] = useState<number | null>(saved?.feeOverride ?? null);
   const [showAddress, setShowAddress] = useState(false);
   const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -186,9 +188,9 @@ export default function PDV() {
   const catsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const state = { cart, type, payment, client, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp };
+    const state = { cart, type, payment, client, clientPhone, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp, feeOverride };
     localStorage.setItem(PDV_STORAGE_KEY, JSON.stringify(state));
-  }, [cart, type, payment, client, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp]);
+  }, [cart, type, payment, client, clientPhone, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp, feeOverride]);
 
   useEffect(() => {
     fetch('/api/menu').then((r) => r.json()).then(setMenu);
@@ -232,9 +234,10 @@ export default function PDV() {
   });
 
   const sub = cart.reduce((s: number, i: any) => s + i.qty * (i.unitPrice + (i.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0)), 0);
-  const deliveryFee = type === 'entrega' && deliveryCity && deliveryBairro
+  const zoneFee = type === 'entrega' && deliveryCity && deliveryBairro
     ? (deliveryZones[deliveryCity]?.find(z => z.name === deliveryBairro)?.fee || 0)
     : 0;
+  const deliveryFee = type === 'entrega' ? (feeOverride ?? zoneFee) : 0;
   const total = Math.max(0, sub + deliveryFee);
   const itemCount = cart.reduce((s: number, i: any) => s + i.qty, 0);
   const troco = (() => {
@@ -287,7 +290,7 @@ export default function PDV() {
     const o = await fetch('/api/orders', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        customerName: client || (type === 'mesa' ? (tableObj?.number || 'Mesa') : 'PDV'), customerPhone: '',
+        customerName: client || (type === 'mesa' ? (tableObj?.number || 'Mesa') : 'PDV'), customerPhone: clientPhone || '',
         street: deliveryStreet, number: deliveryNum, complement: deliveryComp,
         district: deliveryBairro, addressText,
         type, payment: paymentMethod, changeFor: (payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0 ? changeFor : undefined,
@@ -306,7 +309,7 @@ export default function PDV() {
     showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
     const text = receiptText({
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
-      customerName: client || 'PDV', customerPhone: '',
+      customerName: client || 'PDV', customerPhone: clientPhone || '',
       items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
       payment, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
       addressText, changeFor: changeFor > 0 ? changeFor : undefined,
@@ -314,8 +317,8 @@ export default function PDV() {
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) }).catch(() => {});
     printReceiptText(text);
-    setCart([]); setOrderNote(''); setClient(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
-    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp('');
+    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
+    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
     localStorage.removeItem(PDV_STORAGE_KEY);
   };
 
@@ -447,7 +450,7 @@ export default function PDV() {
                 <span className="text-lg font-bold text-white">Venda</span>
               </div>
               {cart.length > 0 && (
-                <button onClick={() => { setCart([]); setOrderNote(''); setClient(''); setChangeFor(0); setSelectedTable(''); setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); localStorage.removeItem(PDV_STORAGE_KEY); }} className="text-xs text-gray-500 hover:text-red-400 hover:scale-105 transition-all duration-200">Limpar</button>
+                <button onClick={() => { setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setChangeFor(0); setSelectedTable(''); setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null); localStorage.removeItem(PDV_STORAGE_KEY); }} className="text-xs text-gray-500 hover:text-red-400 hover:scale-105 transition-all duration-200">Limpar</button>
               )}
             </div>
 
@@ -555,13 +558,13 @@ export default function PDV() {
                     </button>
                     {showAddress && (
                       <div className="space-y-2 pb-2">
-                        <select value={deliveryCity} onChange={(e) => { setDeliveryCity(e.target.value); setDeliveryBairro(''); }}
+                        <select value={deliveryCity} onChange={(e) => { setDeliveryCity(e.target.value); setDeliveryBairro(''); setFeeOverride(null); }}
                           className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
                           <option value="">Cidade</option>
                           {cities.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                         {deliveryCity && (
-                          <select value={deliveryBairro} onChange={(e) => setDeliveryBairro(e.target.value)}
+                          <select value={deliveryBairro} onChange={(e) => { setDeliveryBairro(e.target.value); setFeeOverride(null); }}
                             className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }}>
                             <option value="">Bairro</option>
                             {bairros.map(b => <option key={b.name} value={b.name}>{b.name} — {BRL(b.fee)}</option>)}
@@ -678,9 +681,30 @@ export default function PDV() {
                         <div className="absolute left-0 right-0 bottom-full mb-1 z-50 rounded-xl overflow-hidden shadow-2xl overflow-y-auto" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.12)', maxHeight: '280px' }}>
                           {q === '' && <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider font-bold text-gray-500">Clientes salvos ({filtered.length})</div>}
                           {filtered.map((c: any) => (
-                            <button key={c.id} onMouseDown={() => { setClient(c.name); setShowSuggestions(false); }} className="w-full px-3 py-3.5 text-left text-base hover:bg-white/10 transition-all duration-150 flex items-center justify-between" style={{ color: '#f0e8e0' }}>
-                              <span className="font-bold">{c.name}</span>
-                              <span className="text-sm text-gray-500">{c.phone}</span>
+                            <button key={c.id} onMouseDown={() => {
+                              setClient(c.name);
+                              setClientPhone(c.phone || '');
+                              if (c.street) setDeliveryStreet(c.street);
+                              if (c.number) setDeliveryNum(c.number);
+                              if (c.complement) setDeliveryComp(c.complement);
+                              if (c.district) {
+                                const city = (deliveryCity && (deliveryZones[deliveryCity] || []).some(z => z.name === c.district))
+                                  ? deliveryCity
+                                  : Object.keys(deliveryZones).find(ci => (deliveryZones[ci] || []).some(z => z.name === c.district));
+                                if (city) {
+                                  if (city !== deliveryCity) setDeliveryCity(city);
+                                  setDeliveryBairro(c.district);
+                                  setFeeOverride(null);
+                                }
+                              }
+                              if (type === 'entrega') setShowAddress(true);
+                              setShowSuggestions(false);
+                            }} className="w-full px-3 py-3.5 text-left text-base hover:bg-white/10 transition-all duration-150 flex items-center justify-between gap-3" style={{ color: '#f0e8e0' }}>
+                              <span className="min-w-0">
+                                <span className="font-bold block truncate">{c.name}</span>
+                                {c.street || c.district ? <span className="text-[11px] text-gray-600 block truncate">{[c.street, c.number && `nº ${c.number}`, c.district].filter(Boolean).join(', ')}</span> : null}
+                              </span>
+                              <span className="text-sm text-gray-500 shrink-0">{c.phone}</span>
                             </button>
                           ))}
                         </div>
@@ -699,7 +723,20 @@ export default function PDV() {
               <div className="shrink-0 p-4 rounded-b-2xl" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-base text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
-                  {deliveryFee > 0 && <div className="flex justify-between text-base text-gray-400"><span>Taxa entrega</span><span>{BRL(deliveryFee)}</span></div>}
+                  {type === 'entrega' && (
+                    <div className="flex items-center justify-between text-base text-gray-400">
+                      <span>Taxa entrega {feeOverride !== null && feeOverride !== zoneFee && <span className="text-[11px] font-bold" style={{ color: '#f59e0b' }}>editada</span>}</span>
+                      <div className="flex items-center gap-1.5">
+                        <input type="number" min={0} step="0.50" value={deliveryFee} title="Motoboy cobra outro valor? Edite a taxa aqui"
+                          onChange={(e) => setFeeOverride(Math.max(0, Number(e.target.value) || 0))}
+                          onBlur={() => { if (feeOverride !== null && feeOverride === zoneFee) setFeeOverride(null); }}
+                          className="w-24 px-2.5 py-1.5 rounded-lg text-right text-base font-bold outline-none focus:border-amber-400/50 transition-colors" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                        {feeOverride !== null && feeOverride !== zoneFee && (
+                          <button onClick={() => setFeeOverride(null)} title={`Voltar à taxa da zona (${BRL(zoneFee)})`} className="text-sm text-gray-500 hover:text-white transition-colors">↺</button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-2xl font-black text-white">Total</span>
