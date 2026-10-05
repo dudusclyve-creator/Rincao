@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText } from '@/lib/utils';
-import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard } from 'lucide-react';
+import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText } from 'lucide-react';
 
 const COLUMNS = [
   { id: 'novo', label: 'Novos', icon: '🔔', color: '#3b82f6', gradient: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.08))', border: 'rgba(59,130,246,0.35)' },
@@ -68,7 +68,7 @@ function getPaymentBadge(payment: string) {
   return info ? { label: `${info.icon} ${info.label}`, color: info.color } : { label: payment, color: '#9ca3af' };
 }
 
-function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, draggable, onDragStart, onDragEnd }: any) {
+function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, onNfe, draggable, onDragStart, onDragEnd }: any) {
   const orderType = getOrderType(o);
   const typeBadge = TYPE_BADGE[orderType];
   const elapsed = Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 60000);
@@ -173,6 +173,27 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
                 </div>
               );
             })()}
+            {(o.nfeStatus || o.status !== 'cancelado') && (() => {
+              const chip = o.nfeStatus === 'issued' ? { t: `🧾 Nota fiscal emitida${o.nfeNumber ? ` #${o.nfeNumber}` : ''}`, c: '#4ade80' }
+                : o.nfeStatus === 'error' ? { t: '⚠️ Erro na nota fiscal', c: '#f87171' }
+                : o.nfeStatus === 'cancelled' ? { t: '❌ Nota fiscal cancelada', c: '#9ca3af' }
+                : o.nfeStatus ? { t: o.nfeStatus === 'processing' ? '⏳ Nota processando...' : '🧾 Nota na fila...', c: '#60a5fa' }
+                : { t: '🧾 Sem nota fiscal', c: '#f59e0b' };
+              return (
+                <div className="mt-2 pt-2 border-t border-gray-700 space-y-1">
+                  <p className="text-[10px] font-bold" style={{ color: chip.c }}>{chip.t}</p>
+                  {o.nfeStatus === 'error' && o.nfeError && <p className="text-[9px] leading-snug" style={{ color: '#f87171' }}>{o.nfeError}</p>}
+                  {o.nfeKey && <p className="text-[9px] text-gray-500 break-all">Chave: {o.nfeKey}</p>}
+                  {o.nfeStatus === 'issued' && (
+                    <div className="flex gap-1.5 pt-1">
+                      <button onClick={(e) => { e.stopPropagation(); window.open(`/api/nfe?orderId=${o.id}&doc=danfe`, '_blank'); }} className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>📄 DANFE</button>
+                      <button onClick={(e) => { e.stopPropagation(); window.open(`/api/nfe?orderId=${o.id}&doc=xml`, '_blank'); }} className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>XML</button>
+                      <button onClick={(e) => { e.stopPropagation(); onNfe(o, 'cancel'); }} className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>✕ Cancelar nota</button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="flex flex-wrap gap-1 mb-2">
@@ -225,6 +246,28 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
           </button>
         )}
         <div className="flex-1" />
+        {(o.nfeStatus || o.status !== 'cancelado') && (
+          <button
+            title={
+              o.nfeStatus === 'issued' ? `Nota ${o.nfeNumber ? '#' + o.nfeNumber + ' ' : ''}— ver DANFE`
+              : o.nfeStatus === 'error' ? 'Erro na nota — clique para tentar de novo'
+              : o.nfeStatus === 'cancelled' ? 'Nota fiscal cancelada'
+              : o.nfeStatus ? 'Nota fiscal processando — clique para atualizar'
+              : 'Emitir nota fiscal'
+            }
+            onClick={(e) => { e.stopPropagation(); onNfe?.(o); }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+            style={
+              o.nfeStatus === 'issued' ? { background: 'rgba(34,197,94,0.15)', color: '#4ade80' }
+              : o.nfeStatus === 'error' ? { background: 'rgba(239,68,68,0.15)', color: '#f87171' }
+              : o.nfeStatus === 'cancelled' ? { background: 'rgba(255,255,255,0.06)', color: '#6b7280' }
+              : o.nfeStatus ? { background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }
+              : { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }
+            }
+          >
+            <FileText size={13} />
+          </button>
+        )}
         <button title="Imprimir pedido" onClick={(e) => { e.stopPropagation(); onPrint(o); }} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
           <Printer size={13} />
         </button>
@@ -298,6 +341,48 @@ export default function Pedidos() {
     });
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
     printReceiptText(text);
+  };
+
+  const nfeApi = async (payload: any) => {
+    const r = await fetch('/api/nfe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json().catch(() => ({}));
+    return { ok: r.ok, d };
+  };
+
+  const pollNfe = (orderId: string) => {
+    let n = 0;
+    const t = setInterval(async () => {
+      n++;
+      const { ok, d } = await nfeApi({ action: 'status', orderId });
+      load();
+      if (!ok || ['issued', 'error', 'cancelled'].includes(d.status) || n >= 45) clearInterval(t);
+    }, 2000);
+  };
+
+  const emitNfe = async (o: any) => {
+    if (!confirm(`Emitir nota fiscal (NFC-e) do pedido #${o.number}?`)) return;
+    const { ok, d } = await nfeApi({ action: 'emit', orderId: o.id });
+    if (!ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao emitir a nota')); load(); return; }
+    pollNfe(o.id);
+    load();
+  };
+
+  const cancelNfe = async (o: any) => {
+    const motivo = prompt('Motivo do cancelamento (mínimo 15 caracteres):', `Cancelamento do pedido #${o.number} solicitado pelo cliente`);
+    if (!motivo) return;
+    const { ok, d } = await nfeApi({ action: 'cancel', orderId: o.id, motivo });
+    if (!ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao cancelar a nota')); return; }
+    pollNfe(o.id);
+    load();
+  };
+
+  const onNfe = (o: any, mode?: string) => {
+    if (mode === 'cancel') { cancelNfe(o); return; }
+    if (o.nfeStatus === 'issued') { window.open(`/api/nfe?orderId=${o.id}&doc=danfe`, '_blank'); return; }
+    if (o.nfeStatus === 'cancelled') { alert('Nota fiscal já cancelada.'); return; }
+    if (o.nfeStatus === 'error') { emitNfe(o); return; }
+    if (o.nfeStatus) { pollNfe(o.id); return; }
+    emitNfe(o);
   };
 
   const dup = async (o: any) => {
@@ -398,7 +483,7 @@ export default function Pedidos() {
               {col.orders.map((o) => (
                 <OrderCard
                   key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder}
-                  onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder}
+                  onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe}
                   draggable onDragStart={setDragId} onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
                 />
               ))}
@@ -438,7 +523,7 @@ export default function Pedidos() {
             <div className="px-4 pb-4 space-y-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               {concluidos.length === 0 && <p className="text-[11px] py-4 text-center" style={{ color: '#8a7a6a' }}>Nenhum</p>}
               {concluidos.map((o) => (
-                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} draggable={false} />
+                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} draggable={false} />
               ))}
             </div>
           </div>
@@ -452,7 +537,7 @@ export default function Pedidos() {
             <div className="px-4 pb-4 space-y-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               {cancelados.length === 0 && <p className="text-[11px] py-4 text-center" style={{ color: '#8a7a6a' }}>Nenhum</p>}
               {cancelados.map((o) => (
-                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} draggable={false} />
+                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} draggable={false} />
               ))}
             </div>
           </div>
