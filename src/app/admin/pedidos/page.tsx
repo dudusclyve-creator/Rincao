@@ -293,7 +293,7 @@ export default function Pedidos() {
       customerName: o.customerName, customerPhone: o.customerPhone,
       items: o.items.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: JSON.parse(it.addonsJson || '[]'), note: it.note })),
       payment: o.payment, subtotal: o.subtotal, fee: o.deliveryFee, discount: o.discount, total: o.total,
-      addressText: o.addressText, driverName: o.driver?.name, changeFor: o.changeFor,
+      addressText: o.addressText, driverName: o.driver?.name, motoboy: (o.note || '').match(/Motoboy:\s*([^|]+)/)?.[1]?.trim(), changeFor: o.changeFor,
       width: '80mm',
     });
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });

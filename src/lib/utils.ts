@@ -90,7 +90,7 @@ export function receiptText(o: {
   store: string; number: number; date: string; customerName: string;
   customerPhone: string; items: { qty: number; name: string; addons: CartAddon[]; note?: string }[];
   payment: string; subtotal: number; fee: number; discount: number; total: number;
-  addressText?: string; driverName?: string; changeFor?: number | null;
+  addressText?: string; driverName?: string; motoboy?: string; changeFor?: number | null;
   width?: '58mm' | '80mm';
 }) {
   const cols = o.width === '58mm' ? 32 : 48;
@@ -148,7 +148,7 @@ export function receiptText(o: {
       out.push(i === 0 ? c(`Endereco: ${part}`) : c(`  ${part}`));
     });
   }
-  if (o.driverName) out.push(`Entregador: ${o.driverName}`);
+  if (o.driverName) out.push(c(`Entregador: ${o.driverName}${o.motoboy ? ` -> ${o.motoboy}` : ''}`));
   out.push(line);
   o.items.forEach((it) => {
     out.push(row(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty)));
