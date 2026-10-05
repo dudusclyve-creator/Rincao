@@ -688,12 +688,17 @@ export default function PDV() {
                               if (c.number) setDeliveryNum(c.number);
                               if (c.complement) setDeliveryComp(c.complement);
                               if (c.district) {
-                                const city = (deliveryCity && (deliveryZones[deliveryCity] || []).some(z => z.name === c.district))
-                                  ? deliveryCity
-                                  : Object.keys(deliveryZones).find(ci => (deliveryZones[ci] || []).some(z => z.name === c.district));
-                                if (city) {
+                                const raw = String(c.district);
+                                const hasComma = raw.includes(',');
+                                const rawBairro = (hasComma ? raw.slice(0, raw.lastIndexOf(',')) : raw).trim();
+                                const rawCity = (hasComma ? raw.slice(raw.lastIndexOf(',') + 1) : '').trim();
+                                let city: string | undefined;
+                                if (rawCity && (deliveryZones[rawCity] || []).some(z => z.name === rawBairro)) city = rawCity;
+                                else if (deliveryCity && (deliveryZones[deliveryCity] || []).some(z => z.name === rawBairro)) city = deliveryCity;
+                                else city = Object.keys(deliveryZones).find(ci => (deliveryZones[ci] || []).some(z => z.name === rawBairro));
+                                if (city && rawBairro) {
                                   if (city !== deliveryCity) setDeliveryCity(city);
-                                  setDeliveryBairro(c.district);
+                                  setDeliveryBairro(rawBairro);
                                   setFeeOverride(null);
                                 }
                               }
