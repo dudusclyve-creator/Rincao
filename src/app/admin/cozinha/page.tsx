@@ -46,7 +46,6 @@ export default function Cozinha() {
   const load = async () => setOrders(await fetch('/api/orders?limit=60').then((r) => r.json()));
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
 
-  const pendingCount = orders.filter(o => o.status === 'novo').length;
   const list = orders.filter((o) => ['confirmado', 'preparo'].includes(o.status));
   const readyList = orders.filter((o) => o.status === 'pronto');
 
@@ -75,15 +74,14 @@ export default function Cozinha() {
           <div>
             <h1 className="text-xl font-black text-white">Cozinha</h1>
             <p className="text-xs text-gray-500">
-              {pendingCount > 0 && <span style={{ color: '#f59e0b' }}>{pendingCount} aguardando aceite · </span>}
-              {list.length} pedido(s) na cozinha
+              {list.length} pedido(s) na cozinha{readyList.length > 0 ? ` · ${readyList.length} pronto(s)` : ''}
             </p>
           </div>
         </div>
-        {pendingCount > 0 && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-            <Flame size={14} style={{ color: '#f59e0b' }} />
-            <span className="text-xs font-bold" style={{ color: '#f59e0b' }}>{pendingCount} SEM ACEITE</span>
+        {readyList.length > 0 && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)' }}>
+            <Flame size={14} style={{ color: '#22c55e' }} />
+            <span className="text-xs font-bold" style={{ color: '#22c55e' }}>{readyList.length} PRONTO(S)</span>
           </div>
         )}
       </div>
@@ -91,8 +89,8 @@ export default function Cozinha() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          { label: 'Aguardando aceite', count: pendingCount, color: '#f59e0b' },
-          { label: 'Na cozinha', count: list.length, color: '#3b82f6' },
+          { label: 'A preparar', count: orders.filter(o => o.status === 'confirmado').length, color: '#f59e0b' },
+          { label: 'Em preparo', count: orders.filter(o => o.status === 'preparo').length, color: '#3b82f6' },
           { label: 'Prontos Hoje', count: orders.filter(o => o.status === 'pronto').length, color: '#22c55e' },
         ].map((s) => (
           <div key={s.label} className="rounded-xl p-4 text-center" style={{ background: `${s.color}08`, border: `1px solid ${s.color}18` }}>
