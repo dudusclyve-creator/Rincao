@@ -17,6 +17,7 @@ const AREA_BY_PATH: [string, string][] = [
   ['/admin/mesas', 'mesas'],
   ['/admin/cozinha', 'cozinha'],
   ['/admin/caixa', 'caixa'],
+  ['/admin/notas', 'caixa'],
   ['/admin/produtos', 'cardapio'],
   ['/admin/categorias', 'cardapio'],
   ['/admin/adicionais', 'cardapio'],

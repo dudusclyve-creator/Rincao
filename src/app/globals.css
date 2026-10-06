@@ -19,7 +19,8 @@ body { @apply text-neutral-900 antialiased; background: #0f0c14; color: #f0e8e0;
 .badge-popular { animation: glow-pulse 2s ease-in-out infinite; }
 @media print {
   .no-print { display: none !important; }
-  body { background: white; color: #333; }
+  html, body { background: #fff !important; color: #000 !important; }
+  body * { color: #000 !important; }
 }
 .receipt { font-family: ui-monospace, monospace; }
 @keyframes marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }

@@ -367,18 +367,18 @@ export default function Pedidos() {
       const html = `<!doctype html><html><head><meta charset="utf-8"><title>DANFE NFC-e #${o.nfeNumber}</title><style>
         @page { size: 80mm auto; margin: 3mm; }
         * { box-sizing: border-box; }
-        body { font-family: 'Courier New', monospace; font-size: 11px; width: 74mm; margin: 0 auto; color: #000; }
-        h1 { font-size: 13px; text-align: center; margin: 4px 0 0; }
+        body { font-family: 'Courier New', monospace; font-size: 12.5px; font-weight: bold; width: 74mm; margin: 0 auto; color: #000; }
+        h1 { font-size: 15px; text-align: center; margin: 4px 0 0; }
         .c { text-align: center; } .r { text-align: right; }
-        hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+        hr { border: none; border-top: 1.5px dashed #000; margin: 4px 0; }
         table { width: 100%; border-collapse: collapse; }
-        td { padding: 1px 0; vertical-align: top; }
-        .tot { font-size: 13px; font-weight: bold; }
+        td { padding: 1.5px 0; vertical-align: top; }
+        .tot { font-size: 15px; font-weight: bold; }
         .qrcode { text-align: center; margin: 6px 0; }
         .qrcode img { width: 46mm; height: 46mm; }
-        .chave { font-size: 9px; word-break: break-all; text-align: center; }
-        .homolog { border: 2px solid #000; text-align: center; font-weight: bold; padding: 2px; margin: 4px 0; font-size: 10px; }
-        .small { font-size: 9px; }
+        .chave { font-size: 10.5px; word-break: break-all; text-align: center; }
+        .homolog { border: 2px solid #000; text-align: center; font-weight: bold; padding: 2px; margin: 4px 0; font-size: 11px; }
+        .small { font-size: 10.5px; }
       </style></head><body>
         ${homolog ? '<div class="homolog">AMBIENTE DE HOMOLOGAÇÃO<br>SEM VALOR FISCAL</div>' : ''}
         <h1>DANFE NFC-e</h1>

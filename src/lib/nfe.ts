@@ -322,13 +322,15 @@ export function buildNfce(order: any, fiscal: any, numero: number): BuildNfce {
   const destCpf = String(order.customer?.cpf || '').replace(/\D/g, '');
   const indPres = isRealDelivery ? 4 : 1;
   let destXml = '';
-  if (isRealDelivery && destCpf.length === 11) {
+  // dest com CPF vale para entrega E para retirada (cliente marcou "deseja emitir a nota")
+  if (destCpf.length === 11) {
     const cust: any = order.customer || {};
     const at = String(order.addressText || '');
     const m = at.match(/^(.+?),\s*(\S+?)(?:\s*-\s*(.+?))?\s*-\s*(.+)$/);
     const cityName = ((m && m[4]) || at).split(',').pop()!.trim().toUpperCase();
     const destLiv = /LIVRAMENTO/.test(cityName); // zonas: Livramento (Rivera/exterior ja bloqueado na rota)
-    const dStreet = cleanTxt(String(cust.street || (m && m[1]) || ''), 60) || 'NAO INFORMADO';
+    const rawStreet = String(cust.street || (m && m[1]) || '');
+    const dStreet = cleanTxt(/RETIRADA|CONSUMO NO LOCAL|BALC[ÃA]O/i.test(rawStreet) ? '' : rawStreet, 60) || 'NAO INFORMADO';
     const dNro = cleanTxt(String(cust.number || (m && m[2]) || ''), 60) || 'S/N';
     const dComp = cleanTxt(String(cust.complement || ''), 60);
     const dBairro = cleanTxt(String(cust.district || ''), 60) || 'NAO INFORMADO';

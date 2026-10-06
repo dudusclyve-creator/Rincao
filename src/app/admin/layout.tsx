@@ -10,6 +10,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 const MENU: [string, string, string][] = [
   ['Dashboard','/admin','📊'],['Pedidos','/admin/pedidos','🧾'],['PDV','/admin/pdv','🛒'],
   ['Mesas','/admin/mesas','🍽'],['Cozinha','/admin/cozinha','👨‍🍳'],['Caixa','/admin/caixa','💰'],
+  ['Notas','/admin/notas','📄'],
   ['Cardápio','/admin/produtos','🍔'],['Clientes','/admin/clientes','👥'],
   ['Entregas','/admin/entregas','🛵'],['Estoque','/admin/estoque','📦'],
   ['Relatórios','/admin/relatorios','📈'],['Promoções','/admin/promocoes','🔥'],

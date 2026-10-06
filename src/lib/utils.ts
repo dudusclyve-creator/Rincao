@@ -93,7 +93,7 @@ export function receiptText(o: {
   addressText?: string; driverName?: string; motoboy?: string; changeFor?: number | null;
   width?: '58mm' | '80mm';
 }) {
-  const cols = o.width === '58mm' ? 32 : 48;
+  const cols = o.width === '58mm' ? 28 : 40;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
   const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
@@ -178,7 +178,7 @@ export function cashReceiptText(o: {
   deliveryDayCount?: number;
   driverDay?: { label: string; count: number; fee: number }[];
 }) {
-  const cols = o.width === '58mm' ? 32 : 48;
+  const cols = o.width === '58mm' ? 28 : 40;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
   const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
@@ -229,27 +229,30 @@ export function cashReceiptText(o: {
   return out.join('\n');
 }
 
-export function printReceiptText(text: string) {
+export function printReceiptText(text: string, width: '58mm' | '80mm' = '80mm') {
   try {
     const w = window.open('', '_blank', 'width=420,height=700');
     if (!w) return;
     w.document.write(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Impressao</title>
 <style>
-  @page { size: 80mm auto; margin: 3mm; }
+  @page { size: ${width} auto; margin: 3mm; }
   html, body { margin: 0; padding: 0; background: #fff; }
   pre.receipt {
     font-family: 'Courier New', Courier, monospace;
-    font-size: 9.5px;
-    line-height: 1.2;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.25;
     margin: 0;
     padding: 0;
     white-space: pre;
     color: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   @media screen {
     body { padding: 12px; background: #f0f0f0; }
-    pre.receipt { background: #fff; padding: 12px; width: 300px; white-space: pre-wrap; box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
+    pre.receipt { background: #fff; padding: 12px; width: 330px; white-space: pre-wrap; box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
   }
 </style></head>
 <body><pre class="receipt">${text}</pre>

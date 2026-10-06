@@ -69,6 +69,20 @@ export default function CardapioPage() {
   const [hideRepeat, setHideRepeat] = useState(false);
   const [repeatItems, setRepeatItems] = useState<any[]>([]);
   const [savedAddress, setSavedAddress] = useState<any>(null);
+  const isPickupLabel = (a: string) => a === 'Retirada no local' || a === 'Consumo no local';
+  const applyMode = (id: string) => {
+    let addr = addressText;
+    if (id === 'entrega') { if (!addressText || isPickupLabel(addressText)) addr = ''; }
+    else addr = id === 'retirada' ? 'Retirada no local' : 'Consumo no local';
+    setDeliveryType(id);
+    setAddressText(addr);
+    try {
+      const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null');
+      const sa = { phone: prev?.phone || '', addressText: addr, deliveryType: id };
+      localStorage.setItem('cardapio_saved_address', JSON.stringify(sa));
+      setSavedAddress(sa);
+    } catch {}
+  };
 
   useEffect(() => {
     try {
@@ -81,8 +95,11 @@ export default function CardapioPage() {
         const parsed = JSON.parse(sa);
         setSavedAddress(parsed);
         if (parsed?.addressText) {
-          setAddressText(parsed.addressText);
-          if (parsed.deliveryType) setDeliveryType(parsed.deliveryType);
+          const at = String(parsed.addressText);
+          let dt = parsed.deliveryType || 'entrega';
+          if (isPickupLabel(at) && dt === 'entrega') dt = at === 'Retirada no local' ? 'retirada' : 'local'; // corrige dado antigo salvo com tipo errado
+          setAddressText(at);
+          setDeliveryType(dt);
         }
       }
     } catch {}
@@ -347,8 +364,8 @@ export default function CardapioPage() {
                   <svg className="w-4 h-4" style={{ color: '#6b3a1f' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 </div>
                 <div>
-                  <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-                  {deliveryType === 'entrega' && <p className="text-[10px]" style={{ color: '#b8906a' }}>{addressText ? BRL(R.deliveryFee) : 'Defina o endereço'}</p>}
+                  <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' ? (addressText && !isPickupLabel(addressText) ? addressText : 'Adicionar endereço') : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
+                  {deliveryType === 'entrega' && <p className="text-[10px]" style={{ color: '#b8906a' }}>{addressText && !isPickupLabel(addressText) ? BRL(R.deliveryFee) : 'Defina o endereço'}</p>}
                 </div>
               </div>
               <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
@@ -424,12 +441,8 @@ export default function CardapioPage() {
                     { id: 'local', icon: '🏠', label: 'Consumo no local', desc: 'Você consome no local' },
                   ].map((t) => (
                     <button key={t.id} onClick={() => {
-                      setDeliveryType(t.id);
-                      if (t.id === 'entrega') setDeliveryStep(1);
-                      else {
-                        setAddressText(t.id === 'retirada' ? 'Retirada no local' : 'Consumo no local');
-                        setAddressOpen(false);
-                      }
+                      if (t.id === 'entrega') { applyMode('entrega'); setDeliveryStep(1); }
+                      else { applyMode(t.id); setAddressOpen(false); }
                     }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left hover:shadow-sm" style={deliveryType === t.id ? { background: '#6b3a1f', color: '#fff' } : { background: '#f9f9f9', color: '#6b3a1f' }}>
                       <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: deliveryType === t.id ? 'rgba(255,255,255,0.15)' : '#fff' }}>{t.icon}</div>
                       <div className="flex-1 min-w-0">
@@ -514,7 +527,7 @@ export default function CardapioPage() {
         </button>
       )}
 
-      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} />}
+      {cartOpen && <CartDrawer onClose={() => setCartOpen(false)} onCheckout={() => { setCartOpen(false); setCheckout(true); }} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} applyMode={applyMode} isPickupLabel={isPickupLabel} />}
       {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} setAddressText={setAddressText} cart={cart}       onOrderDone={(order: any) => {
         try {
           const lo = { number: order.number, date: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), total: cart.subtotal, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, addons: i.addons })) };
@@ -673,8 +686,8 @@ function CartDrawer(props: any) {
             <svg className="w-4 h-4" style={{ color: addressText ? '#fff' : '#6b3a1f' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           </div>
           <div className="text-left flex-1 min-w-0">
-            <p className="text-[11px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' && addressText ? addressText : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-            {deliveryType === 'entrega' && <p className="text-[9px]" style={{ color: '#b8906a' }}>{addressText ? BRL(deliveryFee) : 'Defina o endereço'}</p>}
+            <p className="text-[11px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' ? (addressText && !props.isPickupLabel(addressText) ? addressText : 'Adicionar endereço') : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
+            {deliveryType === 'entrega' && <p className="text-[9px]" style={{ color: '#b8906a' }}>{addressText && !props.isPickupLabel(addressText) ? BRL(deliveryFee) : 'Defina o endereço'}</p>}
           </div>
           <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: step !== 0 ? 'rotate(180deg)' : '', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
         </button>
@@ -685,7 +698,7 @@ function CartDrawer(props: any) {
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Como receber?</p>
             <div className="space-y-1.5">
               {[{ id: 'entrega', icon: '🛵', label: 'Entrega' }, { id: 'retirada', icon: '🚶', label: 'Retirada' }, { id: 'local', icon: '🏠', label: 'No local' }].map((t) => (
-                <button key={t.id} onClick={() => { setDeliveryType(t.id); if (t.id === 'entrega') setStep(2); else { setAddressText(t.id === 'retirada' ? 'Retirada no local' : 'Consumo no local'); setStep(0); } }} className="w-full flex items-center gap-2.5 p-2 rounded-lg text-left transition-all" style={deliveryType === t.id ? { background: '#6b3a1f', color: '#fff' } : { background: '#f5ebe0', color: '#5a4030' }}>
+                <button key={t.id} onClick={() => { if (t.id === 'entrega') { props.applyMode('entrega'); setStep(2); } else { props.applyMode(t.id); setStep(0); } }} className="w-full flex items-center gap-2.5 p-2 rounded-lg text-left transition-all" style={deliveryType === t.id ? { background: '#6b3a1f', color: '#fff' } : { background: '#f5ebe0', color: '#5a4030' }}>
                   <span className="text-sm">{t.icon}</span>
                   <span className="text-[11px] font-bold">{t.label}</span>
                 </button>
@@ -773,6 +786,11 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
   const [f, setF] = useState({ name: '', phone: '', cpf: '', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [emitNota, setEmitNota] = useState(false);
+  const maskCpf = (v: string) => {
+    const d = v.replace(/\D/g, '').slice(0, 11);
+    return d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
+  };
   const fee = deliveryType === 'entrega' ? deliveryFee : 0;
   const total = Math.max(0, cart.subtotal + fee);
 
@@ -792,13 +810,19 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
       const digits = (f.cpf || '').replace(/\D/g, '');
       if (digits.length !== 11) { showToast('Para entrega, informe o CPF com 11 dígitos (exigido pela nota fiscal)', 'warning'); return; }
     }
+    if (deliveryType !== 'entrega' && emitNota) {
+      const digits = (f.cpf || '').replace(/\D/g, '');
+      if (digits.length !== 11) { showToast('CPF: informe 11 dígitos para emitir a nota fiscal', 'warning'); return; }
+    }
     if (deliveryType === 'entrega' && restaurant.minOrder && cart.subtotal < restaurant.minOrder) {
       showToast(`Pedido mínimo: ${BRL(restaurant.minOrder)}`, 'warning'); return;
     }
     setSubmitting(true);
     try {
     const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      customerName: f.name, customerPhone: f.phone, customerCpf: f.cpf, street: addr.street, number: addr.number, complement: addr.complement, district: addr.district, reference: '',
+      customerName: f.name, customerPhone: f.phone, customerCpf: (deliveryType !== 'entrega' && !emitNota) ? '' : f.cpf,
+      street: deliveryType === 'entrega' ? addr.street : '', number: deliveryType === 'entrega' ? addr.number : '',
+      complement: deliveryType === 'entrega' ? addr.complement : '', district: deliveryType === 'entrega' ? addr.district : '', reference: '',
       addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
       type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
       subtotal: cart.subtotal, deliveryFee: fee, discount: 0,
@@ -849,11 +873,21 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Seu nome *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
             {deliveryType === 'entrega' && (
-              <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF * (11 dígitos, para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => {
-                const d = e.target.value.replace(/\D/g, '').slice(0, 11);
-                const masked = d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
-                setF({ ...f, cpf: masked });
-              }} />
+              <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF * (11 dígitos, para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+            )}
+            {deliveryType !== 'entrega' && (
+              <div className="rounded-xl p-3" style={{ background: '#f9f9f9', border: '1px solid #ececec' }}>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={emitNota} onChange={(e) => setEmitNota(e.target.checked)} className="w-4 h-4" style={{ accentColor: '#6b3a1f' }} />
+                  <span className="text-xs font-bold" style={{ color: '#3a2515' }}>📋 Deseja emitir a nota fiscal?</span>
+                </label>
+                {emitNota && (
+                  <>
+                    <input autoFocus className="mt-2.5 w-full rounded-xl px-4 py-3 text-sm outline-none bg-white border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF * (11 dígitos, para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+                    <p className="text-[10px] text-gray-400 mt-1.5">O CPF entra como destinatário da nota.</p>
+                  </>
+                )}
+              </div>
             )}
           </div>
 
