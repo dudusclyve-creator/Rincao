@@ -74,7 +74,7 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
   const typeBadge = TYPE_BADGE[orderType];
   const elapsed = Math.floor((Date.now() - new Date(o.createdAt).getTime()) / 60000);
   const col = COLUMNS.find((c) => c.id === STATUS_MAP[o.status]);
-  const isExpanded = isSelected;
+  const isExpanded = true;
   const overdue = isOverdue(o);
   const wasOverdue = o.status === 'concluido' || o.status === 'cancelado' ? elapsed > 45 : false;
 
@@ -98,7 +98,7 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
         border: overdue ? '2px solid #ef4444' : `1px solid ${col ? col.border : 'rgba(255,255,255,0.12)'}`,
         boxShadow: overdue ? '0 0 20px rgba(239,68,68,0.2)' : 'inset 0 1px 0 rgba(255,255,255,0.05)',
       }}
-      onClick={() => onSelect(isExpanded ? null : o.id)}
+      onClick={() => onSelect(o.id)}
     >
       <div className="px-4 py-3">
         <div className="flex items-center justify-between mb-2">

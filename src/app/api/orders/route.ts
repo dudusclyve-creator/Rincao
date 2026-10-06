@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
+import { emitirPedido } from '@/lib/nfe-order';
 
 export async function GET(req: Request) {
   try {
@@ -141,6 +142,13 @@ export async function POST(req: Request) {
     if (open) {
       await prisma.cashMovement.create({ data: { registerId: open.id, kind: 'venda', method: b.payment || 'pix', amount: total, reason: `Pedido #${order.number}`, orderId: order.id } });
     }
+  }
+
+  // emissao automatica da NFC-e quando o cliente pediu nota no cardapio
+  if (b.emitNfe && b.source === 'cardapio') {
+    try { await emitirPedido(order.id); } catch {}
+    const fresh = await prisma.order.findUnique({ where: { id: order.id }, include: { items: true, customer: true } });
+    if (fresh) return NextResponse.json(fresh);
   }
 
   return NextResponse.json(order);

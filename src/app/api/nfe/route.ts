@@ -2,30 +2,8 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
-import { emitir, cancelar, statusServico, amb } from '@/lib/nfe';
-
-async function getFiscal() {
-  try {
-    const s = await prisma.setting.findUnique({ where: { key: 'fiscal' } });
-    return s ? JSON.parse(s.value) : {};
-  } catch { return {}; }
-}
-
-async function nextNumero(): Promise<number> {
-  const s = await prisma.setting.findUnique({ where: { key: 'nfeCounter' } });
-  const last = s ? (JSON.parse(s.value).last || 0) : 0;
-  return last + 1;
-}
-
-async function saveNumero(numero: number) {
-  try {
-    await prisma.setting.upsert({
-      where: { key: 'nfeCounter' },
-      create: { key: 'nfeCounter', value: JSON.stringify({ last: numero }) },
-      update: { value: JSON.stringify({ last: numero }) },
-    });
-  } catch {}
-}
+import { cancelar, statusServico, amb } from '@/lib/nfe';
+import { emitirPedido } from '@/lib/nfe-order';
 
 export async function POST(req: Request) {
   try {
@@ -46,61 +24,9 @@ export async function POST(req: Request) {
     if (!order) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
 
     if (action === 'emit') {
-      if (order.nfeStatus && order.nfeStatus !== 'error') {
-        return NextResponse.json({ error: 'Este pedido já tem nota fiscal' }, { status: 409 });
-      }
-      if (/rivera/i.test(order.addressText || '')) {
-        return NextResponse.json({ error: 'Entrega em Rivera (exterior) — a NFC-e não aceita destino fora do Brasil. Emita a NF-e manualmente pelo contador.' }, { status: 400 });
-      }
-      // NFC-e de entrega (indPres=4) exige CPF do destinatario (rej 787)
-      const entregaSemCpf =
-        (order.type || '') === 'entrega' &&
-        !String(order.addressText || '').toUpperCase().includes('RETIRADA') &&
-        !String(order.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL') &&
-        String(order.customer?.cpf || '').replace(/\D/g, '').length !== 11;
-      if (entregaSemCpf) {
-        return NextResponse.json({ error: 'Pedido de entrega sem CPF do cliente. A NFC-e de entrega exige o CPF do destinatário — cadastre o CPF no menu Clientes e tente novamente.' }, { status: 400 });
-      }
-      if (!order.items.length) return NextResponse.json({ error: 'Pedido sem itens' }, { status: 400 });
-      if (!process.env.NFE_CERT_PFX_B64) return NextResponse.json({ error: 'NFE_CERT_PFX_B64 não configurada no .env da Vercel' }, { status: 500 });
-
-      const fiscal = await getFiscal();
-      const numero = await nextNumero();
-      let r;
-      try {
-        r = await emitir(order, fiscal, numero);
-      } catch (e: any) {
-        return NextResponse.json({ error: e?.message || 'Falha ao enviar para a SEFAZ' }, { status: 502 });
-      }
-      if (r.ok) {
-        await saveNumero(numero);
-        await prisma.order.update({
-          where: { id: order.id },
-          data: {
-            nfeStatus: 'issued',
-            nfeNumber: numero,
-            nfeKey: r.chave || null,
-            nfeProtocol: r.nProt || null,
-            nfeXml: r.xml || null,
-            nfeQrCode: r.qrUrl || null,
-            nfeError: null,
-            nfeIssuedAt: new Date(),
-            nfeCancelledAt: null,
-          },
-        });
-        return NextResponse.json({ status: 'issued', numero, chave: r.chave, nProt: r.nProt });
-      }
-      await prisma.order.update({
-        where: { id: order.id },
-        data: { nfeStatus: 'error', nfeError: (r.erro || 'Erro desconhecido').slice(0, 500), nfeKey: r.chave || null },
-      });
-      if ((r as any).xml) {
-        try {
-          const { writeFileSync } = await import('fs');
-          writeFileSync('last_rejected.xml', (r as any).xml);
-        } catch {}
-      }
-      return NextResponse.json({ error: r.erro || 'A SEFAZ rejeitou a nota' }, { status: 502 });
+      const r = await emitirPedido(orderId);
+      if (r.ok) return NextResponse.json({ status: 'issued', numero: r.numero, chave: r.chave, nProt: r.nProt });
+      return NextResponse.json({ error: r.error }, { status: r.http || 502 });
     }
 
     if (action === 'status') {
@@ -132,7 +58,7 @@ export async function POST(req: Request) {
         });
         return NextResponse.json({ status: 'cancelled' });
       }
-      return NextResponse.json({ error: r.erro || 'Falha ao cancelar' }, { status: 502 });
+      return NextResponse.json({ error: r.erro ? `${r.erro}${/^\s*501\b/.test(r.erro) ? ' — A legislação permite cancelar NFC-e somente em até 30 minutos após a emissão.' : ''}` : 'Falha ao cancelar' }, { status: 502 });
     }
 
     return NextResponse.json({ error: 'Ação inválida' }, { status: 400 });

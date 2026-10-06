@@ -827,6 +827,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
       type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
       subtotal: cart.subtotal, deliveryFee: fee, discount: 0,
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
+      emitNfe: deliveryType === 'entrega' || emitNota,
     })}).then((r) => r.json());
     setDone({ ...order, addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL') });
     onOrderDone?.({ ...order, customerPhone: f.phone });
