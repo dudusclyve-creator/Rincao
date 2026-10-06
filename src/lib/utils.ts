@@ -244,7 +244,7 @@ export function printReceiptText(text: string, width: '58mm' | '80mm' = '80mm') 
   @page { size: ${width} auto; margin: 4mm; }
   html, body { margin: 0; padding: 0; background: #fff; }
   .logobox { text-align: center; margin: 0 0 2mm; }
-  #logo { display: none; max-width: 55mm; max-height: 24mm; }
+  #logo { display: none; max-width: 55mm; max-height: 24mm; margin: 0 auto; }
   pre.receipt {
     font-family: 'Courier New', 'Liberation Mono', monospace;
     font-size: 11px;
@@ -277,7 +277,8 @@ export function printReceiptText(text: string, width: '58mm' | '80mm' = '80mm') 
     const fallback = setTimeout(doPrint, 1400);
     // carrega o logo do restaurante e imprime quando chegar
     fetch('/api/settings').then((r) => r.json()).then((s: any) => {
-      const url = s && s.logoUrl;
+      const raw = s && s.logoUrl;
+      const url = raw && typeof raw === 'string' && raw.startsWith('/') ? window.location.origin + raw : raw;
       const img = w.document.getElementById('logo') as HTMLImageElement | null;
       if (!url || !img) return;
       img.onload = () => { img.style.display = 'block'; clearTimeout(fallback); setTimeout(doPrint, 250); };
