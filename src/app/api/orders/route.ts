@@ -70,6 +70,76 @@ export async function POST(req: Request) {
     return NextResponse.json(updated);
   }
 
+  if (b.action === 'edit') {
+    const order = await prisma.order.findUnique({ where: { id: b.orderId }, include: { items: true } });
+    if (!order) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+    if (order.status === 'cancelado') return NextResponse.json({ error: 'Pedido cancelado não pode ser editado' }, { status: 400 });
+    if (order.nfeStatus === 'issued') return NextResponse.json({ error: 'Nota fiscal emitida — cancele a nota antes de editar o pedido' }, { status: 400 });
+
+    const newItems = (b.items || []).map((it: any) => ({
+      productId: it.productId || '', name: String(it.name || ''),
+      qty: Math.max(1, Number(it.qty || 1)), unitPrice: Number(it.unitPrice || 0),
+      addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
+    }));
+    if (newItems.length === 0) return NextResponse.json({ error: 'O pedido precisa ter pelo menos 1 item' }, { status: 400 });
+
+    // devolve estoque dos itens antigos
+    for (const it of order.items) {
+      if (!it.productId) continue;
+      const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { increment: it.qty } } });
+    }
+    // baixa estoque dos novos itens
+    for (const it of newItems) {
+      if (!it.productId) continue;
+      const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: it.qty } } });
+    }
+
+    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderItem.createMany({ data: newItems.map((it: any) => ({ ...it, orderId: order.id })) });
+
+    const subtotal = newItems.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+    const type = b.type !== undefined ? String(b.type) : order.type;
+    const fee = type === 'entrega' ? Number(b.deliveryFee ?? order.deliveryFee) : 0;
+    const discount = Number(b.discount ?? order.discount);
+    const total = Math.max(0, subtotal + fee - discount);
+
+    // cliente (relinka quando o telefone muda)
+    let customerId = order.customerId ?? null;
+    if (b.customerPhone !== undefined) {
+      const phone = String(b.customerPhone || '').replace(/\D/g, '');
+      if (phone) {
+        let cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
+        if (!cust) {
+          cust = await prisma.customer.create({ data: { name: b.customerName || order.customerName || 'Cliente', phone } });
+        }
+        customerId = cust.id;
+      }
+    }
+
+    const data: any = {
+      customerName: b.customerName !== undefined ? String(b.customerName) : order.customerName,
+      customerPhone: b.customerPhone !== undefined ? String(b.customerPhone) : order.customerPhone,
+      addressText: b.addressText !== undefined ? String(b.addressText) : order.addressText,
+      type, payment: b.payment !== undefined ? String(b.payment) : order.payment,
+      changeFor: b.changeFor !== undefined ? (b.changeFor ? Number(b.changeFor) : null) : order.changeFor,
+      note: b.note !== undefined ? String(b.note) : order.note,
+      subtotal, deliveryFee: fee, discount, total, customerId,
+    };
+    const updated = await prisma.order.update({ where: { id: order.id }, data, include: { items: true, customer: true, table: true, driver: true } });
+
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.payment.create({ data: { orderId: order.id, method: updated.payment, amount: total } });
+
+    const mv = await prisma.cashMovement.findFirst({ where: { orderId: order.id, kind: 'venda' }, include: { register: true } });
+    if (mv && mv.register.status === 'aberto') {
+      await prisma.cashMovement.update({ where: { id: mv.id }, data: { amount: total, method: updated.payment } });
+    }
+
+    return NextResponse.json(updated);
+  }
+
   // upsert cliente pelo telefone
   let customerId: string | undefined;
   if (b.customerPhone) {

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
-import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText } from 'lucide-react';
+import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 
 const COLUMNS = [
@@ -70,7 +70,7 @@ function getPaymentBadge(payment: string) {
   return info ? { label: `${info.icon} ${info.label}`, color: info.color } : { label: payment, color: '#9ca3af' };
 }
 
-function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, onNfe, draggable, onDragStart, onDragEnd }: any) {
+function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, onNfe, onEdit, draggable, onDragStart, onDragEnd }: any) {
   const orderType = getOrderType(o);
   const typeBadge = TYPE_BADGE[orderType];
   const isEnded = o.status === 'concluido' || o.status === 'cancelado';
@@ -285,6 +285,16 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
         <button title="Duplicar pedido" onClick={(e) => { e.stopPropagation(); onDup(o); }} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
           <Copy size={13} />
         </button>
+        {o.status !== 'cancelado' && (
+          <button
+            title={o.nfeStatus === 'issued' ? 'Nota emitida — cancele a nota para editar' : 'Editar pedido'}
+            onClick={(e) => { e.stopPropagation(); onEdit(o); }}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+            style={{ background: 'rgba(59,130,246,0.15)', color: o.nfeStatus === 'issued' ? '#60a5fa' : '#60a5fa' }}
+          >
+            <Pencil size={13} />
+          </button>
+        )}
         {!['cancelado', 'concluido'].includes(o.status) && (
           <button title="Cancelar pedido" onClick={(e) => { e.stopPropagation(); onCancel(o.id, 'cancelado'); }} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
             <X size={13} />
@@ -307,6 +317,12 @@ export default function Pedidos() {
   const [showHistory, setShowHistory] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+  const [editOrder, setEditOrder] = useState<any | null>(null);
+  const [editItems, setEditItems] = useState<any[]>([]);
+  const [editForm, setEditForm] = useState<any>({});
+  const [products, setProducts] = useState<any[]>([]);
+  const [addProductId, setAddProductId] = useState('');
+  const [addQty, setAddQty] = useState(1);
 
   const load = async () => {
     const o = await fetch('/api/orders?limit=120').then((r) => r.json());
@@ -401,6 +417,42 @@ export default function Pedidos() {
     if (o.nfeStatus === 'error') { emitNfe(o); return; }
     if (o.nfeStatus) { pollNfe(o.id); return; }
     emitNfe(o);
+  };
+
+  const openEdit = async (o: any) => {
+    setEditOrder(o);
+    setEditItems(o.items.map((it: any) => ({
+      id: it.id, productId: it.productId || '', name: it.name, qty: it.qty, unitPrice: it.unitPrice,
+      addons: JSON.parse(it.addonsJson || '[]'), note: it.note || '',
+    })));
+    setEditForm({
+      customerName: o.customerName || '', customerPhone: o.customerPhone || '', addressText: o.addressText || '',
+      type: o.type || 'entrega', deliveryFee: String(o.deliveryFee || 0), discount: String(o.discount || 0),
+      payment: o.payment || 'pix', changeFor: o.changeFor ? String(o.changeFor) : '', note: o.note || '',
+    });
+    setAddProductId(''); setAddQty(1);
+    const p = await fetch('/api/products').then((r) => r.json()).catch(() => []);
+    setProducts(Array.isArray(p) ? p : []);
+  };
+
+  const saveEdit = async () => {
+    if (!editOrder) return;
+    if (editOrder.nfeStatus === 'issued') { alert('Nota fiscal emitida — cancele a nota antes de editar o pedido.'); return; }
+    if (editItems.length === 0) { alert('O pedido precisa ter pelo menos 1 item.'); return; }
+    const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
+    const payload: any = {
+      action: 'edit', orderId: editOrder.id,
+      items: editItems.map((it: any) => ({ productId: it.productId, name: it.name, qty: it.qty, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
+      customerName: editForm.customerName, customerPhone: editForm.customerPhone, addressText: editForm.addressText,
+      type: editForm.type, deliveryFee: fee, discount: Number(editForm.discount || 0),
+      changeFor: editForm.changeFor ? Number(editForm.changeFor) : null, note: editForm.note,
+    };
+    if (!String(editOrder.payment || '').includes(',')) payload.payment = editForm.payment;
+    const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(typeof d.error === 'string' ? d.error : 'Erro ao salvar as alterações'); return; }
+    setEditOrder(null);
+    load();
   };
 
   const dup = async (o: any) => {
@@ -501,7 +553,7 @@ export default function Pedidos() {
               {col.orders.map((o) => (
                 <OrderCard
                   key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder}
-                  onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe}
+                  onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit}
                   draggable onDragStart={setDragId} onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
                 />
               ))}
@@ -541,7 +593,7 @@ export default function Pedidos() {
             <div className="px-4 pb-4 space-y-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               {concluidos.length === 0 && <p className="text-[11px] py-4 text-center" style={{ color: '#8a7a6a' }}>Nenhum</p>}
               {concluidos.map((o) => (
-                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} draggable={false} />
+                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit} draggable={false} />
               ))}
             </div>
           </div>
@@ -555,7 +607,7 @@ export default function Pedidos() {
             <div className="px-4 pb-4 space-y-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               {cancelados.length === 0 && <p className="text-[11px] py-4 text-center" style={{ color: '#8a7a6a' }}>Nenhum</p>}
               {cancelados.map((o) => (
-                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} draggable={false} />
+                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit} draggable={false} />
               ))}
             </div>
           </div>
@@ -574,6 +626,172 @@ export default function Pedidos() {
           <p className="text-lg font-black text-green-400">{BRL(totalReceita)}</p>
         </div>
       </div>
+
+      {/* Modal editar pedido */}
+      {editOrder && (() => {
+        const subtotal = editItems.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+        const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
+        const discount = Number(editForm.discount || 0);
+        const total = Math.max(0, subtotal + fee - discount);
+        const nfeLocked = editOrder.nfeStatus === 'issued';
+        const splitPay = String(editOrder.payment || '').includes(',');
+        const inputStyle = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#f0e8e0' };
+        const setItem = (idx: number, patch: any) => setEditItems((arr: any[]) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setEditOrder(null)}>
+            <div className="rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4" style={{ background: '#1a1520', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                <div>
+                  <h3 className="font-black text-base text-white flex items-center gap-2">✏️ Editar pedido #{editOrder.number}</h3>
+                  <p className="text-[11px] mt-0.5" style={{ color: '#8a7a6a' }}>alterações valem para a produção e a impressão</p>
+                </div>
+                <button onClick={() => setEditOrder(null)} className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
+                  <X size={14} />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {nfeLocked && (
+                  <div className="px-4 py-3 rounded-xl text-[11px] font-bold" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}>
+                    🧾 Nota fiscal #{editOrder.nfeNumber || ''} já emitida — cancele a nota antes de editar o pedido.
+                  </div>
+                )}
+
+                {/* Itens */}
+                <div>
+                  <label className="block text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: '#8a7a6a' }}>🍽️ Itens ({editItems.length})</label>
+                  <div className="space-y-2">
+                    {editItems.map((it: any, idx: number) => (
+                      <div key={it.id || `new-${idx}`} className="p-2.5 rounded-xl" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 shrink-0" style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: 2 }}>
+                            <button onClick={() => setItem(idx, { qty: Math.max(1, it.qty - 1) })} className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm transition-all hover:brightness-125" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>−</button>
+                            <span className="w-7 text-center text-[13px] font-black text-white">{it.qty}</span>
+                            <button onClick={() => setItem(idx, { qty: it.qty + 1 })} className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm transition-all hover:brightness-125" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>+</button>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-bold text-white truncate">{it.name}</p>
+                            <p className="text-[10px] text-gray-500">{it.qty} × {BRL(it.unitPrice)}</p>
+                          </div>
+                          <span className="text-[12px] font-black shrink-0" style={{ color: '#4ade80' }}>{BRL(it.qty * it.unitPrice)}</span>
+                          <button onClick={() => setEditItems((arr: any[]) => arr.filter((_, i) => i !== idx))} title="Remover item" className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:scale-110 shrink-0" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                        <input
+                          value={it.note} onChange={(e) => setItem(idx, { note: e.target.value })} placeholder="obs deste item (ex.: sem cebola)"
+                          className="w-full mt-2 px-2.5 py-1.5 rounded-lg text-[11px] outline-none" style={{ ...inputStyle, color: '#f0e8e0' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* adicionar item */}
+                  <div className="flex gap-1.5 mt-2">
+                    <select value={addProductId} onChange={(e) => setAddProductId(e.target.value)} className="flex-1 min-w-0 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputStyle}>
+                      <option value="">+ Adicionar item do cardápio…</option>
+                      {(products as any[]).filter((p: any) => p.available !== false).map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.name} — {BRL(Number(p.promoPrice || p.price))}</option>
+                      ))}
+                    </select>
+                    <input type="number" min={1} value={addQty} onChange={(e) => setAddQty(Math.max(1, Number(e.target.value || 1)))} className="w-14 px-2 py-2 rounded-xl text-[12px] text-center outline-none" style={inputStyle} />
+                    <button
+                      onClick={() => {
+                        const p = (products as any[]).find((x: any) => x.id === addProductId);
+                        if (!p) return;
+                        setEditItems((arr: any[]) => [...arr, { id: `new-${Date.now()}`, productId: p.id, name: p.name, qty: addQty, unitPrice: Number(p.promoPrice || p.price), addons: [], note: '' }]);
+                        setAddProductId(''); setAddQty(1);
+                      }}
+                      disabled={!addProductId}
+                      className="px-3 rounded-xl text-[12px] font-bold text-white disabled:opacity-40 transition-all hover:brightness-110"
+                      style={{ background: '#22c55e' }}
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cliente e entrega */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>👤 Nome do cliente</label>
+                    <input value={editForm.customerName} onChange={(e) => setEditForm((f: any) => ({ ...f, customerName: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📱 Telefone</label>
+                    <input value={editForm.customerPhone} onChange={(e) => setEditForm((f: any) => ({ ...f, customerPhone: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📦 Tipo</label>
+                    <select value={editForm.type} onChange={(e) => setEditForm((f: any) => ({ ...f, type: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle}>
+                      <option value="entrega">Entrega</option>
+                      <option value="retirada">Retirada</option>
+                      <option value="local">Consumo local</option>
+                      <option value="mesa">Mesa</option>
+                      <option value="balcao">Balcão</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📍 Endereço / Mesa</label>
+                    <input value={editForm.addressText} onChange={(e) => setEditForm((f: any) => ({ ...f, addressText: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>🛵 Taxa de entrega</label>
+                    <input type="number" min={0} step="0.5" value={editForm.deliveryFee} onChange={(e) => setEditForm((f: any) => ({ ...f, deliveryFee: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>🏷️ Desconto</label>
+                    <input type="number" min={0} step="0.5" value={editForm.discount} onChange={(e) => setEditForm((f: any) => ({ ...f, discount: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>💳 Pagamento</label>
+                    <select
+                      value={splitPay ? editOrder.payment : editForm.payment}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, payment: e.target.value }))}
+                      disabled={splitPay}
+                      className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none disabled:opacity-50" style={inputStyle}
+                    >
+                      {splitPay && <option value={editOrder.payment}>{editOrder.payment} (dividido)</option>}
+                      <option value="pix">PIX</option>
+                      <option value="dinheiro">Dinheiro</option>
+                      <option value="debito">Débito</option>
+                      <option value="credito">Crédito</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>💵 Troco para</label>
+                    <input type="number" min={0} step="0.5" value={editForm.changeFor} onChange={(e) => setEditForm((f: any) => ({ ...f, changeFor: e.target.value }))} placeholder="0,00" className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📝 Observação do pedido</label>
+                    <textarea rows={2} value={editForm.note} onChange={(e) => setEditForm((f: any) => ({ ...f, note: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none resize-none" style={inputStyle} />
+                  </div>
+                </div>
+
+                {/* Totais */}
+                <div className="p-3 rounded-xl space-y-1" style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="flex justify-between text-[11px] text-gray-400"><span>Subtotal</span><span>{BRL(subtotal)}</span></div>
+                  <div className="flex justify-between text-[11px] text-gray-400"><span>Taxa</span><span>{BRL(fee)}</span></div>
+                  <div className="flex justify-between text-[11px] text-gray-400"><span>Desconto</span><span>− {BRL(discount)}</span></div>
+                  <div className="flex justify-between text-[15px] font-black text-white pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}><span>Total</span><span style={{ color: '#4ade80' }}>{BRL(total)}</span></div>
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 flex gap-2 px-5 py-4" style={{ background: '#1a1520', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <button onClick={() => setEditOrder(null)} className="flex-1 rounded-xl py-3 text-[12px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Cancelar</button>
+                <button
+                  disabled={nfeLocked || editItems.length === 0}
+                  onClick={saveEdit}
+                  className="flex-1 rounded-xl py-3 text-[12px] font-bold text-white disabled:opacity-40 transition-all hover:brightness-110 active:scale-95"
+                  style={{ background: '#3b82f6' }}
+                >
+                  💾 Salvar alterações
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal entregador */}
       {dispatchOrder && (
