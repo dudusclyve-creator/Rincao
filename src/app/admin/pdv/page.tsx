@@ -312,7 +312,7 @@ export default function PDV() {
       customerName: client || 'PDV', customerPhone: clientPhone || '',
       items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
       payment, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
-      addressText, changeFor: changeFor > 0 ? changeFor : undefined,
+      addressText, type, changeFor: changeFor > 0 ? changeFor : undefined,
       width: '80mm',
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) }).catch(() => {});

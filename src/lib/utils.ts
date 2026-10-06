@@ -91,6 +91,7 @@ export function receiptText(o: {
   customerPhone: string; items: { qty: number; name: string; addons: CartAddon[]; note?: string }[];
   payment: string; subtotal: number; fee: number; discount: number; total: number;
   addressText?: string; driverName?: string; motoboy?: string; changeFor?: number | null;
+  type?: string;
   width?: '58mm' | '80mm';
 }) {
   const cols = o.width === '58mm' ? 28 : 40;
@@ -139,11 +140,15 @@ export function receiptText(o: {
   };
 
   const out: string[] = [];
+  // retirada / consumo no local / balcao: sem linha de endereco e sem taxa de entrega
+  const addrUp = (o.addressText || '').toUpperCase();
+  const tipo = (o.type || '').toLowerCase();
+  const semEndereco = tipo === 'retirada' || tipo === 'local' || tipo === 'balcao' || /RETIRADA|CONSUMO NO LOCAL/.test(addrUp);
   out.push(center(`*** ${o.store.toUpperCase()} ***`));
   out.push(row(`PEDIDO #${o.number}`, o.date));
   out.push('='.repeat(cols));
   out.push(`Cliente: ${o.customerName}${o.customerPhone ? ` ${o.customerPhone}` : ''}`);
-  if (o.addressText) {
+  if (o.addressText && !semEndereco) {
     wrapAddress(o.addressText).forEach((part, i) => {
       out.push(i === 0 ? c(`Endereco: ${part}`) : c(`  ${part}`));
     });
@@ -157,7 +162,7 @@ export function receiptText(o: {
   });
   out.push(line);
   out.push(row('Subtotal', BRL(o.subtotal)));
-  out.push(row('Entrega', BRL(o.fee)));
+  if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) out.push(row('Entrega', BRL(o.fee)));
   if (o.discount) out.push(row('Desconto', '-' + BRL(o.discount)));
   out.push(row('TOTAL', BRL(o.total)));
   out.push(c(o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:'));
@@ -238,11 +243,13 @@ export function printReceiptText(text: string, width: '58mm' | '80mm' = '80mm') 
 <style>
   @page { size: ${width} auto; margin: 3mm; }
   html, body { margin: 0; padding: 0; background: #fff; }
+  .logobox { text-align: center; margin: 0 0 2mm; }
+  #logo { display: none; max-width: 55mm; max-height: 24mm; }
   pre.receipt {
     font-family: 'Courier New', Courier, monospace;
     font-size: 11.5px;
     font-weight: 700;
-    line-height: 1.25;
+    line-height: 1.6;
     margin: 0;
     padding: 0;
     white-space: pre;
@@ -252,13 +259,31 @@ export function printReceiptText(text: string, width: '58mm' | '80mm' = '80mm') 
   }
   @media screen {
     body { padding: 12px; background: #f0f0f0; }
-    pre.receipt { background: #fff; padding: 12px; width: 330px; white-space: pre-wrap; box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
+    .logobox, pre.receipt { background: #fff; width: 330px; margin-left: auto; margin-right: auto; }
+    pre.receipt { padding: 12px; white-space: pre-wrap; box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
+    .logobox { padding-top: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.2); }
   }
 </style></head>
-<body><pre class="receipt">${text}</pre>
-<script>window.onload = function () { setTimeout(function () { window.print(); }, 200); };<\/script>
+<body>
+<div class="logobox"><img id="logo" alt="" /></div>
+<pre class="receipt">${text}</pre>
 </body></html>`);
     w.document.close();
+
+    const doPrint = () => {
+      if (!(w as any).__printed) { (w as any).__printed = true; setTimeout(() => { try { w.print(); } catch {} }, 150); }
+    };
+    // fallback: imprime mesmo que o logo demore
+    const fallback = setTimeout(doPrint, 1400);
+    // carrega o logo do restaurante e imprime quando chegar
+    fetch('/api/settings').then((r) => r.json()).then((s: any) => {
+      const url = s && s.logoUrl;
+      const img = w.document.getElementById('logo') as HTMLImageElement | null;
+      if (!url || !img) return;
+      img.onload = () => { img.style.display = 'block'; clearTimeout(fallback); setTimeout(doPrint, 250); };
+      img.onerror = () => { try { img.remove(); } catch {} };
+      img.src = url;
+    }).catch(() => {});
   } catch {}
 }
 
