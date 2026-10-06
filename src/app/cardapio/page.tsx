@@ -787,6 +787,24 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
   const [done, setDone] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
   const [emitNota, setEmitNota] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+  const copyPixKey = async () => {
+    const key = String(restaurant.pixKey || '');
+    try {
+      await navigator.clipboard.writeText(key);
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = key;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+      } catch {}
+    }
+    setPixCopied(true);
+    setTimeout(() => setPixCopied(false), 2000);
+  };
   const maskCpf = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
     return d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
@@ -921,7 +939,18 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
           {f.payment === 'pix' && (
             <div className="mt-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Chave Pix</p>
-              <p className="text-sm font-bold text-gray-900 mt-1">{restaurant.pixKey}</p>
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <p className="text-sm font-bold text-gray-900">{restaurant.pixKey}</p>
+                <button
+                  onClick={copyPixKey}
+                  className="shrink-0 flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                  style={pixCopied
+                    ? { background: '#16a34a', color: '#ffffff' }
+                    : { background: '#e5e7eb', color: '#374151' }}
+                >
+                  {pixCopied ? '✅ Copiado' : '📋 Copiar'}
+                </button>
+              </div>
             </div>
           )}
 
