@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     else if (orderCount >= 2) autoTier = 'recorrente';
     const tier = c.tier || autoTier;
     return {
-      id: c.id, name: c.name, phone: c.phone, street: c.street, number: c.number, district: c.district, complement: c.complement,
+      id: c.id, name: c.name, phone: c.phone, cpf: c.cpf || '', street: c.street, number: c.number, district: c.district, complement: c.complement,
       createdAt: c.createdAt, orderCount, totalSpent, lastOrder: c.orders[0]?.createdAt || null,
       ticketMedio: orderCount ? totalSpent / orderCount : 0,
       favProducts, last5Orders: last5.map((o) => ({ number: o.number, total: o.total, date: o.createdAt, type: o.type, payment: o.payment })),
@@ -48,6 +48,7 @@ export async function PATCH(req: Request) {
   if (!b.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
   const data: any = {};
   if (b.tier !== undefined) data.tier = b.tier;
+  if (b.cpf !== undefined) data.cpf = String(b.cpf).replace(/\D/g, '');
   if (b.name !== undefined) data.name = b.name;
   if (b.phone !== undefined) data.phone = b.phone;
   if (b.street !== undefined) data.street = b.street;

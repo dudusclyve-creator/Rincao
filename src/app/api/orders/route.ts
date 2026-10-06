@@ -74,17 +74,19 @@ export async function POST(req: Request) {
   let customerId: string | undefined;
   if (b.customerPhone) {
     const phone = String(b.customerPhone).replace(/\D/g, '');
+    const cpf = String(b.customerCpf || '').replace(/\D/g, '');
     let cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
     if (!cust) {
       cust = await prisma.customer.create({
         data: {
-          name: b.customerName || 'Cliente', phone,
+          name: b.customerName || 'Cliente', phone, cpf,
           street: b.street || '', number: b.number || '', complement: b.complement || '',
           district: b.district || '', reference: b.reference || '',
         },
       });
     } else {
       const updateData: any = { name: b.customerName || cust.name };
+      if (b.customerCpf) updateData.cpf = cpf; // so preenche/atualiza quando informado (nao apaga)
       if (b.street) updateData.street = b.street;
       if (b.number) updateData.number = b.number;
       if (b.complement) updateData.complement = b.complement;

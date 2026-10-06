@@ -22,6 +22,22 @@ export default function Clientes() {
   const [tierFilter, setTierFilter] = useState<string>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [tierMenu, setTierMenu] = useState<string | null>(null);
+  const [cpfDraft, setCpfDraft] = useState<Record<string, string>>({});
+
+  const fmtCpf = (v?: string) => {
+    const d = (v || '').replace(/\D/g, '');
+    if (d.length !== 11) return d;
+    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
+  };
+
+  const saveCpf = async (id: string) => {
+    const draft = (cpfDraft[id] ?? '').replace(/\D/g, '');
+    const orig = (raw.find((c) => c.id === id)?.cpf || '').replace(/\D/g, '');
+    if (draft === orig) return;
+    await fetch('/api/customers', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, cpf: draft }) });
+    setCpfDraft((p) => { const n = { ...p }; delete n[id]; return n; });
+    load(searchInput);
+  };
 
   const load = async (query = '') => {
     const data = await fetch(`/api/customers?q=${encodeURIComponent(query)}`).then((r) => r.json());
@@ -280,6 +296,23 @@ export default function Clientes() {
                       <div className="min-w-0">
                         <p className="text-[9px] font-semibold uppercase tracking-wider text-blue-400/60 mb-0.5">Endereço</p>
                         <p className="text-[11px] text-gray-300 leading-snug">{getFullAddress(c) || <span className="text-gray-600 italic">Não informado</span>}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-xl p-3 flex items-start gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                        <span className="text-sm">🧾</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-amber-400/60 mb-0.5">CPF (nota fiscal de entrega)</p>
+                        <input
+                          className="w-full bg-transparent text-[11px] text-gray-300 outline-none border-b border-white/10 focus:border-white/40 pb-0.5 transition-colors"
+                          placeholder="Não informado — digite 11 dígitos"
+                          inputMode="numeric" maxLength={14}
+                          value={cpfDraft[c.id] ?? fmtCpf(c.cpf)}
+                          onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 11); setCpfDraft((p) => ({ ...p, [c.id]: fmtCpf(d) })); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          onBlur={() => saveCpf(c.id)}
+                        />
                       </div>
                     </div>
                     {c.avgDaysBetween && (

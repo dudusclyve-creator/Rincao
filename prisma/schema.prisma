@@ -105,6 +105,7 @@ model Customer {
   id        String   @id @default(cuid())
   name      String
   phone     String   @unique
+  cpf       String   @default("")
   street    String   @default("")
   number    String   @default("")
   complement String  @default("")
@@ -138,7 +139,7 @@ model Order {
   driver      Driver?  @relation(fields: [driverId], references: [id])
   source      String   @default("cardapio") // cardapio | pdv | mesa
   turnoId     String   @default("1")
-  // nota fiscal (Notaas)
+  // nota fiscal (NFC-e propria SEFAZ-RS)
   nfeInvoiceId   String?
   nfeStatus      String? // queued|processing|issued|error|cancelled
   nfeNumber      Int?
@@ -147,6 +148,8 @@ model Order {
   nfePdfUrl      String?
   nfeXmlUrl      String?
   nfeQrCode      String?
+  nfeXml         String?
+  nfeProtocol    String?
   nfeIssuedAt    DateTime?
   nfeCancelledAt DateTime?
   createdAt   DateTime @default(now())

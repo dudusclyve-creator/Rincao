@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText } from '@/lib/utils';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText } from 'lucide-react';
+import QRCode from 'qrcode';
 
 const COLUMNS = [
   { id: 'novo', label: 'Novos', icon: '🔔', color: '#3b82f6', gradient: 'linear-gradient(135deg, rgba(59,130,246,0.2), rgba(59,130,246,0.08))', border: 'rgba(59,130,246,0.35)' },
@@ -186,7 +187,7 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
                   {o.nfeKey && <p className="text-[9px] text-gray-500 break-all">Chave: {o.nfeKey}</p>}
                   {o.nfeStatus === 'issued' && (
                     <div className="flex gap-1.5 pt-1">
-                      <button onClick={(e) => { e.stopPropagation(); window.open(`/api/nfe?orderId=${o.id}&doc=danfe`, '_blank'); }} className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>📄 DANFE</button>
+                      <button onClick={(e) => { e.stopPropagation(); onNfe(o, 'danfe'); }} className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>📄 DANFE</button>
                       <button onClick={(e) => { e.stopPropagation(); window.open(`/api/nfe?orderId=${o.id}&doc=xml`, '_blank'); }} className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>XML</button>
                       <button onClick={(e) => { e.stopPropagation(); onNfe(o, 'cancel'); }} className="px-2 py-1 rounded text-[10px] font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>✕ Cancelar nota</button>
                     </div>
@@ -343,6 +344,80 @@ export default function Pedidos() {
     printReceiptText(text);
   };
 
+  const escapeHtml = (s: any) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
+
+  const printDanfe = async (o: any) => {
+    try {
+      const qr = o.nfeQrCode
+        ? await QRCode.toDataURL(o.nfeQrCode, { width: 320, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
+        : '';
+      const homolog = ((o.nfeQrCode || '').split('|')[2] || '') === '2';
+      const rows = (o.items || [])
+        .map((it: any) => {
+          const addons = JSON.parse(it.addonsJson || '[]');
+          const au = addons.reduce((s: number, a: any) => s + (a.price || 0) * (a.qty || 1), 0);
+          const g = Math.round((it.qty * ((it.unitPrice || 0) + au)) * 100) / 100;
+          const nome = [it.name, ...addons.map((a: any) => a.name)].join(' + ');
+          return `<tr><td>${it.qty}x ${escapeHtml(nome)}</td><td class="r">${BRL(g)}</td></tr>`;
+        })
+        .join('');
+      const feeRow = (o.deliveryFee || 0) > 0 ? `<tr><td>1x Taxa de entrega</td><td class="r">${BRL(o.deliveryFee)}</td></tr>` : '';
+      const payMap: any = { dinheiro: 'Dinheiro', pix: 'Pix', debito: 'Cartão de débito', credito: 'Cartão de crédito', cartao: 'Cartão' };
+      const chaveFmt = (o.nfeKey || '').replace(/(\d{4})(?=\d)/g, '$1 ');
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>DANFE NFC-e #${o.nfeNumber}</title><style>
+        @page { size: 80mm auto; margin: 3mm; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Courier New', monospace; font-size: 11px; width: 74mm; margin: 0 auto; color: #000; }
+        h1 { font-size: 13px; text-align: center; margin: 4px 0 0; }
+        .c { text-align: center; } .r { text-align: right; }
+        hr { border: none; border-top: 1px dashed #000; margin: 4px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        td { padding: 1px 0; vertical-align: top; }
+        .tot { font-size: 13px; font-weight: bold; }
+        .qrcode { text-align: center; margin: 6px 0; }
+        .qrcode img { width: 46mm; height: 46mm; }
+        .chave { font-size: 9px; word-break: break-all; text-align: center; }
+        .homolog { border: 2px solid #000; text-align: center; font-weight: bold; padding: 2px; margin: 4px 0; font-size: 10px; }
+        .small { font-size: 9px; }
+      </style></head><body>
+        ${homolog ? '<div class="homolog">AMBIENTE DE HOMOLOGAÇÃO<br>SEM VALOR FISCAL</div>' : ''}
+        <h1>DANFE NFC-e</h1>
+        <div class="c small">Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica</div>
+        <hr>
+        <div class="c"><b>43 - EMITENTE</b></div>
+        <div><b>SANDRA REGINA DE MENEZES PIRES</b><br>RINCAO LANCHES<br>CNPJ: 42.462.389/0001-37<br>IE: 1060172256<br>AVENIDA DOM PEDRO II, 1694 - UMBU<br>SANTANA DO LIVRAMENTO/RS - CEP 97577-372<br>Fone: (55) 98437-5004</div>
+        <hr>
+        <div class="c"><b>#${o.nfeNumber} - DESTINATÁRIO / CONSUMIDOR</b></div>
+        <div class="small">CONSUMIDOR NÃO IDENTIFICADO${o.customerName ? ` - ${escapeHtml(o.customerName)}` : ''}</div>
+        <hr>
+        <table>${rows}${feeRow}</table>
+        <hr>
+        <table>
+          <tr><td>SUBTOTAL</td><td class="r">${BRL(o.subtotal)}</td></tr>
+          ${(o.discount || 0) > 0 ? `<tr><td>DESCONTO</td><td class="r">-${BRL(o.discount)}</td></tr>` : ''}
+          <tr class="tot"><td>VALOR TOTAL</td><td class="r">${BRL(o.total)}</td></tr>
+        </table>
+        <hr>
+        <div><b>PAGAMENTO:</b> ${payMap[o.payment] || escapeHtml(o.payment)}${o.payment === 'dinheiro' && o.changeFor > 0 ? ` (troco para ${BRL(o.changeFor)})` : ''}</div>
+        <hr>
+        <div class="c"><b>CONSULTA DE AUTENTICIDADE</b></div>
+        <div class="chave">${chaveFmt}</div>
+        <div class="small c">Protocolo de autorização: ${o.nfeProtocol || '-'}<br>Consulte pelo QR Code ou em www.sefaz.rs.gov.br/nfce/consulta</div>
+        <div class="qrcode">${qr ? `<img src="${qr}">` : ''}</div>
+        <hr>
+        <div class="small c">Rincao Lanches - Obrigado pela preferência!</div>
+      </body></html>`;
+      const w = window.open('', '_blank', 'width=420,height=720');
+      if (!w) { alert('Permita pop-ups para imprimir o DANFE'); return; }
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 400);
+    } catch (e: any) {
+      alert('Falha ao gerar o DANFE: ' + (e?.message || e));
+    }
+  };
+
   const nfeApi = async (payload: any) => {
     const r = await fetch('/api/nfe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const d = await r.json().catch(() => ({}));
@@ -355,30 +430,35 @@ export default function Pedidos() {
       n++;
       const { ok, d } = await nfeApi({ action: 'status', orderId });
       load();
-      if (!ok || ['issued', 'error', 'cancelled'].includes(d.status) || n >= 45) clearInterval(t);
+      if (!ok || ['issued', 'error', 'cancelled'].includes(d.status) || n >= 15) clearInterval(t);
     }, 2000);
   };
 
   const emitNfe = async (o: any) => {
     if (!confirm(`Emitir nota fiscal (NFC-e) do pedido #${o.number}?`)) return;
+    document.body.style.cursor = 'wait';
     const { ok, d } = await nfeApi({ action: 'emit', orderId: o.id });
+    document.body.style.cursor = '';
     if (!ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao emitir a nota')); load(); return; }
-    pollNfe(o.id);
+    alert(`✅ Nota fiscal #${d.numero} emitida com sucesso!`);
     load();
   };
 
   const cancelNfe = async (o: any) => {
     const motivo = prompt('Motivo do cancelamento (mínimo 15 caracteres):', `Cancelamento do pedido #${o.number} solicitado pelo cliente`);
     if (!motivo) return;
+    document.body.style.cursor = 'wait';
     const { ok, d } = await nfeApi({ action: 'cancel', orderId: o.id, motivo });
+    document.body.style.cursor = '';
     if (!ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao cancelar a nota')); return; }
-    pollNfe(o.id);
+    alert('❌ Nota fiscal cancelada.');
     load();
   };
 
   const onNfe = (o: any, mode?: string) => {
     if (mode === 'cancel') { cancelNfe(o); return; }
-    if (o.nfeStatus === 'issued') { window.open(`/api/nfe?orderId=${o.id}&doc=danfe`, '_blank'); return; }
+    if (mode === 'danfe') { printDanfe(o); return; }
+    if (o.nfeStatus === 'issued') { printDanfe(o); return; }
     if (o.nfeStatus === 'cancelled') { alert('Nota fiscal já cancelada.'); return; }
     if (o.nfeStatus === 'error') { emitNfe(o); return; }
     if (o.nfeStatus) { pollNfe(o.id); return; }

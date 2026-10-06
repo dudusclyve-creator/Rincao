@@ -770,7 +770,7 @@ function CartDrawer(props: any) {
 /* ======================== CHECKOUT ======================== */
 function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, deliveryFee, addressText, setAddressText, onOrderDone, savedAddress }: any) {
   const cart = useCart();
-  const [f, setF] = useState({ name: '', phone: '', payment: 'pix', changeFor: '' });
+  const [f, setF] = useState({ name: '', phone: '', cpf: '', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
   const fee = deliveryType === 'entrega' ? deliveryFee : 0;
@@ -788,13 +788,17 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
   const finish = async () => {
     if (submitting) return;
     if (!f.name || !f.phone) { showToast('Informe nome e telefone', 'warning'); return; }
+    if (deliveryType === 'entrega') {
+      const digits = (f.cpf || '').replace(/\D/g, '');
+      if (digits.length !== 11) { showToast('Para entrega, informe o CPF com 11 dígitos (exigido pela nota fiscal)', 'warning'); return; }
+    }
     if (deliveryType === 'entrega' && restaurant.minOrder && cart.subtotal < restaurant.minOrder) {
       showToast(`Pedido mínimo: ${BRL(restaurant.minOrder)}`, 'warning'); return;
     }
     setSubmitting(true);
     try {
     const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-      customerName: f.name, customerPhone: f.phone, street: addr.street, number: addr.number, complement: addr.complement, district: addr.district, reference: '',
+      customerName: f.name, customerPhone: f.phone, customerCpf: f.cpf, street: addr.street, number: addr.number, complement: addr.complement, district: addr.district, reference: '',
       addressText: addressText || (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
       type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
       subtotal: cart.subtotal, deliveryFee: fee, discount: 0,
@@ -844,6 +848,13 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
           <div className="space-y-2.5">
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Seu nome *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
+            {deliveryType === 'entrega' && (
+              <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF * (11 dígitos, para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => {
+                const d = e.target.value.replace(/\D/g, '').slice(0, 11);
+                const masked = d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
+                setF({ ...f, cpf: masked });
+              }} />
+            )}
           </div>
 
           <div className="mt-5">
