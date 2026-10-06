@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
-import { emitirPedido } from '@/lib/nfe-order';
 
 export async function GET(req: Request) {
   try {
@@ -117,7 +116,7 @@ export async function POST(req: Request) {
       status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
       subtotal, deliveryFee: fee, discount: Number(b.discount || 0),
       total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
-      source: b.source || 'cardapio',
+      source: b.source || 'cardapio', emitRequested: !!b.emitRequested,
       items: { create: (b.items || []).map((it: any) => ({
         productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
         unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
@@ -144,20 +143,16 @@ export async function POST(req: Request) {
     }
   }
 
-  // emissao automatica da NFC-e quando o cliente pediu nota no cardapio
-  if (b.emitNfe && b.source === 'cardapio') {
-    try { await emitirPedido(order.id); } catch {}
-    const fresh = await prisma.order.findUnique({ where: { id: order.id }, include: { items: true, customer: true } });
-    if (fresh) return NextResponse.json(fresh);
-  }
-
   return NextResponse.json(order);
 }
 
 export async function PATCH(req: Request) {
   const b = await req.json();
   const data: any = {};
-  if (b.status) data.status = b.status;
+  if (b.status) {
+    data.status = b.status;
+    data.endedAt = (b.status === 'concluido' || b.status === 'cancelado') ? new Date() : null;
+  }
   if (b.driverId !== undefined) data.driverId = b.driverId;
   if (b.tableId !== undefined) data.tableId = b.tableId || null;
   if (b.customerName !== undefined) data.customerName = b.customerName;

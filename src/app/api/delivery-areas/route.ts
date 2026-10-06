@@ -55,6 +55,11 @@ export async function POST(req: Request) {
   } else if (b.action === 'delete') {
     const idx = areas.findIndex((a: any) => a.id === b.id);
     if (idx >= 0) areas.splice(idx, 1);
+  } else if (b.action === 'reorder' && Array.isArray(b.ids)) {
+    const byId = new Map(areas.map((a: any) => [a.id, a]));
+    const next = b.ids.map((id: string) => byId.get(id)).filter(Boolean);
+    for (const a of areas) if (!b.ids.includes(a.id)) next.push(a);
+    areas.splice(0, areas.length, ...next);
   }
 
   await prisma.setting.upsert({ where: { key: 'deliveryAreas' }, update: { value: JSON.stringify({ areas }) }, create: { key: 'deliveryAreas', value: JSON.stringify({ areas }) } });

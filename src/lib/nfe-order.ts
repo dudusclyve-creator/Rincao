@@ -10,16 +10,19 @@ async function getFiscal(): Promise<any> {
 }
 
 async function nextNumero(): Promise<number> {
-  const s = await prisma.setting.findUnique({ where: { key: 'nfeCounter' } });
+  // contador por ambiente: producao comeca em 1 (homologacao nao vale na producao)
+  const key = 'nfeCounter' + (process.env.NFE_AMBIENTE === '1' ? 'Prod' : '');
+  const s = await prisma.setting.findUnique({ where: { key } });
   const last = s ? (JSON.parse(s.value).last || 0) : 0;
   return last + 1;
 }
 
 async function saveNumero(numero: number) {
   try {
+    const key = 'nfeCounter' + (process.env.NFE_AMBIENTE === '1' ? 'Prod' : '');
     await prisma.setting.upsert({
-      where: { key: 'nfeCounter' },
-      create: { key: 'nfeCounter', value: JSON.stringify({ last: numero }) },
+      where: { key },
+      create: { key, value: JSON.stringify({ last: numero }) },
       update: { value: JSON.stringify({ last: numero }) },
     });
   } catch {}

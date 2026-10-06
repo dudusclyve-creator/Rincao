@@ -1,11 +1,14 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { BRL } from '@/lib/utils';
 import {
   MapPin, Phone, Plus, Trash2, X, Check, Pencil,
   ChevronDown, ChevronUp, Circle, CircleDot, Ban, Zap,
-  Truck, BarChart3, Users, LayoutGrid, Banknote, CreditCard, Smartphone, CircleCheck
+  Truck, BarChart3, Users, LayoutGrid, Banknote, CreditCard, Smartphone, CircleCheck, GripVertical
 } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const MotorcycleIcon = ({ size = 14, className = '', style }: { size?: number; className?: string; style?: React.CSSProperties }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
@@ -51,6 +54,36 @@ function getPaymentDisplay(payment: string) {
 
 type Tab = 'pedidos' | 'entregadores' | 'bairros' | 'relatorio';
 
+function SortableAreaRow({ id, dim, children }: { id: string; dim?: boolean; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : dim ? 0.4 : 1,
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}
+      className="rounded-xl px-3 py-2.5 touch-none"
+    >
+      <div className="flex items-center gap-2">
+        <button
+          {...attributes}
+          {...listeners}
+          title="Arraste para reordenar"
+          className="shrink-0 cursor-grab active:cursor-grabbing focus:outline-none touch-none"
+          style={{ color: '#6b7280' }}
+        >
+          <GripVertical size={14} />
+        </button>
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function Entregas() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -68,6 +101,8 @@ export default function Entregas() {
   const [editAreaName, setEditAreaName] = useState('');
   const [editAreaFee, setEditAreaFee] = useState(0);
   const [editAreaCity, setEditAreaCity] = useState('');
+  const draggingRef = useRef(false);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const load = useCallback(async () => {
     const [d, o, a] = await Promise.all([
@@ -80,7 +115,7 @@ export default function Entregas() {
     setAreas(a);
   }, []);
 
-  useEffect(() => { load(); const t = setInterval(load, 8000); return () => clearInterval(t); }, [load]);
+  useEffect(() => { load(); const t = setInterval(() => { if (!draggingRef.current) load(); }, 8000); return () => clearInterval(t); }, [load]);
 
   const delivery = orders.filter((o: any) => o.type === 'entrega' && !['concluido', 'cancelado'].includes(o.status));
   const reportOrders = orders.filter((o: any) => o.type === 'entrega' && o.driverId);
@@ -133,6 +168,25 @@ export default function Entregas() {
     load();
   };
 
+  const onAreaDragEnd = async (event: DragEndEvent, city: string) => {
+    try {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const cityOf = (a: any) => (a.city || 'Santana do Livramento');
+      const cityAreas = areas.filter((a: any) => cityOf(a) === city);
+      const oldIndex = cityAreas.findIndex((a: any) => a.id === active.id);
+      const newIndex = cityAreas.findIndex((a: any) => a.id === over.id);
+      if (oldIndex < 0 || newIndex < 0) return;
+      const reordered = arrayMove(cityAreas, oldIndex, newIndex);
+      let ci = 0;
+      const next = areas.map((a: any) => (cityOf(a) === city ? reordered[ci++] : a));
+      setAreas(next);
+      await fetch('/api/delivery-areas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reorder', ids: next.map((a: any) => a.id) }) });
+    } finally {
+      draggingRef.current = false;
+    }
+  };
+
   const tabs: { id: Tab; label: string; icon: any; count: number; color: string }[] = [
     { id: 'pedidos', label: 'Pedidos Ativos', icon: Zap, count: delivery.length, color: '#f59e0b' },
     { id: 'entregadores', label: 'Entregadores', icon: Users, count: drivers.length, color: '#22c55e' },
@@ -154,7 +208,7 @@ export default function Entregas() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 rounded-xl mb-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="flex flex-wrap gap-1 p-1 rounded-xl mb-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -328,11 +382,11 @@ export default function Entregas() {
       )}
 
       {tab === 'bairros' && (
-        <div className="grid lg:grid-cols-2 gap-4">
+        <div className="grid lg:grid-cols-2 gap-4 items-start">
           {/* Add Area */}
-          <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="min-w-0 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Novo bairro</p>
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
               <select className="input text-xs w-44 shrink-0" value={newAreaCity} onChange={(e) => setNewAreaCity(e.target.value)}>
                 <option value="Santana do Livramento">Santana do Livramento</option>
                 <option value="Rivera">Rivera</option>
@@ -349,7 +403,7 @@ export default function Entregas() {
           </div>
 
           {/* Areas List grouped by city */}
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0">
             {(['Santana do Livramento', 'Rivera'] as const).map((city) => {
               const cityAreas = areas.filter((a: any) => (a.city || 'Santana do Livramento') === city);
               if (cityAreas.length === 0) return null;
@@ -360,44 +414,54 @@ export default function Entregas() {
                     <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: city === 'Santana do Livramento' ? '#22c55e' : '#a855f7' }}>{city}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280' }}>{cityAreas.length}</span>
                   </div>
-                  <div className="space-y-1.5">
-                    {cityAreas.map((a: any) => (
-                      <div key={a.id} className="rounded-xl px-3 py-2.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', opacity: a.active === false ? 0.4 : 1 }}>
-                        {editingArea === a.id ? (
-                          <div className="space-y-2">
-                            <select className="input text-xs w-full" value={editAreaCity} onChange={(e) => setEditAreaCity(e.target.value)}>
-                              <option value="Santana do Livramento">Santana do Livramento</option>
-                              <option value="Rivera">Rivera</option>
-                            </select>
-                            <div className="flex gap-2 items-center">
-                              <input className="input flex-1 text-xs" placeholder="Bairro" value={editAreaName} onChange={(e) => setEditAreaName(e.target.value)} />
-                              <div className="relative w-24 shrink-0">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[11px] font-bold z-10 pointer-events-none">R$</span>
-                                <input className="input text-xs w-full" style={{ paddingLeft: '26px' }} type="number" value={editAreaFee} onChange={(e) => setEditAreaFee(Number(e.target.value))} />
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={() => { draggingRef.current = true; }}
+                    onDragEnd={(e: DragEndEvent) => onAreaDragEnd(e, city)}
+                    onDragCancel={() => { draggingRef.current = false; }}
+                  >
+                    <SortableContext items={cityAreas.map((a: any) => a.id)} strategy={verticalListSortingStrategy}>
+                      <div className="space-y-1.5">
+                        {cityAreas.map((a: any) => (
+                          <SortableAreaRow key={a.id} id={a.id} dim={a.active === false}>
+                            {editingArea === a.id ? (
+                              <div className="space-y-2">
+                                <select className="input text-xs w-full" value={editAreaCity} onChange={(e) => setEditAreaCity(e.target.value)}>
+                                  <option value="Santana do Livramento">Santana do Livramento</option>
+                                  <option value="Rivera">Rivera</option>
+                                </select>
+                                <div className="flex flex-wrap gap-2 items-center">
+                                  <input className="input flex-1 min-w-[120px] text-xs" placeholder="Bairro" value={editAreaName} onChange={(e) => setEditAreaName(e.target.value)} />
+                                  <div className="relative w-24 shrink-0">
+                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-[11px] font-bold z-10 pointer-events-none">R$</span>
+                                    <input className="input text-xs w-full" style={{ paddingLeft: '26px' }} type="number" value={editAreaFee} onChange={(e) => setEditAreaFee(Number(e.target.value))} />
+                                  </div>
+                                  <button onClick={() => updateArea(a.id)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }}><Check size={12} /></button>
+                                  <button onClick={() => setEditingArea(null)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}><X size={12} /></button>
+                                </div>
                               </div>
-                              <button onClick={() => updateArea(a.id)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }}><Check size={12} /></button>
-                              <button onClick={() => setEditingArea(null)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}><X size={12} /></button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <MapPin size={12} className="text-gray-500" />
-                              <span className="text-xs font-bold text-white">{a.name}</span>
-                              <span className="text-[10px] font-bold" style={{ color: '#22c55e' }}>+{BRL(a.fee)}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button title={a.active !== false ? 'Desativar' : 'Ativar'} onClick={() => toggleAreaActive(a.id, !(a.active !== false))} className="p-1.5 rounded-lg pdv-hover" style={{ color: a.active !== false ? '#22c55e' : '#6b7280' }}>
-                                {a.active !== false ? <CircleDot size={12} /> : <Ban size={12} />}
-                              </button>
-                              <button title="Editar" onClick={() => { setEditingArea(a.id); setEditAreaName(a.name); setEditAreaFee(a.fee); setEditAreaCity(a.city || 'Santana do Livramento'); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400"><Pencil size={12} /></button>
-                              <button title="Excluir" onClick={() => deleteArea(a.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
-                            </div>
-                          </div>
-                        )}
+                            ) : (
+                              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                  <MapPin size={12} className="text-gray-500 shrink-0" />
+                                  <span className="text-xs font-bold text-white">{a.name}</span>
+                                  <span className="text-[10px] font-bold" style={{ color: '#22c55e' }}>+{BRL(a.fee)}</span>
+                                </div>
+                                <div className="flex items-center gap-1 ml-auto">
+                                  <button title={a.active !== false ? 'Desativar' : 'Ativar'} onClick={() => toggleAreaActive(a.id, !(a.active !== false))} className="p-1.5 rounded-lg pdv-hover" style={{ color: a.active !== false ? '#22c55e' : '#6b7280' }}>
+                                    {a.active !== false ? <CircleDot size={12} /> : <Ban size={12} />}
+                                  </button>
+                                  <button title="Editar" onClick={() => { setEditingArea(a.id); setEditAreaName(a.name); setEditAreaFee(a.fee); setEditAreaCity(a.city || 'Santana do Livramento'); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400"><Pencil size={12} /></button>
+                                  <button title="Excluir" onClick={() => deleteArea(a.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                                </div>
+                              </div>
+                            )}
+                          </SortableAreaRow>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 </div>
               );
             })}

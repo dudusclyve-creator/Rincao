@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { FileText, Copy, Check, ExternalLink, CalendarDays } from 'lucide-react';
+import { FileText, Copy, Check, ExternalLink, CalendarDays, Printer, X } from 'lucide-react';
 import { BRL } from '@/lib/utils';
+import { printDanfe } from '@/lib/nfe-print';
 
 const STATUS: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   issued: { label: 'Emitida', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', icon: '✅' },
@@ -82,6 +83,15 @@ export default function NotasPage() {
     if (!o.nfeXml) return;
     const url = URL.createObjectURL(new Blob([o.nfeXml], { type: 'application/xml' }));
     window.open(url, '_blank');
+  };
+  const cancelNota = async (o: any) => {
+    const motivo = prompt(`Motivo do cancelamento da NFC-e nº ${o.nfeNumber} (mínimo 15 caracteres):`, `Cancelamento do pedido #${o.number} solicitado pelo cliente`);
+    if (!motivo) return;
+    const r = await fetch('/api/nfe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', orderId: o.id, motivo }) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao cancelar a nota')); return; }
+    alert('❌ Nota fiscal cancelada.');
+    load();
   };
 
   return (
@@ -184,6 +194,16 @@ export default function NotasPage() {
                       <button onClick={() => openXml(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa' }} title="Ver XML da nota">
                         <ExternalLink size={10} /> XML
                       </button>
+                    )}
+                    {o.nfeStatus === 'issued' && (
+                      <>
+                        <button onClick={() => printDanfe(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }} title="Imprimir 2ª via do DANFE">
+                          <Printer size={10} /> Imprimir
+                        </button>
+                        <button onClick={() => cancelNota(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }} title="Cancelar nota (até 30 min após a emissão)">
+                          <X size={10} /> Cancelar
+                        </button>
+                      </>
                     )}
                     {o.nfeProtocol && (
                       <span className="text-[9px] font-mono" style={{ color: '#4b5563' }} title={`Protocolo: ${o.nfeProtocol}`}>prot {o.nfeProtocol.slice(-8)}</span>

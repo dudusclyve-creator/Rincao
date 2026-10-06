@@ -133,6 +133,7 @@ model Order {
   discount    Float    @default(0)
   total       Float    @default(0)
   note        String   @default("")
+  emitRequested Boolean @default(false)
   tableId     String?
   table       TableMap? @relation(fields: [tableId], references: [id])
   driverId    String?
@@ -152,6 +153,7 @@ model Order {
   nfeProtocol    String?
   nfeIssuedAt    DateTime?
   nfeCancelledAt DateTime?
+  endedAt         DateTime?
   createdAt   DateTime @default(now())
   items       OrderItem[]
   payments    Payment[]
