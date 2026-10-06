@@ -56,12 +56,23 @@ export async function emitirPedido(orderId: string): Promise<EmitResult> {
   if (!process.env.NFE_CERT_PFX_B64) return { ok: false, error: 'NFE_CERT_PFX_B64 não configurada no .env da Vercel', http: 500 };
 
   const fiscal = await getFiscal();
-  const numero = await nextNumero();
+  let numero = await nextNumero();
   let r: any;
-  try {
-    r = await emitir(order, fiscal, numero);
-  } catch (e: any) {
-    return { ok: false, error: e?.message || 'Falha ao enviar para a SEFAZ', http: 502 };
+  // 539 = numero ja usado (sistema antigo do CNPJ): pula para o proximo livre e tenta de novo
+  for (let tentativa = 0; tentativa < 5; tentativa++) {
+    try {
+      r = await emitir(order, fiscal, numero);
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'Falha ao enviar para a SEFAZ', http: 502 };
+    }
+    if (r.ok) break;
+    const erro = String(r.erro || '');
+    const m = erro.match(/chNFe:(\d{44})/);
+    const usado = m ? parseInt(m[1].slice(25, 34), 10) : 0;
+    if (!/^\s*539\b/.test(erro) || usado < numero) break;
+    numero = usado + 1;
+    await saveNumero(usado); // persiste o avanco: se cair o timeout, o proximo clique continua daqui
+    r.erro = `${erro} — número ${usado} já usado pelo sistema antigo; seguindo para o próximo`;
   }
   if (r.ok) {
     await saveNumero(numero);
@@ -81,9 +92,15 @@ export async function emitirPedido(orderId: string): Promise<EmitResult> {
     });
     return { ok: true, numero, chave: r.chave, nProt: r.nProt };
   }
+  let erroFinal = /^\s*539\b/.test(String(r.erro || ''))
+    ? `${r.erro} — clique em Emitir novamente para tentar o próximo número`
+    : r.erro;
+  if (/^\s*464\b/.test(String(r.erro || ''))) {
+    erroFinal = `${r.erro} — token CSC de produção inválido: confira NFE_CSC_ID e NFE_CSC_TOKEN_PROD na Vercel (produção tem token próprio, diferente do de homologação)`;
+  }
   await prisma.order.update({
     where: { id: order.id },
-    data: { nfeStatus: 'error', nfeError: (r.erro || 'Erro desconhecido').slice(0, 500), nfeKey: r.chave || null },
+    data: { nfeStatus: 'error', nfeError: (erroFinal || 'Erro desconhecido').slice(0, 500), nfeKey: r.chave || null },
   });
   if (r.xml) {
     try { writeFileSync('last_rejected.xml', r.xml); } catch {}
