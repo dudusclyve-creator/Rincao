@@ -241,13 +241,13 @@ export function printReceiptText(text: string, width: '58mm' | '80mm' = '80mm') 
     w.document.write(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Impressao</title>
 <style>
-  @page { size: ${width} auto; margin: 3mm; }
+  @page { size: ${width} auto; margin: 4mm; }
   html, body { margin: 0; padding: 0; background: #fff; }
   .logobox { text-align: center; margin: 0 0 2mm; }
   #logo { display: none; max-width: 55mm; max-height: 24mm; }
   pre.receipt {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 11.5px;
+    font-family: 'Courier New', 'Liberation Mono', monospace;
+    font-size: 11px;
     font-weight: 700;
     line-height: 1.6;
     margin: 0;
