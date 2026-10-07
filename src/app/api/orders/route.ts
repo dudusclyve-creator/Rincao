@@ -3,6 +3,64 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
+// "pix:20,dinheiro:30" -> [{method:'pix',amount:20},{method:'dinheiro',amount:30}]
+// forma simples ("pix") -> [{method:'pix',amount:total}]
+function parsePayments(payment: string, total: number): { method: string; amount: number }[] {
+  const raw = String(payment || 'pix');
+  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const parsed: { method: string; amount: number }[] = [];
+  for (const p of parts) {
+    const i = p.lastIndexOf(':');
+    if (i > 0) {
+      const amount = Number(p.slice(i + 1));
+      if (Number.isFinite(amount) && amount > 0) { parsed.push({ method: p.slice(0, i), amount: Math.round(amount * 100) / 100 }); continue; }
+    }
+    parsed.push({ method: p, amount: 0 });
+  }
+  if (parsed.length === 0) return [{ method: 'pix', amount: total }];
+  if (parsed.every((x) => x.amount === 0)) return [{ method: parsed[0].method, amount: total }];
+  const sum = parsed.reduce((s, x) => s + x.amount, 0);
+  const diff = Math.round((total - sum) * 100) / 100;
+  if (Math.abs(diff) > 0.005) parsed[parsed.length - 1].amount = Math.round((parsed[parsed.length - 1].amount + diff) * 100) / 100;
+  return parsed.filter((x) => x.amount > 0);
+}
+
+function addonsOf(it: any): any[] {
+  if (Array.isArray(it.addons)) return it.addons;
+  try { return JSON.parse(it.addonsJson || '[]'); } catch { return []; }
+}
+
+function lineTotal(it: any): number {
+  const extra = addonsOf(it).reduce((s: number, a: any) => s + Number(a.price || 0) * Number(a.qty || 1), 0);
+  return Number(it.qty || 0) * (Number(it.unitPrice || 0) + extra);
+}
+
+// Mantem payments, string de pagamento e movimentos do caixa batendo com o total novo
+// (devolve a string de pagamento final)
+async function syncOrderMoney(orderId: string, number: number, total: number): Promise<string> {
+  const ord = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!ord) return '';
+  let paymentStr = String(ord.payment || 'pix');
+  const parts = parsePayments(paymentStr, total);
+  if (paymentStr.includes(',')) {
+    const norm = parts.map((x) => `${x.method}:${x.amount}`).join(',');
+    if (norm !== paymentStr) { paymentStr = norm; await prisma.order.update({ where: { id: orderId }, data: { payment: paymentStr } }); }
+  }
+  await prisma.payment.deleteMany({ where: { orderId } });
+  await prisma.payment.createMany({ data: parts.map((p) => ({ orderId, method: p.method, amount: p.amount })) });
+  const openReg = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
+  if (openReg) {
+    const hasMv = await prisma.cashMovement.count({ where: { orderId, kind: 'venda', registerId: openReg.id } });
+    if (hasMv > 0) {
+      await prisma.cashMovement.deleteMany({ where: { orderId, kind: 'venda', registerId: openReg.id } });
+      for (const p of parts) {
+        await prisma.cashMovement.create({ data: { registerId: openReg.id, kind: 'venda', method: p.method, amount: p.amount, reason: `Pedido #${number}`, orderId } });
+      }
+    }
+  }
+  return paymentStr;
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -36,12 +94,13 @@ export async function POST(req: Request) {
       }
     }
     const remaining = order.items.filter((_: any, i: number) => i !== b.itemIndex);
-    const newSubtotal = remaining.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+    const newSubtotal = remaining.reduce((s: number, it: any) => s + lineTotal(it), 0);
     const newTotal = Math.max(0, newSubtotal + (order.type === 'entrega' ? order.deliveryFee : 0) - order.discount);
     if (remaining.length === 0) {
       await prisma.order.delete({ where: { id: order.id } });
     } else {
       await prisma.order.update({ where: { id: order.id }, data: { subtotal: newSubtotal, total: newTotal } });
+      await syncOrderMoney(order.id, order.number, newTotal);
     }
     return NextResponse.json({ ok: true });
   }
@@ -54,12 +113,13 @@ export async function POST(req: Request) {
       unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
     }));
     await prisma.orderItem.createMany({ data: newItems });
-    const addedTotal = newItems.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+    const addedTotal = newItems.reduce((s: number, it: any) => s + lineTotal(it), 0);
     const updated = await prisma.order.update({
       where: { id: order.id },
       data: { subtotal: order.subtotal + addedTotal, total: order.total + addedTotal },
       include: { items: true, customer: true, table: true, driver: true },
     });
+    updated.payment = await syncOrderMoney(order.id, order.number, updated.total);
     for (const it of newItems) {
       if (!it.productId) continue;
       const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
@@ -99,7 +159,7 @@ export async function POST(req: Request) {
     await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
     await prisma.orderItem.createMany({ data: newItems.map((it: any) => ({ ...it, orderId: order.id })) });
 
-    const subtotal = newItems.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+    const subtotal = newItems.reduce((s: number, it: any) => s + lineTotal(it), 0);
     const type = b.type !== undefined ? String(b.type) : order.type;
     const fee = type === 'entrega' ? Number(b.deliveryFee ?? order.deliveryFee) : 0;
     const discount = Number(b.discount ?? order.discount);
@@ -129,13 +189,7 @@ export async function POST(req: Request) {
     };
     const updated = await prisma.order.update({ where: { id: order.id }, data, include: { items: true, customer: true, table: true, driver: true } });
 
-    await prisma.payment.deleteMany({ where: { orderId: order.id } });
-    await prisma.payment.create({ data: { orderId: order.id, method: updated.payment, amount: total } });
-
-    const mv = await prisma.cashMovement.findFirst({ where: { orderId: order.id, kind: 'venda' }, include: { register: true } });
-    if (mv && mv.register.status === 'aberto') {
-      await prisma.cashMovement.update({ where: { id: mv.id }, data: { amount: total, method: updated.payment } });
-    }
+    updated.payment = await syncOrderMoney(order.id, order.number, total);
 
     return NextResponse.json(updated);
   }
@@ -165,7 +219,8 @@ export async function POST(req: Request) {
     }
     customerId = cust.id;
   }
-  const subtotal = Number(b.subtotal || 0);
+  const itemsIn = Array.isArray(b.items) ? b.items : [];
+  const subtotal = itemsIn.length > 0 ? itemsIn.reduce((s: number, it: any) => s + lineTotal(it), 0) : Number(b.subtotal || 0);
   const fee = b.type === 'entrega' ? Number(b.deliveryFee || 0) : 0;
   const total = Math.max(0, subtotal + fee - Number(b.discount || 0));
 
@@ -191,7 +246,7 @@ export async function POST(req: Request) {
         productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
         unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
       })) },
-      payments: { create: [{ method: b.payment || 'pix', amount: total }] },
+      payments: { create: parsePayments(b.payment || 'pix', total).map((p) => ({ method: p.method, amount: p.amount })) },
     },
     include: { items: true },
   });
@@ -209,7 +264,9 @@ export async function POST(req: Request) {
   if (b.source === 'cardapio') {
     const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (open) {
-      await prisma.cashMovement.create({ data: { registerId: open.id, kind: 'venda', method: b.payment || 'pix', amount: total, reason: `Pedido #${order.number}`, orderId: order.id } });
+      for (const p of parsePayments(b.payment || 'pix', total)) {
+        await prisma.cashMovement.create({ data: { registerId: open.id, kind: 'venda', method: p.method, amount: p.amount, reason: `Pedido #${order.number}`, orderId: order.id } });
+      }
     }
   }
 
@@ -241,6 +298,9 @@ export async function PATCH(req: Request) {
         await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { increment: it.qty } } });
       }
     }
+    // estorna a venda do caixa (so no caixa aberto; caixa fechado nao pode ser alterado)
+    const openReg = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
+    if (openReg) await prisma.cashMovement.deleteMany({ where: { orderId: order.id, kind: 'venda', registerId: openReg.id } });
   }
   if (b.status === 'pronto')
     await prisma.notification.create({ data: { kind: 'pronto', text: `Pedido #${order.number} pronto` } });

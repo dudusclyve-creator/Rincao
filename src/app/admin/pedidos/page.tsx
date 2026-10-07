@@ -629,7 +629,7 @@ export default function Pedidos() {
 
       {/* Modal editar pedido */}
       {editOrder && (() => {
-        const subtotal = editItems.reduce((s: number, it: any) => s + it.qty * it.unitPrice, 0);
+        const subtotal = editItems.reduce((s: number, it: any) => s + it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)), 0);
         const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
         const discount = Number(editForm.discount || 0);
         const total = Math.max(0, subtotal + fee - discount);
@@ -673,7 +673,7 @@ export default function Pedidos() {
                             <p className="text-[12px] font-bold text-white truncate">{it.name}</p>
                             <p className="text-[10px] text-gray-500">{it.qty} × {BRL(it.unitPrice)}</p>
                           </div>
-                          <span className="text-[12px] font-black shrink-0" style={{ color: '#4ade80' }}>{BRL(it.qty * it.unitPrice)}</span>
+                          <span className="text-[12px] font-black shrink-0" style={{ color: '#4ade80' }}>{BRL(it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)))}</span>
                           <button onClick={() => setEditItems((arr: any[]) => arr.filter((_, i) => i !== idx))} title="Remover item" className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:scale-110 shrink-0" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
                             <Trash2 size={13} />
                           </button>

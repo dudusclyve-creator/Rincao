@@ -174,6 +174,7 @@ export default function PDV() {
   const [selectedTable, setSelectedTable] = useState(saved?.selectedTable || '');
   const [changeFor, setChangeFor] = useState(0);
   const [splitPayment, setSplitPayment] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [payments, setPayments] = useState<{ method: string; amount: number }[]>([{ method: 'pix', amount: 0 }]);
   const [deliveryCity, setDeliveryCity] = useState(saved?.deliveryCity || '');
   const [deliveryBairro, setDeliveryBairro] = useState(saved?.deliveryBairro || '');
@@ -279,6 +280,16 @@ export default function PDV() {
   };
 
   const finish = async () => {
+    if (finishing || !cart.length) return;
+    if (splitPayment) {
+      const sum = Math.round(payments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
+      if (Math.abs(sum - total) > 0.01) {
+        showToast(`Pagamentos (${BRL(sum)}) nao fecham com o total (${BRL(total)})`, 'error');
+        return;
+      }
+    }
+    setFinishing(true);
+    try {
     const tableObj = tables.find((t: any) => t.id === selectedTable);
     const addressText = type === 'entrega'
       ? `${deliveryStreet}${deliveryNum ? ', ' + deliveryNum : ''}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`
@@ -299,27 +310,47 @@ export default function PDV() {
         items: cart.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons || [], note: i.note || '' })),
       })
     }).then((r) => r.json());
-    await fetch('/api/cash', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: o.total, orderId: o.id, reason: `PDV #${o.number}` })
-    });
+    if (!o?.id) {
+      showToast('Erro ao criar pedido — tente novamente', 'error');
+      return;
+    }
+    // limpa o carrinho na hora: se algo falhar depois, nao da pra finalizar de novo
+    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
+    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
+    localStorage.removeItem(PDV_STORAGE_KEY);
+    try {
+      if (splitPayment) {
+        for (const p of payments) {
+          if (Number(p.amount) <= 0) continue;
+          await fetch('/api/cash', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'movement', kind: 'venda', method: p.method, amount: Number(p.amount), orderId: o.id, reason: `PDV #${o.number}` })
+          });
+        }
+      } else {
+        await fetch('/api/cash', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: o.total, orderId: o.id, reason: `PDV #${o.number}` })
+        });
+      }
+    } catch {}
     if (type === 'mesa' && selectedTable) {
-      await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: selectedTable, status: 'ocupada' }) });
+      try { await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: selectedTable, status: 'ocupada' }) }); } catch {}
     }
     showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
     const text = receiptText({
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: client || 'PDV', customerPhone: clientPhone || '',
       items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
-      payment, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
+      payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
       addressText, type, changeFor: changeFor > 0 ? changeFor : undefined,
       width: '80mm',
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) }).catch(() => {});
     printReceiptText(text);
-    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
-    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
-    localStorage.removeItem(PDV_STORAGE_KEY);
+    } finally {
+      setFinishing(false);
+    }
   };
 
   const scrollCats = (dir: number) => {
@@ -749,10 +780,10 @@ export default function PDV() {
                   <span className="text-2xl font-black text-white">{BRL(total)}</span>
                 </div>
                 <button onClick={finish}
-                  disabled={!cart.length || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
+                  disabled={!cart.length || finishing || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
                   className="w-full py-5 rounded-xl text-lg font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
                   style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
-                  Finalizar + Imprimir
+                  {finishing ? 'Finalizando...' : 'Finalizar + Imprimir'}
                 </button>
               </div>
             )}

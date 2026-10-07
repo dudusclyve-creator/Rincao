@@ -38,11 +38,28 @@ export async function GET(req: Request) {
   const revenue = active.reduce((s, o) => s + o.total, 0);
   const avgTicket = active.length ? revenue / active.length : 0;
 
-  // By payment method
+  // By payment method (usa os valores reais do dividir conta: "pix:20,dinheiro:30")
   const byPayment: Record<string, number> = {};
   active.forEach((o) => {
-    const methods = o.payment?.includes(',') ? o.payment.split(',').map((p: string) => p.split(':')[0]) : [o.payment || 'outro'];
-    methods.forEach((m) => { byPayment[m] = (byPayment[m] || 0) + o.total / methods.length; });
+    const raw = String(o.payment || 'outro');
+    const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    const parsed: { m: string; a: number }[] = [];
+    for (const p of parts) {
+      const i = p.lastIndexOf(':');
+      if (i > 0) {
+        const a = Number(p.slice(i + 1));
+        if (Number.isFinite(a) && a > 0) { parsed.push({ m: p.slice(0, i), a: Math.round(a * 100) / 100 }); continue; }
+      }
+      parsed.push({ m: p, a: 0 });
+    }
+    if (parsed.length === 1 && parsed[0].a === 0) {
+      byPayment[parsed[0].m || 'outro'] = (byPayment[parsed[0].m || 'outro'] || 0) + o.total;
+    } else {
+      const sum = parsed.reduce((s, x) => s + x.a, 0);
+      const diff = Math.round((o.total - sum) * 100) / 100;
+      if (Math.abs(diff) > 0.005 && parsed.length) parsed[parsed.length - 1].a = Math.round((parsed[parsed.length - 1].a + diff) * 100) / 100;
+      parsed.forEach((x) => { if (x.a > 0) byPayment[x.m] = (byPayment[x.m] || 0) + x.a; });
+    }
   });
 
   // By type
@@ -53,12 +70,14 @@ export async function GET(req: Request) {
     byType[o.type].total += o.total;
   });
 
-  // Top products
+  // Top products (inclui adicionais)
   const prodMap: Record<string, { name: string; qty: number; total: number }> = {};
   active.forEach((o) => o.items.forEach((it) => {
     if (!prodMap[it.productId]) prodMap[it.productId] = { name: it.name, qty: 0, total: 0 };
+    let extra = 0;
+    try { extra = (JSON.parse(it.addonsJson || '[]') as any[]).reduce((s, a) => s + Number(a.price || 0) * Number(a.qty || 1), 0); } catch {}
     prodMap[it.productId].qty += it.qty;
-    prodMap[it.productId].total += it.qty * it.unitPrice;
+    prodMap[it.productId].total += it.qty * (it.unitPrice + extra);
   }));
   const topProducts = Object.values(prodMap).sort((a, b) => b.total - a.total).slice(0, 10);
 
