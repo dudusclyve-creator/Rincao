@@ -94,7 +94,7 @@ export function receiptText(o: {
   type?: string;
   width?: '58mm' | '80mm';
 }) {
-  const cols = o.width === '58mm' ? 28 : 40;
+  const cols = o.width === '58mm' ? 22 : 32;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
   const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
@@ -143,11 +143,18 @@ export function receiptText(o: {
   // retirada / consumo no local / balcao: sem linha de endereco e sem taxa de entrega
   const addrUp = (o.addressText || '').toUpperCase();
   const tipo = (o.type || '').toLowerCase();
-  const semEndereco = tipo === 'retirada' || tipo === 'local' || tipo === 'balcao' || /RETIRADA|CONSUMO NO LOCAL/.test(addrUp);
+  const semEndereco = tipo === 'retirada' || tipo === 'local' || tipo === 'balcao' || tipo === 'mesa' || /RETIRADA|CONSUMO NO LOCAL/.test(addrUp);
   out.push(center(`*** ${o.store.toUpperCase()} ***`));
   out.push(row(`PEDIDO #${o.number}`, o.date));
   out.push('='.repeat(cols));
-  out.push(`Cliente: ${o.customerName}${o.customerPhone ? ` ${o.customerPhone}` : ''}`);
+    out.push(`Cliente: ${o.customerName}${o.customerPhone ? ` ${o.customerPhone}` : ''}`);
+    const tipoTxt = tipo === 'mesa'
+      ? (/^\d+$/.test((o.addressText || '').trim()) ? `Mesa ${o.addressText}` : (o.addressText || 'Mesa'))
+      : tipo === 'entrega' ? 'Entrega'
+      : tipo === 'retirada' ? 'Retirada'
+      : tipo === 'balcao' ? 'Balcão'
+      : tipo ? o.type!.toUpperCase() : '';
+    if (tipoTxt) out.push(row('Tipo', tipoTxt));
   if (o.addressText && !semEndereco) {
     wrapAddress(o.addressText).forEach((part, i) => {
       out.push(i === 0 ? c(`Endereco: ${part}`) : c(`  ${part}`));
@@ -183,7 +190,7 @@ export function cashReceiptText(o: {
   deliveryDayCount?: number;
   driverDay?: { label: string; count: number; fee: number }[];
 }) {
-  const cols = o.width === '58mm' ? 28 : 40;
+  const cols = o.width === '58mm' ? 22 : 32;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
   const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
@@ -247,7 +254,7 @@ export function printReceiptText(text: string, width: '58mm' | '80mm' = '80mm') 
   #logo { display: none; max-width: 55mm; max-height: 24mm; margin: 0 auto; }
   pre.receipt {
     font-family: 'Courier New', 'Liberation Mono', monospace;
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
     line-height: 1.6;
     margin: 0;
