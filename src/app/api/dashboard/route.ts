@@ -16,22 +16,40 @@ export async function GET(req: Request) {
   orders.forEach((o) => {
     const d = o.createdAt.toISOString().slice(0, 10);
     byDay[d] = (byDay[d] || 0) + o.total;
-    if (o.payment?.includes(',')) {
-      o.payment.split(',').forEach((part) => {
-        const [method, amount] = part.split(':');
-        byPay[method] = (byPay[method] || 0) + Number(amount);
-      });
-    } else if (o.payment?.includes(':')) {
-      const [method, amount] = o.payment.split(':');
-      byPay[method] = (byPay[method] || 0) + Number(amount);
-    } else {
-      byPay[o.payment] = (byPay[o.payment] || 0) + o.total;
-    }
     const h = `${String(o.createdAt.getHours()).padStart(2,'0')}h`;
     byHour[h] = (byHour[h] || 0) + 1;
+    const rawPay = String(o.payment || 'outro');
+    if (rawPay.includes(',') || rawPay.includes(':')) {
+      const parts = rawPay.split(',').map((s) => s.trim()).filter(Boolean);
+      const parsed: { m: string; a: number }[] = [];
+      for (const p of parts) {
+        const i = p.lastIndexOf(':');
+        if (i > 0) {
+          const a = Number(p.slice(i + 1));
+          if (Number.isFinite(a) && a > 0) { parsed.push({ m: p.slice(0, i), a: Math.round(a * 100) / 100 }); continue; }
+        }
+        parsed.push({ m: p, a: 0 });
+      }
+      const sum = parsed.reduce((s, x) => s + x.a, 0);
+      let diff = Math.round((o.total - sum) * 100) / 100;
+      if (diff < 0) {
+        for (let i = parsed.length - 1; i >= 0 && diff < -0.005; i--) {
+          const take = Math.min(parsed[i].a, Math.round(-diff * 100) / 100);
+          parsed[i].a = Math.round((parsed[i].a - take) * 100) / 100;
+          diff = Math.round((diff + take) * 100) / 100;
+        }
+      } else if (diff > 0.005 && parsed.length) {
+        parsed[parsed.length - 1].a = Math.round((parsed[parsed.length - 1].a + diff) * 100) / 100;
+      }
+      parsed.forEach((x) => { if (x.a > 0) byPay[x.m] = (byPay[x.m] || 0) + x.a; });
+    } else {
+      byPay[rawPay] = (byPay[rawPay] || 0) + o.total;
+    }
     o.items.forEach((it) => {
       prodCount[it.name] = prodCount[it.name] || { name: it.name, qty: 0, total: 0 };
-      prodCount[it.name].qty += it.qty; prodCount[it.name].total += it.qty * it.unitPrice;
+      let extra = 0;
+      try { extra = (JSON.parse(it.addonsJson || '[]') as any[]).reduce((s, a) => s + Number(a.price || 0) * Number(a.qty || 1), 0); } catch {}
+      prodCount[it.name].qty += it.qty; prodCount[it.name].total += it.qty * (it.unitPrice + extra);
     });
   });
   const today = new Date(); today.setHours(0,0,0,0);

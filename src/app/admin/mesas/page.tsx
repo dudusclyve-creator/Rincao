@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
-import { BRL, playDropSound } from '@/lib/utils';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { BRL, playDropSound, showToast } from '@/lib/utils';
 import {
   Users, Plus, Minus, X, Search, ArrowRightLeft, Receipt,
   User, ChevronDown, ChevronUp, CreditCard, Banknote, Smartphone,
@@ -410,6 +410,8 @@ export default function Mesas() {
   const [clientNames, setClientNames] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(true);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+  const closingRef = useRef(false);
 
   const load = useCallback(async () => {
     const [t, o, m] = await Promise.all([
@@ -482,14 +484,30 @@ export default function Mesas() {
   };
 
   const closeTable = async (payment: string, received: number) => {
-    if (!activeTableId) return;
-    for (const o of activeOrders) {
-      await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, status: 'concluido', payment }) });
-      await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: o.total, orderId: o.id, reason: `${activeTable?.number} #${o.number}` }) });
+    if (!activeTableId || closingRef.current) return;
+    closingRef.current = true;
+    setClosing(true);
+    try {
+      let fail: string | null = null;
+      for (const o of activeOrders) {
+        const pr = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, status: 'concluido', payment: o.source === 'pdv' ? undefined : payment }) }).then((x) => x.json()).catch(() => null);
+        if (!pr || pr.error) { fail = pr?.error || 'falha na conexao'; break; }
+        if (o.source === 'pdv') continue; // venda ja lancada no caixa pelo PDV
+        const mr = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: Number(pr.total ?? o.total), orderId: o.id, reason: `${activeTable?.number} #${o.number}` }) }).then((x) => x.json()).catch(() => null);
+        if (!mr || mr.error) { fail = mr?.error || 'falha na conexao'; break; }
+      }
+      if (fail) {
+        showToast(`Mesa nao fechada: ${fail}`, 'error');
+        await load();
+        return;
+      }
+      await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: activeTableId, status: 'livre' }) });
+      setModalClose(null);
+      await load();
+    } finally {
+      closingRef.current = false;
+      setClosing(false);
     }
-    await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: activeTableId, status: 'livre' }) });
-    setModalClose(null);
-    load();
   };
 
   const closeAllModals = () => {

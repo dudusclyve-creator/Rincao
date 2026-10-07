@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { BRL, cashReceiptText, playCashSound, printReceiptText } from '@/lib/utils';
+import { BRL, cashReceiptText, playCashSound, printReceiptText, showToast } from '@/lib/utils';
 import {
   DollarSign, Lock, Unlock, ArrowDownCircle, ArrowUpCircle, History,
   Smartphone, Banknote, CreditCard, AlertTriangle, CheckCircle2, X,
@@ -19,6 +19,46 @@ const MOVEMENT_TYPES = [
   { id: 'sangria', label: 'Sangria', icon: Minus, color: '#ef4444', desc: 'Retirada de dinheiro do caixa' },
   { id: 'suprimento', label: 'Suprimento', icon: Plus, color: '#22c55e', desc: 'Adição de dinheiro ao caixa' },
 ];
+
+function accumulateByMethod(acc: Record<string, number>, m: any) {
+  const amount = Number(m.amount || 0);
+  const raw = String(m.method || 'outro');
+  const parts = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+  const parsed: { k: string; v: number }[] = [];
+  for (const p of parts) {
+    const i = p.lastIndexOf(':');
+    if (i > 0) {
+      const v = Number(p.slice(i + 1));
+      if (Number.isFinite(v) && v > 0) { parsed.push({ k: p.slice(0, i), v: Math.round(v * 100) / 100 }); continue; }
+    }
+    parsed.push({ k: p, v: 0 });
+  }
+  if (!parsed.length) {
+    acc['outro'] = (acc['outro'] || 0) + amount;
+    return;
+  }
+  if (parsed.length === 1 && parsed[0].v === 0) {
+    const k = parsed[0].k || 'outro';
+    acc[k] = (acc[k] || 0) + amount;
+    return;
+  }
+  const sum = parsed.reduce((s, x) => s + x.v, 0);
+  let diff = Math.round((amount - sum) * 100) / 100;
+  if (diff < 0) {
+    for (let i = parsed.length - 1; i >= 0 && diff < -0.005; i--) {
+      const take = Math.min(parsed[i].v, Math.round(-diff * 100) / 100);
+      parsed[i].v = Math.round((parsed[i].v - take) * 100) / 100;
+      diff = Math.round((diff + take) * 100) / 100;
+    }
+  } else if (diff > 0.005 && parsed.length) {
+    parsed[parsed.length - 1].v = Math.round((parsed[parsed.length - 1].v + diff) * 100) / 100;
+  }
+  parsed.forEach((x) => { if (x.v > 0) acc[x.k] = (acc[x.k] || 0) + x.v; });
+}
+
+function extraMethods(byMethod: Record<string, number>) {
+  return Object.entries(byMethod).filter(([k]) => !PAYMENT_METHODS.some((p) => p.id === k));
+}
 
 function StatCard({ icon: Icon, label, value, color, sub }: { icon: any; label: string; value: string; color: string; sub?: string }) {
   return (
@@ -42,8 +82,20 @@ function MovementItem({ m }: { m: any }) {
   const isSaida = ['sangria', 'saida'].includes(m.kind);
   const color = isVenda ? '#22c55e' : isSaida ? '#ef4444' : '#3b82f6';
   const Icon = isVenda ? TrendingUp : isSaida ? TrendingDown : ArrowDownCircle;
-  const method = PAYMENT_METHODS.find((p) => p.id === m.method);
-  const MethodIcon = method?.icon || Banknote;
+  const methodLabel = (() => {
+    const raw = String(m.method || '');
+    const known = PAYMENT_METHODS.find((p) => p.id === raw);
+    if (known) return known.label;
+    const parts = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+    const labels = parts.map((p) => {
+      const i = p.lastIndexOf(':');
+      const key = i > 0 ? p.slice(0, i) : p;
+      return PAYMENT_METHODS.find((x) => x.id === key)?.label || key;
+    });
+    return labels.join(' + ') || 'outro';
+  })();
+  const methodIcon = PAYMENT_METHODS.find((p) => p.id === String(m.method || ''));
+  const MethodIcon = methodIcon?.icon || Banknote;
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 pdv-hover" style={{ background: 'rgba(255,255,255,0.02)' }}>
@@ -52,11 +104,11 @@ function MovementItem({ m }: { m: any }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-bold text-white truncate">
-          {m.kind === 'venda' ? `Pedido ${m.reason || ''}` : m.reason || m.kind}
+          {m.kind === 'venda' ? (m.reason || 'Pedido') : (m.reason || m.kind)}
         </p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <MethodIcon size={9} style={{ color: method?.color || '#9ca3af' }} />
-          <span className="text-[10px] font-bold" style={{ color: '#6b7280' }}>{m.method}</span>
+          <MethodIcon size={9} style={{ color: methodIcon?.color || '#9ca3af' }} />
+          <span className="text-[10px] font-bold" style={{ color: '#6b7280' }}>{methodLabel}</span>
           <span className="text-[10px]" style={{ color: '#4b5563' }}>•</span>
           <span className="text-[10px]" style={{ color: '#6b7280' }}>{new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
@@ -66,12 +118,12 @@ function MovementItem({ m }: { m: any }) {
   );
 }
 
-function CloseModal({ data, driverTotal, onClose, onConfirm, onEndTurno }: { data: any; driverTotal: number; onClose: () => void; onConfirm: (informed: number) => void; onEndTurno: (informed: number) => void }) {
+function CloseModal({ data, driverTotal, driverPending, onClose, onConfirm, onEndTurno }: { data: any; driverTotal: number; driverPending: number; onClose: () => void; onConfirm: (informed: number) => void; onEndTurno: (informed: number) => void }) {
   const [informed, setInformed] = useState(0);
 
   const byMethod = useMemo(() => {
     const m: Record<string, number> = {};
-    data.open.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => { m[x.method] = (m[x.method] || 0) + x.amount; });
+    data.open.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => accumulateByMethod(m, x));
     return m;
   }, [data]);
 
@@ -84,6 +136,7 @@ function CloseModal({ data, driverTotal, onClose, onConfirm, onEndTurno }: { dat
   }, [data]);
 
   const diff = informed - totals.expected;
+  const gaveta = data.open.initial + totals.entradas + (byMethod['dinheiro'] || 0) - totals.saidas;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
@@ -106,10 +159,13 @@ function CloseModal({ data, driverTotal, onClose, onConfirm, onEndTurno }: { dat
               <div className="flex justify-between text-xs"><span className="text-gray-400">Vendas</span><span className="text-green-400 font-bold">+{BRL(totals.vendas)}</span></div>
               {totals.entradas > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Suprimentos</span><span className="text-blue-400 font-bold">+{BRL(totals.entradas)}</span></div>}
               {totals.saidas > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Sangrias</span><span className="text-red-400 font-bold">-{BRL(totals.saidas)}</span></div>}
-              {driverTotal > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Motoboys (taxas entrega)</span><span className="text-amber-400 font-bold">-{BRL(driverTotal)}</span></div>}
               <div className="flex justify-between text-xs pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <span className="text-gray-300 font-bold">Esperado</span><span className="text-white font-black">{BRL(totals.expected)}</span>
               </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-400">Só dinheiro (gaveta)</span><span className="text-gray-400 font-bold">{BRL(gaveta)}</span>
+              </div>
+              {driverPending > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Taxas motoboy pendentes</span><span className="text-amber-400 font-bold">{BRL(driverPending)}</span></div>}
             </div>
           </div>
 
@@ -130,6 +186,15 @@ function CloseModal({ data, driverTotal, onClose, onConfirm, onEndTurno }: { dat
                   </div>
                 );
               })}
+              {extraMethods(byMethod).map(([k, v]) => (
+                <div key={k} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wallet size={12} style={{ color: '#9ca3af' }} />
+                    <span className="text-xs text-gray-400">{k}</span>
+                  </div>
+                  <span className="text-xs font-bold text-gray-300">{BRL(v)}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -170,7 +235,7 @@ function CloseModal({ data, driverTotal, onClose, onConfirm, onEndTurno }: { dat
   );
 }
 
-function SuccessModal({ expected, informed, diff, driverTotal, onClose, onPrint }: { expected: number; informed: number; diff: number; driverTotal: number; onClose: () => void; onPrint: () => void }) {
+function SuccessModal({ expected, informed, diff, driverPending, onClose, onPrint }: { expected: number; informed: number; diff: number; driverPending: number; onClose: () => void; onPrint: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-sm rounded-2xl p-6 text-center" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
@@ -182,7 +247,7 @@ function SuccessModal({ expected, informed, diff, driverTotal, onClose, onPrint 
         <div className="space-y-1.5 mb-4">
           <div className="flex justify-between text-xs px-2"><span className="text-gray-400">Esperado</span><span className="text-white font-bold">{BRL(expected)}</span></div>
           <div className="flex justify-between text-xs px-2"><span className="text-gray-400">Informado</span><span className="text-white font-bold">{BRL(informed)}</span></div>
-          {driverTotal > 0 && <div className="flex justify-between text-xs px-2"><span className="text-gray-400">Motoboys</span><span className="text-amber-400 font-bold">-{BRL(driverTotal)}</span></div>}
+          {driverPending > 0 && <div className="flex justify-between text-xs px-2"><span className="text-gray-400">Taxas motoboy pendentes</span><span className="text-amber-400 font-bold">{BRL(driverPending)}</span></div>}
         </div>
         <div className="flex gap-2">
           <button onClick={onPrint}
@@ -271,17 +336,9 @@ export default function Caixa() {
 
   const byMethod: Record<string, number> = {};
   if (data.open) {
-    data.open.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => {
-      if (x.method?.includes(',')) {
-        x.method.split(',').forEach((part: string) => {
-          const [method, amount] = part.split(':');
-          byMethod[method] = (byMethod[method] || 0) + Number(amount);
-        });
-      } else {
-        byMethod[x.method] = (byMethod[x.method] || 0) + x.amount;
-      }
-    });
+    data.open.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => accumulateByMethod(byMethod, x));
   }
+  const driverPending = driverBreakdown.reduce((s, d) => s + Number(d.remaining || 0), 0);
 
   const totals = (() => {
     if (!data.open) return { vendas: 0, entradas: 0, saidas: 0, expected: 0 };
@@ -299,24 +356,18 @@ export default function Caixa() {
     const expected = (h.initial || 0) + entradas + vendas - saidas;
     const informed = h.informed || expected;
     const byMethod: Record<string, number> = {};
-    h.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => {
-      if (x.method?.includes(',')) {
-        x.method.split(',').forEach((part: string) => {
-          const [method, amount] = part.split(':');
-          byMethod[method] = (byMethod[method] || 0) + Number(amount);
-        });
-      } else {
-        byMethod[x.method] = (byMethod[x.method] || 0) + x.amount;
-      }
-    });
+    h.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => accumulateByMethod(byMethod, x));
+    const snapDay: any = (h as any).dayDelivery;
     const text = cashReceiptText({
       store: 'Rincão Lanches', operator: h.operator,
       openedAt: new Date(h.openedAt).toLocaleString('pt-BR'),
       closedAt: h.closedAt ? new Date(h.closedAt).toLocaleString('pt-BR') : '—',
       initial: h.initial || 0, vendas, entradas, saidas, expected, informed, diff: informed - expected,
       byMethod, width: '80mm', driverTotal: h.driverTotal || 0,
-      orderNumbers: turnoOrderNumbers, driverBreakdown: driverBreakdown,
-      deliveryDayCount: dayDelivery.count, driverDay: dayDelivery.drivers,
+      orderNumbers: (h as any).orderNumbers ?? turnoOrderNumbers,
+      driverBreakdown: (h as any).driverBreakdown ?? driverBreakdown,
+      deliveryDayCount: snapDay ? snapDay.count : dayDelivery.count,
+      driverDay: snapDay ? snapDay.drivers : dayDelivery.drivers,
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
     printReceiptText(text);
@@ -331,32 +382,39 @@ export default function Caixa() {
 
   const addMovement = async () => {
     if (movAmount <= 0) return;
-    await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: movType, method: movMethod, amount: movAmount, reason: movReason }) });
+    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: movType, method: movMethod, amount: movAmount, reason: movReason }) }).then((x) => x.json()).catch(() => null);
+    if (r?.error) {
+      showToast(r.error, 'error');
+      return;
+    }
     setMovAmount(0);
     setMovReason('');
+    playCashSound();
     load();
   };
 
   const closeCash = async (informed: number) => {
     const openData = data.open;
     const currentDriverTotal = driverTotal;
-    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) }).then((x) => x.json());
+    const pending = driverBreakdown.reduce((s, d) => s + Number(d.remaining || 0), 0);
+    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) }).then((x) => x.json()).catch(() => null);
     playCashSound();
     setShowCloseModal(false);
-    setCloseResult({ ...openData, closedAt: new Date().toISOString(), expected: r.expected, informed: r.informed, diff: r.diff, driverTotal: currentDriverTotal });
+    setCloseResult({ ...openData, closedAt: new Date().toISOString(), expected: r?.expected ?? 0, informed: r?.informed ?? informed, diff: r?.diff ?? (informed - Number(openData.initial || 0)), driverTotal: currentDriverTotal, driverPending: pending, driverBreakdown, orderNumbers: turnoOrderNumbers, dayDelivery });
     await load();
   };
 
   const endTurno = async (informed: number) => {
     const openData = data.open;
     const currentDriverTotal = driverTotal;
-    await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) });
+    const pending = driverBreakdown.reduce((s, d) => s + Number(d.remaining || 0), 0);
+    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) }).then((x) => x.json()).catch(() => null);
     await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'new_turno' }) });
     playCashSound();
     setShowCloseModal(false);
     setDriverTotal(0);
     setDriverBreakdown([]);
-    setCloseResult({ ...openData, closedAt: new Date().toISOString(), expected: 0, informed, diff: informed - (openData.initial || 0), driverTotal: currentDriverTotal });
+    setCloseResult({ ...openData, closedAt: new Date().toISOString(), expected: r?.expected ?? 0, informed: r?.informed ?? informed, diff: r?.diff ?? (informed - Number(openData.initial || 0)), driverTotal: currentDriverTotal, driverPending: pending, driverBreakdown, orderNumbers: turnoOrderNumbers, dayDelivery });
     await load();
   };
 
@@ -434,16 +492,7 @@ export default function Caixa() {
                   const diff = informed - expected;
                   const isExpanded = historyOpen === h.id;
                   const byMethodH: Record<string, number> = {};
-                  h.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => {
-                    if (x.method?.includes(',')) {
-                      x.method.split(',').forEach((part: string) => {
-                        const [method, amount] = part.split(':');
-                        byMethodH[method] = (byMethodH[method] || 0) + Number(amount);
-                      });
-                    } else {
-                      byMethodH[x.method] = (byMethodH[x.method] || 0) + x.amount;
-                    }
-                  });
+                  h.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => accumulateByMethod(byMethodH, x));
 
                   return (
                     <div key={h.id} className="rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -486,6 +535,11 @@ export default function Caixa() {
                                 </span>
                               );
                             })}
+                            {extraMethods(byMethodH).map(([k, v]) => (
+                              <span key={k} className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#d1d5db' }}>
+                                {k}: {BRL(v)}
+                              </span>
+                            ))}
                           </div>
                           {!isOpen && (
                             <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
@@ -546,6 +600,13 @@ export default function Caixa() {
                     </div>
                   );
                 })}
+                {extraMethods(byMethod).map(([k, v]) => (
+                  <div key={k} className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <Wallet size={18} className="mx-auto mb-1.5 text-gray-400" />
+                    <p className="text-[10px] font-bold text-gray-400">{k}</p>
+                    <p className="text-sm font-black text-gray-200">{BRL(v)}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -641,8 +702,8 @@ export default function Caixa() {
         </>
       )}
 
-      {showCloseModal && <CloseModal data={data} driverTotal={driverTotal} onClose={() => setShowCloseModal(false)} onConfirm={closeCash} onEndTurno={endTurno} />}
-      {closeResult && <SuccessModal expected={closeResult.expected} informed={closeResult.informed} diff={closeResult.diff} driverTotal={driverTotal} onClose={() => setCloseResult(null)} onPrint={() => { printClose(closeResult); setCloseResult(null); }} />}
+      {showCloseModal && <CloseModal data={data} driverTotal={driverTotal} driverPending={driverPending} onClose={() => setShowCloseModal(false)} onConfirm={closeCash} onEndTurno={endTurno} />}
+      {closeResult && <SuccessModal expected={closeResult.expected} informed={closeResult.informed} diff={closeResult.diff} driverPending={closeResult.driverPending ?? 0} onClose={() => setCloseResult(null)} onPrint={() => { printClose(closeResult); setCloseResult(null); }} />}
 
       {/* Modal Motoboys */}
       {showDriverModal && (
@@ -718,7 +779,8 @@ export default function Caixa() {
             <div className="flex gap-2">
               <button onClick={() => setPayingDriver(null)} className="flex-1 rounded-xl py-3 text-[12px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Cancelar</button>
               <button onClick={async () => {
-                await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'sangria', method: 'dinheiro', amount: payingDriver.total, reason: `Pagamento motoboy (${payingDriver.name})` }) });
+                const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'sangria', method: 'dinheiro', amount: payingDriver.total, reason: `Pagamento motoboy (${payingDriver.name})` }) }).then((x) => x.json()).catch(() => null);
+                if (r?.error) { showToast(r.error, 'error'); return; }
                 setPayingDriver(null);
                 setShowDriverModal(false);
                 load();

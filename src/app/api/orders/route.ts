@@ -20,8 +20,17 @@ function parsePayments(payment: string, total: number): { method: string; amount
   if (parsed.length === 0) return [{ method: 'pix', amount: total }];
   if (parsed.every((x) => x.amount === 0)) return [{ method: parsed[0].method, amount: total }];
   const sum = parsed.reduce((s, x) => s + x.amount, 0);
-  const diff = Math.round((total - sum) * 100) / 100;
-  if (Math.abs(diff) > 0.005) parsed[parsed.length - 1].amount = Math.round((parsed[parsed.length - 1].amount + diff) * 100) / 100;
+  let diff = Math.round((total - sum) * 100) / 100;
+  if (diff < 0) {
+    // remove a diferenca das ultimas parcelas sem deixar nenhuma negativa
+    for (let i = parsed.length - 1; i >= 0 && diff < -0.005; i--) {
+      const take = Math.min(parsed[i].amount, Math.round(-diff * 100) / 100);
+      parsed[i].amount = Math.round((parsed[i].amount - take) * 100) / 100;
+      diff = Math.round((diff + take) * 100) / 100;
+    }
+  } else if (diff > 0.005 && parsed.length) {
+    parsed[parsed.length - 1].amount = Math.round((parsed[parsed.length - 1].amount + diff) * 100) / 100;
+  }
   return parsed.filter((x) => x.amount > 0);
 }
 
@@ -97,6 +106,9 @@ export async function POST(req: Request) {
     const newSubtotal = remaining.reduce((s: number, it: any) => s + lineTotal(it), 0);
     const newTotal = Math.max(0, newSubtotal + (order.type === 'entrega' ? order.deliveryFee : 0) - order.discount);
     if (remaining.length === 0) {
+      // apagou o ultimo item: estorna a venda do caixa antes de remover o pedido
+      const openReg = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
+      if (openReg) await prisma.cashMovement.deleteMany({ where: { orderId: order.id, kind: 'venda', registerId: openReg.id } });
       await prisma.order.delete({ where: { id: order.id } });
     } else {
       await prisma.order.update({ where: { id: order.id }, data: { subtotal: newSubtotal, total: newTotal } });
@@ -261,7 +273,8 @@ export async function POST(req: Request) {
     }
   }
 
-  if (b.source === 'cardapio') {
+  // pedidos de mesa pagam somente no fechamento da mesa (mesas/closeTable)
+  if (b.source === 'cardapio' && (b.type || 'entrega') !== 'mesa') {
     const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (open) {
       for (const p of parsePayments(b.payment || 'pix', total)) {

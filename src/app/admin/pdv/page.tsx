@@ -282,9 +282,10 @@ export default function PDV() {
   const finish = async () => {
     if (finishing || !cart.length) return;
     if (splitPayment) {
-      const sum = Math.round(payments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
-      if (Math.abs(sum - total) > 0.01) {
-        showToast(`Pagamentos (${BRL(sum)}) nao fecham com o total (${BRL(total)})`, 'error');
+      const sumCents = Math.round(payments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100);
+      const totalCents = Math.round(total * 100);
+      if (sumCents !== totalCents) {
+        showToast(`Pagamentos (${BRL(sumCents / 100)}) nao fecham com o total (${BRL(totalCents / 100)})`, 'error');
         return;
       }
     }
@@ -295,8 +296,9 @@ export default function PDV() {
       ? `${deliveryStreet}${deliveryNum ? ', ' + deliveryNum : ''}${deliveryComp ? ' - ' + deliveryComp : ''} - ${deliveryBairro}, ${deliveryCity}`
       : type === 'mesa' ? (tableObj?.number ? String(tableObj.number) : `Mesa ${selectedTable}`) : type.toUpperCase();
 
-    const paymentMethod = splitPayment ? payments.map(p => `${p.method}:${p.amount}`).join(',') : payment;
-    const splitNote = splitPayment ? `Pagamento dividido: ${payments.map(p => `${PAYMENT_OPTIONS.find(o => o.id === p.method)?.label || p.method} ${BRL(p.amount)}`).join(' + ')}` : '';
+    const activePayments = payments.filter((p) => Number(p.amount || 0) > 0);
+    const paymentMethod = splitPayment ? activePayments.map(p => `${p.method}:${p.amount}`).join(',') : payment;
+    const splitNote = splitPayment ? `Pagamento dividido: ${activePayments.map(p => `${PAYMENT_OPTIONS.find(o => o.id === p.method)?.label || p.method} ${BRL(p.amount)}`).join(' + ')}` : '';
 
     const o = await fetch('/api/orders', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -318,32 +320,38 @@ export default function PDV() {
     setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
     setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
     localStorage.removeItem(PDV_STORAGE_KEY);
+    let cashError: string | null = null;
     try {
       if (splitPayment) {
-        for (const p of payments) {
-          if (Number(p.amount) <= 0) continue;
-          await fetch('/api/cash', {
+        for (const p of activePayments) {
+          const cr = await fetch('/api/cash', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'movement', kind: 'venda', method: p.method, amount: Number(p.amount), orderId: o.id, reason: `PDV #${o.number}` })
-          });
+          }).then((x) => x.json()).catch(() => null);
+          if (cr?.error && !cashError) cashError = cr.error;
         }
       } else {
-        await fetch('/api/cash', {
+        const cr = await fetch('/api/cash', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: o.total, orderId: o.id, reason: `PDV #${o.number}` })
-        });
+        }).then((x) => x.json()).catch(() => null);
+        if (cr?.error) cashError = cr.error;
       }
     } catch {}
     if (type === 'mesa' && selectedTable) {
       try { await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: selectedTable, status: 'ocupada' }) }); } catch {}
     }
-    showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
+    if (cashError) {
+      showToast(`Pedido #${o.number} criado, mas NAO lancado no caixa (${cashError}) — abra o caixa e registre manualmente`, 'error');
+    } else {
+      showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
+    }
     const text = receiptText({
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: client || 'PDV', customerPhone: clientPhone || '',
       items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
       payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
-      addressText, type, changeFor: changeFor > 0 ? changeFor : undefined,
+      addressText, type, changeFor: ((payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0) ? changeFor : undefined,
       width: '80mm',
     });
     fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) }).catch(() => {});

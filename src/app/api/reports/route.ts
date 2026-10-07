@@ -56,8 +56,16 @@ export async function GET(req: Request) {
       byPayment[parsed[0].m || 'outro'] = (byPayment[parsed[0].m || 'outro'] || 0) + o.total;
     } else {
       const sum = parsed.reduce((s, x) => s + x.a, 0);
-      const diff = Math.round((o.total - sum) * 100) / 100;
-      if (Math.abs(diff) > 0.005 && parsed.length) parsed[parsed.length - 1].a = Math.round((parsed[parsed.length - 1].a + diff) * 100) / 100;
+      let diff = Math.round((o.total - sum) * 100) / 100;
+      if (diff < 0) {
+        for (let i = parsed.length - 1; i >= 0 && diff < -0.005; i--) {
+          const take = Math.min(parsed[i].a, Math.round(-diff * 100) / 100);
+          parsed[i].a = Math.round((parsed[i].a - take) * 100) / 100;
+          diff = Math.round((diff + take) * 100) / 100;
+        }
+      } else if (diff > 0.005 && parsed.length) {
+        parsed[parsed.length - 1].a = Math.round((parsed[parsed.length - 1].a + diff) * 100) / 100;
+      }
       parsed.forEach((x) => { if (x.a > 0) byPayment[x.m] = (byPayment[x.m] || 0) + x.a; });
     }
   });
