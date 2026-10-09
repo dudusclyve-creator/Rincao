@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { BRL, receiptText, showToast, printReceiptText } from '@/lib/utils';
+import { BRL, receiptText, showToast, printReceiptText, maskCpf } from '@/lib/utils';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
@@ -166,6 +166,7 @@ export default function PDV() {
   const [payment, setPayment] = useState(saved?.payment || 'pix');
   const [client, setClient] = useState(saved?.client || '');
   const [clientPhone, setClientPhone] = useState(saved?.clientPhone || '');
+  const [clientCpf, setClientCpf] = useState(saved?.clientCpf || '');
   const [orderNote, setOrderNote] = useState(saved?.orderNote || '');
   const [search, setSearch] = useState('');
   const [lastAdded, setLastAdded] = useState<string | null>(null);
@@ -189,9 +190,9 @@ export default function PDV() {
   const catsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const state = { cart, type, payment, client, clientPhone, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp, feeOverride };
+    const state = { cart, type, payment, client, clientPhone, clientCpf, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp, feeOverride };
     localStorage.setItem(PDV_STORAGE_KEY, JSON.stringify(state));
-  }, [cart, type, payment, client, clientPhone, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp, feeOverride]);
+  }, [cart, type, payment, client, clientPhone, clientCpf, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp, feeOverride]);
 
   useEffect(() => {
     fetch('/api/menu').then((r) => r.json()).then(setMenu);
@@ -304,6 +305,7 @@ export default function PDV() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customerName: client || (type === 'mesa' ? (tableObj?.number || 'Mesa') : 'PDV'), customerPhone: clientPhone || '',
+        customerCpf: clientCpf || '',
         street: deliveryStreet, number: deliveryNum, complement: deliveryComp,
         district: deliveryBairro, addressText,
         type, payment: paymentMethod, changeFor: (payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0 ? changeFor : undefined,
@@ -317,7 +319,7 @@ export default function PDV() {
       return;
     }
     // limpa o carrinho na hora: se algo falhar depois, nao da pra finalizar de novo
-    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
+    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
     setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
     localStorage.removeItem(PDV_STORAGE_KEY);
     let cashError: string | null = null;
@@ -346,16 +348,23 @@ export default function PDV() {
     } else {
       showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
     }
-    const text = receiptText({
+    const receiptBase = {
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: client || 'PDV', customerPhone: clientPhone || '',
       items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
       payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
       addressText, type, changeFor: ((payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0) ? changeFor : undefined,
-      width: '80mm',
-    });
-    fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) }).catch(() => {});
-    printReceiptText(text);
+      note: [orderNote, splitNote].filter(Boolean).join(' | '),
+      width: '80mm' as const,
+    };
+    const pages = [receiptText(receiptBase)];
+    // 1a impressao de entrega: sai junto a comanda do entregador
+    if (type === 'entrega') pages.push(receiptText({ ...receiptBase, variant: 'entregador' }));
+    fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, printed: true }) }).catch(() => {});
+    for (const p of pages) {
+      fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});
+    }
+    printReceiptText(pages);
     } finally {
       setFinishing(false);
     }
@@ -489,7 +498,7 @@ export default function PDV() {
                 <span className="text-lg font-bold text-white">Venda</span>
               </div>
               {cart.length > 0 && (
-                <button onClick={() => { setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setChangeFor(0); setSelectedTable(''); setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null); localStorage.removeItem(PDV_STORAGE_KEY); }} className="text-xs text-gray-500 hover:text-red-400 hover:scale-105 transition-all duration-200">Limpar</button>
+                <button onClick={() => { setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null); localStorage.removeItem(PDV_STORAGE_KEY); }} className="text-xs text-gray-500 hover:text-red-400 hover:scale-105 transition-all duration-200">Limpar</button>
               )}
             </div>
 
@@ -723,6 +732,7 @@ export default function PDV() {
                             <button key={c.id} onMouseDown={() => {
                               setClient(c.name);
                               setClientPhone(c.phone || '');
+                              setClientCpf(c.cpf || '');
                               const junkAddr = /^\s*(retirada|consumo|balcao|pdv)/i;
                               if (c.street && !junkAddr.test(c.street)) setDeliveryStreet(c.street);
                               if (c.number && !junkAddr.test(c.number)) setDeliveryNum(c.number);
@@ -756,6 +766,8 @@ export default function PDV() {
                       );
                     })()}
                   </div>
+                  <input value={clientCpf} onChange={(e) => setClientCpf(maskCpf(e.target.value))} placeholder="CPF (opcional — para emitir a nota)"
+                    className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                   <input value={orderNote} onChange={(e) => setOrderNote(e.target.value)} placeholder="Observação do pedido"
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 </div>

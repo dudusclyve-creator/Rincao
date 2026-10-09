@@ -134,6 +134,7 @@ model Order {
   total       Float    @default(0)
   note        String   @default("")
   emitRequested Boolean @default(false)
+  printCount  Int      @default(0) // quantas vezes ja foi impressa (1a vez = comandas extras)
   tableId     String?
   table       TableMap? @relation(fields: [tableId], references: [id])
   driverId    String?

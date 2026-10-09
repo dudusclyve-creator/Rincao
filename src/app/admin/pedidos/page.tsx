@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -358,16 +358,28 @@ export default function Pedidos() {
   };
 
   const print = async (o: any) => {
-    const text = receiptText({
+    const base = {
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: o.customerName, customerPhone: o.customerPhone,
       items: o.items.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: JSON.parse(it.addonsJson || '[]'), note: it.note })),
       payment: o.payment, subtotal: o.subtotal, fee: o.deliveryFee, discount: o.discount, total: o.total,
       addressText: o.addressText, type: o.type, driverName: o.driver?.name, motoboy: (o.note || '').match(/Motoboy:\s*([^|]+)/)?.[1]?.trim(), changeFor: o.changeFor,
-      width: '80mm',
-    });
-    await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, printer: 'Padrao' }) });
-    printReceiptText(text);
+      note: o.note || '',
+      width: '80mm' as const,
+    };
+    const isFirst = !o.printCount;
+    const pages = [receiptText(base)];
+    // 1a impressao de entrega: sai junto a comanda do entregador
+    if (isFirst && o.type === 'entrega') pages.push(receiptText({ ...base, variant: 'entregador' }));
+    if (isFirst) {
+      await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, printed: true }) }).catch(() => {});
+      o.printCount = (Number(o.printCount) || 0) + 1;
+      load();
+    }
+    for (const p of pages) {
+      await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});
+    }
+    printReceiptText(pages);
   };
 
   const escapeHtml = (s: any) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
@@ -429,6 +441,7 @@ export default function Pedidos() {
       customerName: o.customerName || '', customerPhone: o.customerPhone || '', addressText: o.addressText || '',
       type: o.type || 'entrega', deliveryFee: String(o.deliveryFee || 0), discount: String(o.discount || 0),
       payment: o.payment || 'pix', changeFor: o.changeFor ? String(o.changeFor) : '', note: o.note || '',
+      customerCpf: o.customer?.cpf || '',
     });
     setAddProductId(''); setAddQty(1);
     const p = await fetch('/api/products').then((r) => r.json()).catch(() => []);
@@ -444,6 +457,7 @@ export default function Pedidos() {
       action: 'edit', orderId: editOrder.id,
       items: editItems.map((it: any) => ({ productId: it.productId, name: it.name, qty: it.qty, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
       customerName: editForm.customerName, customerPhone: editForm.customerPhone, addressText: editForm.addressText,
+      customerCpf: editForm.customerCpf || '',
       type: editForm.type, deliveryFee: fee, discount: Number(editForm.discount || 0),
       changeFor: editForm.changeFor ? Number(editForm.changeFor) : null, note: editForm.note,
     };
@@ -730,6 +744,10 @@ export default function Pedidos() {
                       <option value="mesa">Mesa</option>
                       <option value="balcao">Balcão</option>
                     </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>🪪 CPF (para emitir a nota fiscal)</label>
+                    <input value={editForm.customerCpf || ''} onChange={(e) => setEditForm((f: any) => ({ ...f, customerCpf: maskCpf(e.target.value) }))} placeholder="000.000.000-00" className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📍 Endereço / Mesa</label>

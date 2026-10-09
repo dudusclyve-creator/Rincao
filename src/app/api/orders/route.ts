@@ -190,6 +190,23 @@ export async function POST(req: Request) {
       }
     }
 
+    // CPF do cliente (exigido na NFC-e de entrega)
+    if (b.customerCpf !== undefined && String(b.customerCpf || '').replace(/\D/g, '')) {
+      const cpf = String(b.customerCpf).replace(/\D/g, '');
+      let cust = customerId ? await prisma.customer.findUnique({ where: { id: customerId } }) : null;
+      if (!cust) {
+        const phone = String(b.customerPhone || '').replace(/\D/g, '');
+        if (phone) cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
+      }
+      if (cust) {
+        if (cust.cpf !== cpf) await prisma.customer.update({ where: { id: cust.id }, data: { cpf } });
+      } else {
+        const key = String(b.customerPhone || '').replace(/\D/g, '') || cpf;
+        const created = await prisma.customer.create({ data: { name: b.customerName || order.customerName || 'Cliente', phone: key, cpf } }).catch(() => null);
+        if (created) customerId = created.id;
+      }
+    }
+
     const data: any = {
       customerName: b.customerName !== undefined ? String(b.customerName) : order.customerName,
       customerPhone: b.customerPhone !== undefined ? String(b.customerPhone) : order.customerPhone,
@@ -230,6 +247,18 @@ export async function POST(req: Request) {
       await prisma.customer.update({ where: { id: cust.id }, data: updateData });
     }
     customerId = cust.id;
+  } else if (String(b.customerCpf || '').replace(/\D/g, '')) {
+    // sem telefone mas com CPF (PDV): localiza pelo CPF ou cria usando o CPF como chave
+    const cpf = String(b.customerCpf).replace(/\D/g, '');
+    let cust = await prisma.customer.findFirst({ where: { cpf } }).catch(() => null);
+    if (!cust) {
+      cust = await prisma.customer.create({ data: { name: b.customerName || 'Cliente', phone: cpf, cpf } }).catch(() => null);
+      if (!cust) cust = await prisma.customer.findUnique({ where: { phone: cpf } }).catch(() => null);
+    }
+    if (cust) {
+      if (b.customerName) await prisma.customer.update({ where: { id: cust.id }, data: { name: b.customerName } });
+      customerId = cust.id;
+    }
   }
   const itemsIn = Array.isArray(b.items) ? b.items : [];
   const subtotal = itemsIn.length > 0 ? itemsIn.reduce((s: number, it: any) => s + lineTotal(it), 0) : Number(b.subtotal || 0);
@@ -300,6 +329,7 @@ export async function PATCH(req: Request) {
   if (b.changeFor !== undefined) data.changeFor = b.changeFor;
   if (b.note !== undefined) data.note = b.note;
   if (b.discount !== undefined) data.discount = b.discount;
+  if (b.printed) data.printCount = { increment: 1 }; // registra 1a impressao da comanda
   const order = await prisma.order.update({ where: { id: b.id }, data });
   if (b.status === 'cancelado') {
     await prisma.notification.create({ data: { kind: 'cancelado', text: `Pedido #${order.number} cancelado` } });
