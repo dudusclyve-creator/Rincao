@@ -155,21 +155,26 @@ export async function POST(req: Request) {
     }));
     if (newItems.length === 0) return NextResponse.json({ error: 'O pedido precisa ter pelo menos 1 item' }, { status: 400 });
 
-    // devolve estoque dos itens antigos
-    for (const it of order.items) {
-      if (!it.productId) continue;
-      const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
-      if (prod?.inventoryItemId) await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { increment: it.qty } } });
-    }
-    // baixa estoque dos novos itens
-    for (const it of newItems) {
-      if (!it.productId) continue;
-      const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
-      if (prod?.inventoryItemId) await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: it.qty } } });
-    }
+    // devolve estoque dos itens antigos (estoque e auxiliar — nao pode derrubar a edicao)
+    try {
+      for (const it of order.items) {
+        if (!it.productId) continue;
+        const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+        if (prod?.inventoryItemId) await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { increment: it.qty } } });
+      }
+      // baixa estoque dos novos itens
+      for (const it of newItems) {
+        if (!it.productId) continue;
+        const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+        if (prod?.inventoryItemId) await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: it.qty } } });
+      }
+    } catch {}
 
-    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
-    await prisma.orderItem.createMany({ data: newItems.map((it: any) => ({ ...it, orderId: order.id })) });
+    // troca os itens atomicamente: ou apaga e recria tudo, ou nao mexe
+    await prisma.$transaction([
+      prisma.orderItem.deleteMany({ where: { orderId: order.id } }),
+      prisma.orderItem.createMany({ data: newItems.map((it: any) => ({ ...it, orderId: order.id })) }),
+    ]);
 
     const subtotal = newItems.reduce((s: number, it: any) => s + lineTotal(it), 0);
     const type = b.type !== undefined ? String(b.type) : order.type;
@@ -184,9 +189,10 @@ export async function POST(req: Request) {
       if (phone) {
         let cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
         if (!cust) {
-          cust = await prisma.customer.create({ data: { name: b.customerName || order.customerName || 'Cliente', phone } });
+          cust = await prisma.customer.create({ data: { name: b.customerName || order.customerName || 'Cliente', phone } }).catch(() => null);
+          if (!cust) cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
         }
-        customerId = cust.id;
+        if (cust) customerId = cust.id;
       }
     }
 

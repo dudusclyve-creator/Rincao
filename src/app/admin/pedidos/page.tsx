@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, showToast } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -462,11 +462,16 @@ export default function Pedidos() {
       changeFor: editForm.changeFor ? Number(editForm.changeFor) : null, note: editForm.note,
     };
     if (!String(editOrder.payment || '').includes(',')) payload.payment = editForm.payment;
-    const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { alert(typeof d.error === 'string' ? d.error : 'Erro ao salvar as alterações'); return; }
-    setEditOrder(null);
-    load();
+    try {
+      const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(typeof d.error === 'string' ? d.error : 'Erro ao salvar as alterações'); return; }
+      showToast(`Pedido #${editOrder.number} salvo`, 'success');
+      setEditOrder(null);
+      load();
+    } catch {
+      alert('Falha de conexão ao salvar — tente de novo');
+    }
   };
 
   const dup = async (o: any) => {
@@ -652,7 +657,7 @@ export default function Pedidos() {
         const inputStyle = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#f0e8e0' };
         const setItem = (idx: number, patch: any) => setEditItems((arr: any[]) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
         return (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setEditOrder(null)}>
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
             <div className="rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
               <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4" style={{ background: '#1a1520', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
                 <div>
@@ -712,8 +717,17 @@ export default function Pedidos() {
                     <button
                       onClick={() => {
                         const p = (products as any[]).find((x: any) => x.id === addProductId);
-                        if (!p) return;
-                        setEditItems((arr: any[]) => [...arr, { id: `new-${Date.now()}`, productId: p.id, name: p.name, qty: addQty, unitPrice: Number(p.promoPrice || p.price), addons: [], note: '' }]);
+                        if (!p) { showToast('Produto não encontrado — selecione de novo', 'error'); return; }
+                        const qty = Math.max(1, Number(addQty) || 1);
+                        const existing = editItems.findIndex((it: any) => it.productId && it.productId === p.id);
+                        if (existing >= 0) {
+                          // mesmo produto ja no pedido: soma a quantidade em vez de duplicar a linha
+                          setEditItems((arr: any[]) => arr.map((it, i) => (i === existing ? { ...it, qty: it.qty + qty } : it)));
+                          showToast(`${p.name}: quantidade somada (+${qty})`, 'success');
+                        } else {
+                          setEditItems((arr: any[]) => [...arr, { id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, productId: p.id, name: p.name, qty, unitPrice: Number(p.promoPrice || p.price), addons: [], note: '' }]);
+                          showToast(`${p.name} adicionado`, 'success');
+                        }
                         setAddProductId(''); setAddQty(1);
                       }}
                       disabled={!addProductId}
