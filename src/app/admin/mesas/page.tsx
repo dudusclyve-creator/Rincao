@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { BRL, playDropSound, showToast } from '@/lib/utils';
+import { ItemCard } from '@/components/ItemCard';
 import {
   Users, Plus, Minus, X, Search, ArrowRightLeft, Receipt,
-  User, ChevronDown, ChevronUp, CreditCard, Banknote, Smartphone,
+  User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CreditCard, Banknote, Smartphone,
   Check, Trash2
 } from 'lucide-react';
 
@@ -118,6 +119,7 @@ function ProductModal({ product, onClose, onAdd }: { product: any; onClose: () =
 function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; onAdd: (item: any) => void; onSelectProduct: (p: any) => void; onClose: () => void }) {
   const [cat, setCat] = useState('all');
   const [search, setSearch] = useState('');
+  const catsRef = useRef<HTMLDivElement>(null);
   const products = menu.products.filter((p: any) => {
     const matchCat = cat === 'all' || p.categoryId === cat;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
@@ -138,13 +140,25 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
               className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
           </div>
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2">
-            <button onClick={() => setCat('all')} className="flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold pdv-btn-hover"
-              style={cat === 'all' ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>Todas</button>
-            {menu.categories.map((c: any) => (
-              <button key={c.id} onClick={() => setCat(c.id)} className="flex-shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold pdv-btn-hover whitespace-nowrap"
-                style={cat === c.id ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>{c.name}</button>
-            ))}
+          <div className="relative mb-3">
+            <button onClick={() => catsRef.current?.scrollBy({ left: -180, behavior: 'smooth' })}
+              className="absolute left-0 top-0 bottom-1 z-10 w-8 flex items-center justify-center rounded-lg transition-all hover:bg-white/10"
+              style={{ background: 'rgba(30,24,40,0.92)' }}>
+              <ChevronLeft size={16} className="text-gray-400" />
+            </button>
+            <div ref={catsRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide px-8 pb-1">
+              <button onClick={() => setCat('all')} className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
+                style={cat === 'all' ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>Todas</button>
+              {menu.categories.map((c: any) => (
+                <button key={c.id} onClick={() => setCat(c.id)} className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
+                  style={cat === c.id ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>{c.name}</button>
+              ))}
+            </div>
+            <button onClick={() => catsRef.current?.scrollBy({ left: 180, behavior: 'smooth' })}
+              className="absolute right-0 top-0 bottom-1 z-10 w-8 flex items-center justify-center rounded-lg transition-all hover:bg-white/10"
+              style={{ background: 'rgba(30,24,40,0.92)' }}>
+              <ChevronRight size={16} className="text-gray-400" />
+            </button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-hide px-5 pb-5">
@@ -183,14 +197,8 @@ function BillModal({ table, orders, onClose }: { table: any; orders: any[]; onCl
               {o.items?.map((it: any, i: number) => {
                 const addons = JSON.parse(it.addonsJson || '[]');
                 return (
-                  <div key={i} className="py-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-300">{it.qty}x {it.name}</span>
-                      <span className="text-white font-bold">{BRL(itemTotal(it))}</span>
-                    </div>
-                    {addons.map((a: any, j: number) => (
-                      <p key={j} className="text-[10px] text-gray-500 ml-3">+ {a.name}{a.price ? ` ${BRL(a.price)}` : ''}</p>
-                    ))}
+                  <div key={i} className="mb-1.5">
+                    <ItemCard qty={it.qty} name={it.name} addons={addons} note={it.note || ''} total={itemTotal(it)} />
                   </div>
                 );
               })}
@@ -341,31 +349,27 @@ function TableDetail({ table, orders, onOpenTable, onOpenAddItem, onOpenTransfer
         )}
       </div>
 
-      <div className="space-y-1 mb-3 max-h-[200px] overflow-y-auto scrollbar-hide">
+      <div className="space-y-2 mb-3 max-h-[280px] overflow-y-auto scrollbar-hide pr-1">
         {orders.map((o: any) => (
           <div key={o.id}>
-            <p className="text-[9px] text-gray-600 mb-1">#{o.number}{o.customerName ? ` — ${o.customerName}` : ''}</p>
-            {o.items?.map((it: any, i: number) => {
-              const addons = JSON.parse(it.addonsJson || '[]');
-              return (
-                <div key={i} className="px-2 py-1.5 rounded-lg hover:bg-white/[0.03] transition-all group">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-gray-400 w-5 text-center">{it.qty}x</span>
-                    <span className="text-[11px] text-white flex-1 truncate">{it.name}</span>
-                    <span className="text-[11px] font-bold text-gray-300">{BRL(itemTotal(it))}</span>
-                    <button onClick={() => removeItem(o.id, i)} className="w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all">
-                      <Trash2 size={10} className="text-gray-500" />
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5 px-1" style={{ color: '#8a7a6a' }}>
+              Pedido #{o.number}{o.customerName ? ` — ${o.customerName}` : ''}
+            </p>
+            <div className="space-y-1.5">
+              {o.items?.map((it: any, i: number) => {
+                const addons = JSON.parse(it.addonsJson || '[]');
+                return (
+                  <ItemCard key={i} qty={it.qty} name={it.name} addons={addons} note={it.note || ''} total={itemTotal(it)}>
+                    <button onClick={() => removeItem(o.id, i)} className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all hover:bg-red-500/20" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
+                      <Trash2 size={12} /> Remover
                     </button>
-                  </div>
-                  {addons.map((a: any, j: number) => (
-                    <p key={j} className="text-[10px] text-gray-500 ml-7">+ {a.name}{a.price ? ` ${BRL(a.price)}` : ''}</p>
-                  ))}
-                </div>
-              );
-            })}
+                  </ItemCard>
+                );
+              })}
+            </div>
           </div>
         ))}
-        {orders.length === 0 && <p className="text-[11px] text-gray-600 text-center py-4">Nenhum pedido</p>}
+        {orders.length === 0 && <p className="text-xs text-gray-600 text-center py-4">Nenhum pedido</p>}
       </div>
 
       <div className="flex items-center justify-between mb-3 px-1">

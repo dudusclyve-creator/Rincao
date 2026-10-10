@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { BRL, receiptText, showToast, printReceiptText, maskCpf } from '@/lib/utils';
+import { ItemCard } from '@/components/ItemCard';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
@@ -513,48 +514,28 @@ export default function PDV() {
                   <p className="text-xs text-gray-600 mt-0.5">Toque num produto</p>
                 </div>
               ) : (
-                <div className="p-2 space-y-1">
-                  {cart.map((item, idx) => {
-                    const itemTotal = item.qty * (item.unitPrice + (item.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0));
-                    return (
-                      <div key={item.id} className="px-3 py-2.5 rounded-xl transition-all duration-200 hover:bg-white/[0.03]">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-white truncate">{item.name}</p>
-                            <p className="text-xs text-gray-500">{BRL(item.unitPrice)} un.</p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => updateQty(item.id, -1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                              <Minus size={14} className="text-gray-400" />
-                            </button>
-                            <span className="text-sm font-bold text-white w-6 text-center">{item.qty}</span>
-                            <button onClick={() => updateQty(item.id, 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                              <Plus size={14} className="text-gray-400" />
-                            </button>
-                          </div>
-                          <p className="text-sm font-bold text-white w-20 text-right">{BRL(itemTotal)}</p>
-                          <button onClick={() => removeFromCart(item.id)} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-500/20 transition-all duration-200">
-                            <X size={13} className="text-gray-500" />
-                          </button>
-                        </div>
-                        {/* Addons display */}
-                        {item.addons?.length > 0 && (
-                          <div className="ml-1 mt-1">
-                            {item.addons.map((a: any, k: number) => (
-                              <p key={k} className="text-[11px] text-gray-500">+ {a.name} {a.price > 0 ? BRL(a.price) : ''}</p>
-                            ))}
-                          </div>
-                        )}
-                        {/* Note button */}
-                        <div className="flex items-center gap-2 mt-1 ml-1">
-                          <button onClick={() => setEditNoteIdx(idx)} className="flex items-center gap-1 text-xs text-gray-500 hover:text-rose-400 hover:translate-x-1 transition-all duration-200">
-                            <StickyNote size={12} />
-                            {item.note ? <span className="truncate max-w-[140px]">{item.note}</span> : <span>obs</span>}
-                          </button>
-                        </div>
+                <div className="p-2 space-y-1.5">
+                  {cart.map((item, idx) => (
+                    <ItemCard key={item.id} qty={item.qty} name={item.name} unitPrice={item.unitPrice} addons={item.addons || []} note={item.note || ''}>
+                      <div className="flex items-center gap-1 rounded-xl shrink-0" style={{ background: 'rgba(255,255,255,0.06)', padding: 2 }}>
+                        <button onClick={() => updateQty(item.id, -1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all duration-200">
+                          <Minus size={14} className="text-gray-400" />
+                        </button>
+                        <span className="text-sm font-bold text-white w-7 text-center">{item.qty}</span>
+                        <button onClick={() => updateQty(item.id, 1)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10 transition-all duration-200">
+                          <Plus size={14} className="text-gray-400" />
+                        </button>
                       </div>
-                    );
-                  })}
+                      <span className="text-xs text-gray-500">{BRL(item.unitPrice)} un.</span>
+                      <button onClick={() => setEditNoteIdx(idx)} className="ml-auto flex items-center gap-1 text-xs text-gray-500 hover:text-rose-400 transition-all duration-200">
+                        <StickyNote size={12} />
+                        {item.note ? <span>editar obs</span> : <span>obs</span>}
+                      </button>
+                      <button onClick={() => removeFromCart(item.id)} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-500/20 transition-all duration-200">
+                        <X size={13} className="text-gray-500" />
+                      </button>
+                    </ItemCard>
+                  ))}
                 </div>
               )}
             </div>

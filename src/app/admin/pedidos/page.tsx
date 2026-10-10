@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, showToast } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
+import { ItemCard } from '@/components/ItemCard';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -681,27 +682,21 @@ export default function Pedidos() {
                   <label className="block text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: '#8a7a6a' }}>🍽️ Itens ({editItems.length})</label>
                   <div className="space-y-2">
                     {editItems.map((it: any, idx: number) => (
-                      <div key={it.id || `new-${idx}`} className="p-2.5 rounded-xl" style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-1 shrink-0" style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: 2 }}>
-                            <button onClick={() => setItem(idx, { qty: Math.max(1, it.qty - 1) })} className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm transition-all hover:brightness-125" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>−</button>
-                            <span className="w-7 text-center text-[13px] font-black text-white">{it.qty}</span>
-                            <button onClick={() => setItem(idx, { qty: it.qty + 1 })} className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm transition-all hover:brightness-125" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>+</button>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[12px] font-bold text-white truncate">{it.name}</p>
-                            <p className="text-[10px] text-gray-500">{it.qty} × {BRL(it.unitPrice)}</p>
-                          </div>
-                          <span className="text-[12px] font-black shrink-0" style={{ color: '#4ade80' }}>{BRL(it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)))}</span>
-                          <button onClick={() => setEditItems((arr: any[]) => arr.filter((_, i) => i !== idx))} title="Remover item" className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:scale-110 shrink-0" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
-                            <Trash2 size={13} />
-                          </button>
+                      <ItemCard key={it.id || `new-${idx}`} qty={it.qty} name={it.name} unitPrice={it.unitPrice} addons={it.addons || []}>
+                        <div className="flex items-center gap-1 rounded-xl shrink-0" style={{ background: 'rgba(255,255,255,0.06)', padding: 2 }}>
+                          <button onClick={() => setItem(idx, { qty: Math.max(1, it.qty - 1) })} className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm transition-all hover:brightness-125" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>−</button>
+                          <span className="w-8 text-center text-sm font-black text-white">{it.qty}</span>
+                          <button onClick={() => setItem(idx, { qty: it.qty + 1 })} className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm transition-all hover:brightness-125" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>+</button>
                         </div>
+                        <span className="text-xs text-gray-400">{BRL(it.unitPrice)} un.</span>
+                        <button onClick={() => setEditItems((arr: any[]) => arr.filter((_, i) => i !== idx))} title="Remover item" className="ml-auto w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}>
+                          <Trash2 size={13} />
+                        </button>
                         <input
                           value={it.note} onChange={(e) => setItem(idx, { note: e.target.value })} placeholder="obs deste item (ex.: sem cebola)"
-                          className="w-full mt-2 px-2.5 py-1.5 rounded-lg text-[11px] outline-none" style={{ ...inputStyle, color: '#f0e8e0' }}
+                          className="w-full px-2.5 py-1.5 rounded-lg text-xs outline-none" style={{ ...inputStyle, color: '#f0e8e0' }}
                         />
-                      </div>
+                      </ItemCard>
                     ))}
                   </div>
 
