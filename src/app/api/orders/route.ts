@@ -196,8 +196,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // CPF do cliente (exigido na NFC-e de entrega)
-    if (b.customerCpf !== undefined && String(b.customerCpf || '').replace(/\D/g, '')) {
+    // CPF do cliente (opcional; quando informado vira destinatario da NFC-e — precisa ter 11 digitos)
+    if (b.customerCpf !== undefined && String(b.customerCpf || '').replace(/\D/g, '').length === 11) {
       const cpf = String(b.customerCpf).replace(/\D/g, '');
       let cust = customerId ? await prisma.customer.findUnique({ where: { id: customerId } }) : null;
       if (!cust) {
@@ -234,18 +234,19 @@ export async function POST(req: Request) {
   if (b.customerPhone) {
     const phone = String(b.customerPhone).replace(/\D/g, '');
     const cpf = String(b.customerCpf || '').replace(/\D/g, '');
+    const cpfOk = cpf.length === 11;
     let cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
     if (!cust) {
       cust = await prisma.customer.create({
         data: {
-          name: b.customerName || 'Cliente', phone, cpf,
+          name: b.customerName || 'Cliente', phone, cpf: cpfOk ? cpf : '',
           street: b.street || '', number: b.number || '', complement: b.complement || '',
           district: b.district || '', reference: b.reference || '',
         },
       });
     } else {
       const updateData: any = { name: b.customerName || cust.name };
-      if (b.customerCpf) updateData.cpf = cpf; // so preenche/atualiza quando informado (nao apaga)
+      if (cpfOk) updateData.cpf = cpf; // so preenche/atualiza quando informado (nao apaga)
       if (b.street) updateData.street = b.street;
       if (b.number) updateData.number = b.number;
       if (b.complement) updateData.complement = b.complement;
@@ -253,7 +254,7 @@ export async function POST(req: Request) {
       await prisma.customer.update({ where: { id: cust.id }, data: updateData });
     }
     customerId = cust.id;
-  } else if (String(b.customerCpf || '').replace(/\D/g, '')) {
+  } else if (String(b.customerCpf || '').replace(/\D/g, '').length === 11) {
     // sem telefone mas com CPF (PDV): localiza pelo CPF ou cria usando o CPF como chave
     const cpf = String(b.customerCpf).replace(/\D/g, '');
     let cust = await prisma.customer.findFirst({ where: { cpf } }).catch(() => null);

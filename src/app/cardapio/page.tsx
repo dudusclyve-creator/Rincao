@@ -824,14 +824,8 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
   const finish = async () => {
     if (submitting) return;
     if (!f.name || !f.phone) { showToast('Informe nome e telefone', 'warning'); return; }
-    if (deliveryType === 'entrega') {
-      const digits = (f.cpf || '').replace(/\D/g, '');
-      if (digits.length !== 11) { showToast('Para entrega, informe o CPF com 11 dígitos (exigido pela nota fiscal)', 'warning'); return; }
-    }
-    if (deliveryType !== 'entrega' && emitNota) {
-      const digits = (f.cpf || '').replace(/\D/g, '');
-      if (digits.length !== 11) { showToast('CPF: informe 11 dígitos para emitir a nota fiscal', 'warning'); return; }
-    }
+    const cpfDigits = (f.cpf || '').replace(/\D/g, '');
+    if (cpfDigits.length > 0 && cpfDigits.length !== 11) { showToast('CPF incompleto — complete os 11 dígitos ou deixe em branco', 'warning'); return; }
     if (deliveryType === 'entrega' && restaurant.minOrder && cart.subtotal < restaurant.minOrder) {
       showToast(`Pedido mínimo: ${BRL(restaurant.minOrder)}`, 'warning'); return;
     }
@@ -892,7 +886,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Seu nome *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
             <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Telefone *" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} />
             {deliveryType === 'entrega' && (
-              <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF * (11 dígitos, para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+              <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF (opcional — para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
             )}
             {deliveryType !== 'entrega' && (
               <div className="rounded-xl p-3" style={{ background: '#f9f9f9', border: '1px solid #ececec' }}>
@@ -902,8 +896,8 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
                 </label>
                 {emitNota && (
                   <>
-                    <input autoFocus className="mt-2.5 w-full rounded-xl px-4 py-3 text-sm outline-none bg-white border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF * (11 dígitos, para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
-                    <p className="text-[10px] text-gray-400 mt-1.5">O CPF entra como destinatário da nota.</p>
+                    <input autoFocus className="mt-2.5 w-full rounded-xl px-4 py-3 text-sm outline-none bg-white border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF (opcional — para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+                    <p className="text-[10px] text-gray-400 mt-1.5">Se preencher, o CPF entra como destinatário da nota. Sem CPF a nota sai como consumidor não identificado.</p>
                   </>
                 )}
               </div>

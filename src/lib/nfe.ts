@@ -318,9 +318,10 @@ export function buildNfce(order: any, fiscal: any, numero: number): BuildNfce {
     order.type === 'entrega' &&
     !(order.addressText || '').toUpperCase().includes('RETIRADA') &&
     !(order.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL');
-  // NFC-e so aceita indPres 1 ou 4 (rej 717): entrega=4 exige CPF do destinatario (rej 787), demais=1
+  // NFC-e so aceita indPres 1 ou 4 (rej 717): entrega so usa 4 quando ha CPF do destinatario (rej 787);
+  // sem CPF, emite como consumidor nao identificado (indPres 1, sem tag dest) — CPF e opcional na NFC-e
   const destCpf = String(order.customer?.cpf || '').replace(/\D/g, '');
-  const indPres = isRealDelivery ? 4 : 1;
+  const indPres = isRealDelivery && destCpf.length === 11 ? 4 : 1;
   let destXml = '';
   // dest com CPF vale para entrega E para retirada (cliente marcou "deseja emitir a nota")
   if (destCpf.length === 11) {

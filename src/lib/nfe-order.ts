@@ -44,14 +44,6 @@ export async function emitirPedido(orderId: string): Promise<EmitResult> {
   if (/rivera/i.test(order.addressText || '')) {
     return { ok: false, error: 'Entrega em Rivera (exterior) — a NFC-e não aceita destino fora do Brasil. Emita a NF-e manualmente pelo contador.', http: 400 };
   }
-  const entregaSemCpf =
-    (order.type || '') === 'entrega' &&
-    !String(order.addressText || '').toUpperCase().includes('RETIRADA') &&
-    !String(order.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL') &&
-    String(order.customer?.cpf || '').replace(/\D/g, '').length !== 11;
-  if (entregaSemCpf) {
-    return { ok: false, error: 'Pedido de entrega sem CPF do cliente. A NFC-e de entrega exige o CPF do destinatário — cadastre o CPF no menu Clientes e tente novamente.', http: 400 };
-  }
   if (!order.items.length) return { ok: false, error: 'Pedido sem itens', http: 400 };
   if (!process.env.NFE_CERT_PFX_B64) return { ok: false, error: 'NFE_CERT_PFX_B64 não configurada no .env da Vercel', http: 500 };
 
