@@ -95,7 +95,7 @@ export async function GET(req: Request) {
     const day = o.createdAt.toISOString().slice(0, 10);
     if (!byDay[day]) byDay[day] = { count: 0, total: 0 };
     byDay[day].count++;
-    byDay[day].total += o.total;
+    byDay[day].total = Math.round((byDay[day].total + o.total) * 100) / 100;
   });
   const dailyData = Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b));
 
@@ -103,7 +103,7 @@ export async function GET(req: Request) {
   const byHour: Record<number, number> = {};
   active.forEach((o) => {
     const h = o.createdAt.getHours();
-    byHour[h] = (byHour[h] || 0) + o.total;
+    byHour[h] = Math.round(((byHour[h] || 0) + o.total) * 100) / 100;
   });
 
   return NextResponse.json({

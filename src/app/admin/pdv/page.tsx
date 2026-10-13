@@ -32,6 +32,14 @@ const PAYMENT_OPTIONS = [
   { id: 'credito', label: 'Crédito', icon: CreditCard, color: '#8b5cf6' },
 ];
 
+const maskPhone = (v: string) => {
+  const d = String(v || '').replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+};
+
 function ProductModal({ product, allProducts, onClose, onAdd }: { product: any; allProducts: any[]; onClose: () => void; onAdd: (item: any) => void }) {
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
@@ -184,6 +192,8 @@ export default function PDV() {
   const [deliveryNum, setDeliveryNum] = useState(saved?.deliveryNum || '');
   const [deliveryComp, setDeliveryComp] = useState(saved?.deliveryComp || '');
   const [feeOverride, setFeeOverride] = useState<number | null>(saved?.feeOverride ?? null);
+  const [feeInput, setFeeInput] = useState('');
+  const feeFocused = useRef(false);
   const [showAddress, setShowAddress] = useState(false);
   const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -243,6 +253,11 @@ export default function PDV() {
   const deliveryFee = type === 'entrega' ? (feeOverride ?? zoneFee) : 0;
   const total = Math.max(0, sub + deliveryFee);
   const itemCount = cart.reduce((s: number, i: any) => s + i.qty, 0);
+  const parseFee = (s: string) => Number(String(s).replace(',', '.')) || 0;
+  useEffect(() => {
+    if (feeFocused.current) return;
+    setFeeInput((prev) => (prev !== '' && parseFee(prev) === deliveryFee) ? prev : String(deliveryFee));
+  }, [deliveryFee]);
   const troco = (() => {
     if (changeFor <= 0) return 0;
     if (splitPayment) {
@@ -712,7 +727,7 @@ export default function PDV() {
                           {filtered.map((c: any) => (
                             <button key={c.id} onMouseDown={() => {
                               setClient(c.name);
-                              setClientPhone(c.phone || '');
+                              setClientPhone(maskPhone(c.phone || ''));
                               setClientCpf(c.cpf || '');
                               const junkAddr = /^\s*(retirada|consumo|balcao|pdv)/i;
                               if (c.street && !junkAddr.test(c.street)) setDeliveryStreet(c.street);
@@ -749,7 +764,7 @@ export default function PDV() {
                   </div>
                   <input value={clientCpf} onChange={(e) => setClientCpf(maskCpf(e.target.value))} placeholder="CPF (opcional — para emitir a nota)"
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                  <input value={orderNote} onChange={(e) => setOrderNote(e.target.value)} placeholder="Observação do pedido"
+                  <input value={clientPhone} onChange={(e) => setClientPhone(maskPhone(e.target.value))} placeholder="Telefone do cliente (opcional)" inputMode="tel" maxLength={15}
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 </div>
               </>
@@ -765,9 +780,19 @@ export default function PDV() {
                     <div className="flex items-center justify-between text-base text-gray-400">
                       <span>Taxa entrega {feeOverride !== null && feeOverride !== zoneFee && <span className="text-[11px] font-bold" style={{ color: '#f59e0b' }}>editada</span>}</span>
                       <div className="flex items-center gap-1.5">
-                        <input type="number" min={0} step="0.50" value={deliveryFee} title="Motoboy cobra outro valor? Edite a taxa aqui"
-                          onChange={(e) => setFeeOverride(Math.max(0, Number(e.target.value) || 0))}
-                          onBlur={() => { if (feeOverride !== null && feeOverride === zoneFee) setFeeOverride(null); }}
+                        <input type="text" inputMode="decimal" value={feeInput} title="Motoboy cobra outro valor? Digite a taxa aqui"
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(',', '.');
+                            setFeeInput(e.target.value);
+                            if (raw === '' || /^\d{0,4}(\.\d{0,2})?$/.test(raw)) setFeeOverride(raw === '' ? null : Math.max(0, parseFee(raw)));
+                          }}
+                          onFocus={() => { feeFocused.current = true; }}
+                          onBlur={() => {
+                            feeFocused.current = false;
+                            const finalFee = feeInput.trim() === '' ? zoneFee : parseFee(feeInput);
+                            setFeeOverride(finalFee === zoneFee ? null : finalFee);
+                            setFeeInput(String(finalFee));
+                          }}
                           className="w-24 px-2.5 py-1.5 rounded-lg text-right text-base font-bold outline-none focus:border-amber-400/50 transition-colors" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                         {feeOverride !== null && feeOverride !== zoneFee && (
                           <button onClick={() => setFeeOverride(null)} title={`Voltar à taxa da zona (${BRL(zoneFee)})`} className="text-sm text-gray-500 hover:text-white transition-colors">↺</button>

@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   const prodCount: Record<string, { name: string; qty: number; total: number }> = {};
   orders.forEach((o) => {
     const d = o.createdAt.toISOString().slice(0, 10);
-    byDay[d] = (byDay[d] || 0) + o.total;
+    byDay[d] = Math.round(((byDay[d] || 0) + o.total) * 100) / 100;
     const h = `${String(o.createdAt.getHours()).padStart(2,'0')}h`;
     byHour[h] = (byHour[h] || 0) + 1;
     const rawPay = String(o.payment || 'outro');

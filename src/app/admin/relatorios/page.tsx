@@ -29,7 +29,7 @@ function BarChartSVG({ data, maxVal }: { data: { label: string; value: number; c
           <g key={i}>
             <rect x={x} y={h - barH} width={barW} height={barH} rx={4} fill={d.color || '#e11d48'} opacity={0.85} />
             <text x={x + barW / 2} y={h + 14} textAnchor="middle" fill="#6b7280" fontSize={8}>{d.label}</text>
-            {d.value > 0 && <text x={x + barW / 2} y={h - barH - 4} textAnchor="middle" fill="#f0e8e0" fontSize={8} fontWeight={700}>{d.value}</text>}
+            {d.value > 0 && <text x={x + barW / 2} y={h - barH - 4} textAnchor="middle" fill="#f0e8e0" fontSize={8} fontWeight={700}>{Number.isInteger(d.value) ? d.value : d.value.toFixed(2)}</text>}
           </g>
         );
       })}
