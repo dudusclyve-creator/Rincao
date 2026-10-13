@@ -229,6 +229,16 @@ export default function PDV() {
     return () => clearInterval(t);
   }, []);
 
+  const zoneFee = type === 'entrega' && deliveryCity && deliveryBairro
+    ? (deliveryZones[deliveryCity]?.find(z => z.name === deliveryBairro)?.fee || 0)
+    : 0;
+  const deliveryFee = type === 'entrega' ? (feeOverride ?? zoneFee) : 0;
+  const parseFee = (s: string) => Number(String(s).replace(',', '.')) || 0;
+  useEffect(() => {
+    if (feeFocused.current) return;
+    setFeeInput((prev) => (prev !== '' && parseFee(prev) === deliveryFee) ? prev : String(deliveryFee));
+  }, [deliveryFee]);
+
   if (!menu) {
     return (
       <div className="min-h-[calc(100vh-48px)] rounded-2xl p-5 flex items-center justify-center" style={{ background: '#1a1520' }}>
@@ -247,17 +257,8 @@ export default function PDV() {
   });
 
   const sub = cart.reduce((s: number, i: any) => s + i.qty * (i.unitPrice + (i.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0)), 0);
-  const zoneFee = type === 'entrega' && deliveryCity && deliveryBairro
-    ? (deliveryZones[deliveryCity]?.find(z => z.name === deliveryBairro)?.fee || 0)
-    : 0;
-  const deliveryFee = type === 'entrega' ? (feeOverride ?? zoneFee) : 0;
   const total = Math.max(0, sub + deliveryFee);
   const itemCount = cart.reduce((s: number, i: any) => s + i.qty, 0);
-  const parseFee = (s: string) => Number(String(s).replace(',', '.')) || 0;
-  useEffect(() => {
-    if (feeFocused.current) return;
-    setFeeInput((prev) => (prev !== '' && parseFee(prev) === deliveryFee) ? prev : String(deliveryFee));
-  }, [deliveryFee]);
   const troco = (() => {
     if (changeFor <= 0) return 0;
     if (splitPayment) {
