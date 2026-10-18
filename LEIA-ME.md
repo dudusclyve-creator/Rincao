@@ -50,6 +50,9 @@ diálogo e **sem desperdício de papel**: o app envia os comandos ESC/POS
 diretamente para a impressora térmica, então o papel é puxado exatamente do
 tamanho do cupom, com corte automático.
 
+O **DANFE da NFC-e** também imprime assim (texto + QR Code), no tamanho certo —
+não sai mais como folha comprida.
+
 Para ajustar, coloque no `.env` (ao lado do `.exe`):
 
 ```env
@@ -57,6 +60,7 @@ PRINT_DEVICE="EPSON TM-T20X Receipt"   # vazio = impressora padrão do Windows
 PRINT_FONTE="2x1"                      # 2x1 (padrão) | 2x2 (maior) | 1x1 (menor)
 PRINT_ESPACO="56"                      # espaço entre as linhas (padrão 56)
 PRINT_LARGURA_DOTS="576"               # 576 = papel 80mm | 384 = papel 58mm
+PRINT_QR="auto"                        # auto (padrão) | imagem
 ```
 
 - `PRINT_DEVICE` precisa ser exatamente o nome da impressora no Windows
@@ -66,6 +70,9 @@ PRINT_LARGURA_DOTS="576"               # 576 = papel 80mm | 384 = papel 58mm
 - `PRINT_ESPACO`: altura de cada linha, em pontos (1 mm ≈ 8 pontos). Quanto
   maior, mais separadas as linhas. Padrão `56` (≈ 7 mm).
 - `PRINT_LARGURA_DOTS`: 576 para papel de 80 mm, 384 para papel de 58 mm.
+- `PRINT_QR`: no DANFE, o QR Code é desenhado pela própria impressora (mais
+  nítido). Se a sua impressora não desenhar, use `PRINT_QR="imagem"` para o app
+  mandar o QR como imagem.
 
 > Precisa ser uma **impressora térmica compatível com ESC/POS** (EPSON, Elgin,
 > Bematech, Daruma, Tanca...). Impressora comum de folha A4 não entende esses

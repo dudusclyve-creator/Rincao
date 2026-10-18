@@ -139,20 +139,29 @@ function colherCupom(wc) {
     "    if (!textos.length && document.body) textos.push(document.body.innerText || '');",
     "    var img = document.getElementById('logo');",
     "    var logo = (img && img.getAttribute('src')) || '';",
-    "    return { textos: textos, logo: logo };",
-    "  } catch (e) { return { textos: [], logo: '', erro: String(e) }; }",
+    // cupom do DANFE: traz a fonte desejada (1x1) e o conteudo do QR Code, que a
+    // impressora desenha sozinha. A imagem do QR fica de reserva.
+    "    var qr = ''; var fonte = '';",
+    "    if (paginas.length) {",
+    "      qr = paginas[0].getAttribute('data-qr') || '';",
+    "      fonte = paginas[0].getAttribute('data-fonte') || '';",
+    "    }",
+    "    var imgQr = document.getElementById('nfe-qr');",
+    "    var qrImagem = (imgQr && imgQr.getAttribute('src')) || '';",
+    "    return { textos: textos, logo: logo, qr: qr, fonte: fonte, qrImagem: qrImagem };",
+    "  } catch (e) { return { textos: [], logo: '', qr: '', fonte: '', qrImagem: '', erro: String(e) }; }",
     "})()",
   ].join("\n");
   return wc.executeJavaScript(script);
 }
 
-// baixa a logo (ex.: /logo.png) para um arquivo, que o script de impressao
-// converte em bitmap ESC/POS. Se falhar, o cupom sai sem logo.
-async function baixarLogo(url) {
+// baixa uma imagem (logo, QR) para um arquivo, que o script de impressao
+// converte em bitmap ESC/POS. Se falhar, o cupom sai sem ela.
+async function baixarImagem(url, nomeArquivo) {
   try {
     const alvo = String(url || "").trim();
     if (!alvo || alvo === "about:blank") return "";
-    const destino = arquivoTemp("rincao-logo.png");
+    const destino = arquivoTemp(nomeArquivo);
 
     if (alvo.startsWith("data:")) {
       const m = /^data:([^;,]*);base64,(.*)$/s.exec(alvo);
@@ -173,9 +182,14 @@ async function baixarLogo(url) {
   }
 }
 
+function baixarLogo(url) {
+  return baixarImagem(url, "rincao-logo.png");
+}
+
 // manda o texto (uma pagina por form feed) para o script ESC/POS
-function enviarParaImpressora(texto, logo) {
+function enviarParaImpressora(texto, logo, extras) {
   return new Promise((resolve) => {
+    const opcoes = extras || {};
     const txt = arquivoTemp("rincao-cupom.txt");
     fs.writeFileSync(txt, texto, "utf8");
 
@@ -189,11 +203,15 @@ function enviarParaImpressora(texto, logo) {
       "-TextFile",
       txt,
       "-Fonte",
-      String(appEnv.PRINT_FONTE || "2x1").trim() || "2x1",
+      String(opcoes.fonte || appEnv.PRINT_FONTE || "2x1").trim() || "2x1",
     ];
     const impressora = impressoraAlvo();
     if (impressora) args.push("-Printer", impressora);
     if (logo) args.push("-LogoFile", logo);
+    if (opcoes.qr) args.push("-QrTexto", opcoes.qr);
+    if (opcoes.qrFile) args.push("-QrFile", opcoes.qrFile);
+    const moduloQr = String(appEnv.PRINT_QR_MODULO || "").trim();
+    if (moduloQr) args.push("-QrModulo", moduloQr);
     const largura = String(appEnv.PRINT_LARGURA_DOTS || "").trim();
     if (largura) args.push("-LarguraDots", largura);
     const espaco = String(appEnv.PRINT_ESPACO || "").trim();
@@ -238,7 +256,8 @@ function gerenciarJanelaDeRecibo(child) {
       // - troca o window.print() por nada: quem imprime e o processo principal
       //   (se o painel chamar print(), o driver puxaria a folha de 30 cm)
       // - ve se o conteudo chegou, se a logo ja chegou e se e um cupom
-      //   (cupom = tem <pre class="receipt">; DANFE/documento nao tem)
+      //   (cupom = tem <pre class="receipt">. Vale para o cupom do pedido e
+      //   para o DANFE da nota, que manda o proprio texto em 48 colunas)
       estado = await wc.executeJavaScript(
         "(function(){ try { window.print = function(){ window.__rincaoPediu = true; }; } catch(e){} var img = document.getElementById('logo'); var rec = document.querySelectorAll('pre.receipt'); return { tam: document.body ? document.body.innerHTML.length : 0, logo: !!(img && img.getAttribute('src')), recibo: rec.length > 0 }; })()"
       );
@@ -279,8 +298,8 @@ function gerenciarJanelaDeRecibo(child) {
   }, 80);
 }
 
-// paginas inteiras (DANFE) continuam pelo driver do Windows -- o ESC/POS e
-// para cupom de 80 mm, nao para documento de tamanho A4
+// documento de pagina inteira (nao e cupom nem DANFE) continua pelo driver do
+// Windows -- o ESC/POS e para papel de 80 mm, nao para pagina tipo A4
 function imprimirDocumento(wc) {
   const win = BrowserWindow.fromWebContents(wc);
   const fechar = () => {
@@ -335,12 +354,24 @@ async function imprimirEfechar(wc) {
   }
 
   const logo = await baixarLogo(cupom && cupom.logo);
+
+  // DANFE: vem com o conteudo do QR Code e pede a fonte normal (1x1), porque e
+  // um documento comprido. O QR quem desenha e a propria impressora; a imagem
+  // que veio no cupom fica de reserva, caso o QR nativo nao funcione.
+  // PRINT_QR=imagem no .env forca a reserva (a imagem do QR).
+  const modoQr = String(appEnv.PRINT_QR || "auto").trim().toLowerCase();
+  const qr = modoQr === "imagem" ? "" : String((cupom && cupom.qr) || "").trim();
+  const fonte = String((cupom && cupom.fonte) || "").trim();
+  const qrFile = !qr && cupom && cupom.qrImagem ? await baixarImagem(cupom.qrImagem, "rincao-qr.png") : "";
+
   const destino = impressoraAlvo() || "(impressora padrao do Windows)";
   console.log(
-    "[print] " + textos.length + " pagina(s), logo " + (logo ? "sim" : "nao") + " -> " + destino
+    "[print] " + textos.length + " pagina(s), logo " + (logo ? "sim" : "nao") +
+    (qr || qrFile ? ", qr " + (qr ? "nativo" : "imagem") : "") +
+    ", fonte " + (fonte || appEnv.PRINT_FONTE || "2x1") + " -> " + destino
   );
 
-  const r = await enviarParaImpressora(textos.join("\f"), logo);
+  const r = await enviarParaImpressora(textos.join("\f"), logo, { fonte: fonte, qr: qr, qrFile: qrFile });
   if (r.ok) console.log("[print] ok: " + r.saida);
   else console.error("[print] falhou: " + r.saida);
 

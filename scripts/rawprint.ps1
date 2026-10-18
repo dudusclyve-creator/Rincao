@@ -10,10 +10,16 @@
   Uso:
     powershell -NoProfile -ExecutionPolicy Bypass -File rawprint.ps1 `
       -TextFile cupom.txt [-LogoFile logo.png] [-Printer "Nome da impressora"] `
-      [-Fonte 2x2] [-Feed 4] [-LarguraDots 576] [-SemCorte]
+      [-Fonte 2x2] [-Feed 4] [-LarguraDots 576] [-SemCorte] `
+      [-QrTexto "https://..."] [-QrFile qr.png]
 
   O arquivo de texto deve estar em UTF-8. Vários cupons podem ir no mesmo
   arquivo, separados por form feed (0x0C): cada um vira um cupom com corte.
+
+  QR Code: uma linha do texto contendo exatamente [[QR]] é trocada pelo código.
+  Se -QrTexto vier preenchido, o QR é gerado pela própria impressora (comando
+  nativo GS ( k), sai perfeito). Se não, -QrFile (uma imagem PNG) é convertido
+  em bitmap e impresso no lugar. Sem nenhum dos dois, sai um aviso em texto.
 #>
 param(
   [Parameter(Mandatory = $true)][string]$TextFile,
@@ -23,6 +29,10 @@ param(
   [int]$Feed = 4,
   [int]$LarguraDots = 576,
   [int]$Espaco = 0,
+  [string]$QrTexto = "",
+  [string]$QrFile = "",
+  [int]$QrDots = 460,
+  [int]$QrModulo = 8,
   [switch]$SemCorte,
   [string]$SaidaArquivo = ""
 )
@@ -97,8 +107,8 @@ if ($Fonte -notmatch '^[12]x[12]$') { $Fonte = '2x1' }
 $dobraLargura = $Fonte.StartsWith('2')
 $dobraAltura = $Fonte.EndsWith('2')
 
-# ------------------------------------------------------------- logo (bitmap) --
-function Get-LogoEscPos([string]$arquivo, [int]$larguraDots) {
+# -------------------------------------------- imagem (logo / QR em bitmap) ---
+function Get-ImagemEscPos([string]$arquivo, [int]$larguraDots, [double]$fracLargura = 0.72, [double]$fracAltura = 0.30) {
   if ([string]::IsNullOrWhiteSpace($arquivo) -or -not (Test-Path -LiteralPath $arquivo)) { return $null }
 
   Add-Type -AssemblyName System.Drawing | Out-Null
@@ -108,9 +118,9 @@ function Get-LogoEscPos([string]$arquivo, [int]$larguraDots) {
   try {
     $src = [System.Drawing.Image]::FromFile($arquivo)
 
-    # logo ocupa no maximo ~55mm de largura e ~22mm de altura, centralizada
-    $maxL = [int][Math]::Round($larguraDots * 0.72)
-    $maxA = [int][Math]::Round($larguraDots * 0.30)
+    # nao passa de uma fracao da largura/altura, e sai centralizada
+    $maxL = [int][Math]::Round($larguraDots * $fracLargura)
+    $maxA = [int][Math]::Round($larguraDots * $fracAltura)
     $escala = [Math]::Min($maxL / $src.Width, $maxA / $src.Height)
     if ($escala -gt 1) { $escala = 1.0 }
     $l = [Math]::Max(1, [int][Math]::Round($src.Width * $escala))
@@ -151,7 +161,7 @@ function Get-LogoEscPos([string]$arquivo, [int]$larguraDots) {
     }
     return ,$saida.ToArray()
   } catch {
-    [Console]::Error.WriteLine("AVISO logo ignorada: " + $_.Exception.Message)
+    [Console]::Error.WriteLine("AVISO imagem ignorada: " + $_.Exception.Message)
     return
   } finally {
     if ($canvas) { $canvas.Dispose() }
@@ -179,12 +189,47 @@ if ($maior -gt $maxCols) {
   Write-Output ("AVISO: linha de " + $maior + " colunas nao cabe na fonte dobrada; usando fonte normal.")
 }
 
-$logo = Get-LogoEscPos $LogoFile $LarguraDots
-if ($logo -isnot [byte[]]) { $logo = $null }
-
 # adiciona bytes numa lista, sem depender de conversoes do PowerShell
 function Add-Bytes([System.Collections.Generic.List[byte]]$lista, $valores) {
   foreach ($v in $valores) { [void]$lista.Add([byte]([int]$v)) }
+}
+
+$logo = Get-ImagemEscPos $LogoFile $LarguraDots
+if ($logo -isnot [byte[]]) { $logo = $null }
+
+# --------------------------------------------------------------- QR Code -----
+# 1) nativo: quem desenha o QR e a propria impressora (comando GS ( k do
+#    ESC/POS). Sai com os quadradinhos perfeitos, sem depender de imagem.
+function Get-QrNativo([string]$texto, [int]$modulo = 8) {
+  if ([string]::IsNullOrWhiteSpace($texto)) { return $null }
+  if ($modulo -lt 1) { $modulo = 1 }
+  if ($modulo -gt 16) { $modulo = 16 }
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($texto)
+  $out = New-Object 'System.Collections.Generic.List[byte]'
+  Add-Bytes $out @(0x1B, 0x61, 0x01)                                          # ESC a 1  centraliza
+  Add-Bytes $out @(0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00)      # modelo 2
+  Add-Bytes $out @(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, $modulo)        # tamanho do modulo
+  Add-Bytes $out @(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31)           # correcao nivel M
+  $len = $bytes.Length + 3
+  Add-Bytes $out @(0x1D, 0x28, 0x6B, ($len -band 0xFF), (($len -shr 8) -band 0xFF), 0x31, 0x50, 0x30)
+  Add-Bytes $out $bytes
+  Add-Bytes $out @(0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30)           # imprime o QR
+  Add-Bytes $out @(0x1B, 0x61, 0x00, 0x0A)                                   # ESC a 0  volta a esquerda
+  return ,$out.ToArray()
+}
+
+# 2) reserva: transforma a imagem do QR em bitmap (mesma tecnica da logo)
+$qr = $null
+$qrOrigem = 'nao'
+if (-not [string]::IsNullOrWhiteSpace($QrTexto)) {
+  $qr = Get-QrNativo $QrTexto $QrModulo
+  if ($qr -isnot [byte[]]) { $qr = $null } else { $qrOrigem = 'nativo' }
+}
+if (-not $qr -and -not [string]::IsNullOrWhiteSpace($QrFile)) {
+  $fracao = [Math]::Min(0.92, $QrDots / [double]$LarguraDots)
+  $tmp = Get-ImagemEscPos $QrFile $LarguraDots $fracao $fracao
+  if ($tmp -isnot [byte[]]) { $tmp = $null }
+  if ($tmp) { $qr = $tmp; $qrOrigem = 'imagem' }
 }
 
 $dados = New-Object 'System.Collections.Generic.List[byte]'
@@ -211,6 +256,14 @@ foreach ($pagina in $paginas) {
   if ($primeira -and $logo) { Add-Bytes $dados $logo; Add-Bytes $dados @(0x0A, 0x0A) }
 
   foreach ($linha in ($pagina -split "`n")) {
+    if ($linha.Trim() -eq '[[QR]]') {
+      if ($qr) { Add-Bytes $dados $qr }
+      else {
+        Add-Bytes $dados $enc.GetBytes('(QR Code indisponivel)')
+        Add-Bytes $dados @(0x0A)
+      }
+      continue
+    }
     if ($linha.Length -gt 0) { Add-Bytes $dados $enc.GetBytes($linha) }
     Add-Bytes $dados @(0x0A)
   }
@@ -228,7 +281,7 @@ if ($dados.Count -eq 0) {
 
 if (-not [string]::IsNullOrWhiteSpace($SaidaArquivo)) {
   [System.IO.File]::WriteAllBytes($SaidaArquivo, $dados.ToArray())
-  Write-Output ("OK gravado " + $dados.Count + " bytes em " + $SaidaArquivo + " (fonte " + $Fonte + ", logo " + $(if ($logo) { "sim" } else { "nao" }) + ")")
+  Write-Output ("OK gravado " + $dados.Count + " bytes em " + $SaidaArquivo + " (fonte " + $Fonte + ", logo " + $(if ($logo) { "sim" } else { "nao" }) + ", qr " + $qrOrigem + ")")
   exit 0
 }
 
@@ -239,5 +292,5 @@ if ($enviados -lt 0) {
   exit 4
 }
 
-Write-Output ("OK " + $enviados + " bytes -> " + $Printer + " (fonte " + $Fonte + ")")
+Write-Output ("OK " + $enviados + " bytes -> " + $Printer + " (fonte " + $Fonte + ", qr " + $qrOrigem + ")")
 exit 0

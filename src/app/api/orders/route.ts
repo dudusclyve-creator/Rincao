@@ -280,6 +280,11 @@ export async function POST(req: Request) {
   });
   const seq = lastOrder ? lastOrder.number + 1 : 1;
 
+  // o cardapio do site nao manda "source": aqui o pedido vira 'cardapio'.
+  // A checagem do caixa lia o valor cru (undefined) e por isso as vendas
+  // feitas pelo site nao entravam no caixa.
+  const orderSource = b.source || 'cardapio';
+
   const order = await prisma.order.create({
     data: {
       number: seq,
@@ -289,7 +294,7 @@ export async function POST(req: Request) {
       status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
       subtotal, deliveryFee: fee, discount: Number(b.discount || 0),
       total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
-      source: b.source || 'cardapio', emitRequested: !!b.emitRequested,
+      source: orderSource, emitRequested: !!b.emitRequested,
       items: { create: (b.items || []).map((it: any) => ({
         productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
         unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
@@ -309,8 +314,9 @@ export async function POST(req: Request) {
     }
   }
 
-  // pedidos de mesa pagam somente no fechamento da mesa (mesas/closeTable)
-  if (b.source === 'cardapio' && (b.type || 'entrega') !== 'mesa') {
+  // pedidos de mesa pagam somente no fechamento da mesa (mesas/closeTable);
+  // os do PDV tambem sao lancados pela propria pagina do PDV
+  if (orderSource === 'cardapio' && (b.type || 'entrega') !== 'mesa') {
     const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (open) {
       for (const p of parsePayments(b.payment || 'pix', total)) {
