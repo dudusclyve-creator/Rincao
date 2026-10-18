@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
+import { prisma } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 const BUCKET = 'product-images';
+
+// A Vercel limita o corpo da requisicao a ~4,5 MB. O painel tambem reduz a foto
+// antes de enviar, entao na pratica as imagens ficam bem menores que isso.
+const MAX_BYTES = 4 * 1024 * 1024;
+
+const EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'];
 
 async function ensureBucket(base: string, key: string) {
   try {
@@ -20,15 +25,21 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    if (!file) return NextResponse.json({ error: 'No file' }, { status: 400 });
+    if (!file) return NextResponse.json({ error: 'Nenhuma imagem enviada' }, { status: 400 });
+    if (file.size > MAX_BYTES) {
+      return NextResponse.json({ error: 'Imagem muito grande (máximo 4 MB)' }, { status: 413 });
+    }
 
     const bytes = await file.arrayBuffer();
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const buffer = Buffer.from(bytes);
+    const bruta = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const ext = EXTS.includes(bruta) ? bruta : 'jpg';
+    const mime = String(file.type || `image/${ext === 'jpg' ? 'jpeg' : ext}`);
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
+    // 1) Supabase Storage — usado quando as chaves estão configuradas (nuvem, CDN)
     const base = process.env.SUPABASE_STORAGE_URL;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
     if (base && serviceKey) {
       try {
         await ensureBucket(base, serviceKey);
@@ -37,27 +48,28 @@ export async function POST(req: NextRequest) {
           headers: {
             apikey: serviceKey,
             Authorization: `Bearer ${serviceKey}`,
-            'Content-Type': file.type || 'application/octet-stream',
+            'Content-Type': mime,
             'x-upsert': 'true',
           },
-          body: bytes,
+          body: buffer,
         });
         if (r.ok) {
-          return NextResponse.json({ url: `${base}/storage/v1/object/public/${BUCKET}/${filename}` });
+          return NextResponse.json({ url: `${base}/storage/v1/object/public/${BUCKET}/${filename}`, onde: 'storage' });
         }
-        const errText = await r.text();
-        console.error('[UPLOAD] storage recusou:', r.status, errText.slice(0, 300));
+        console.error('[UPLOAD] storage recusou:', r.status, (await r.text()).slice(0, 300));
       } catch (e) {
         console.error('[UPLOAD] erro no storage:', e);
       }
     }
 
-    const uploadDir = join(process.cwd(), 'public', 'uploads');
-    await mkdir(uploadDir, { recursive: true });
-    await writeFile(join(uploadDir, filename), Buffer.from(bytes));
-    return NextResponse.json({ url: `/uploads/${filename}` });
+    // 2) Banco de dados — funciona em qualquer lugar (o site roda na Vercel, que
+    // não deixa gravar arquivo em disco). A imagem é servida em /api/image/<id>.
+    const img = await prisma.image.create({
+      data: { mime, name: file.name.slice(0, 120), bytes: buffer },
+    });
+    return NextResponse.json({ url: `/api/image/${img.id}`, onde: 'banco' });
   } catch (e) {
     console.error('[UPLOAD] falha geral:', e);
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Falha no upload' }, { status: 500 });
   }
 }

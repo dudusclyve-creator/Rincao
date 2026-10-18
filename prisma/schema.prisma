@@ -272,3 +272,14 @@ model AuditLog {
   detail    String   @default("")
   createdAt DateTime @default(now())
 }
+
+// Fotos enviadas pelo painel (ex.: foto do produto). Ficam no proprio banco
+// porque o site roda na Vercel, que nao deixa gravar arquivo em disco; assim a
+// foto funciona igual no site e no aplicativo do PC e e servida em /api/image/<id>.
+model Image {
+  id        String   @id @default(cuid())
+  mime      String   @default("image/jpeg")
+  name      String   @default("")
+  bytes     Bytes
+  createdAt DateTime @default(now())
+}
