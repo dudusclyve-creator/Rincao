@@ -71,6 +71,38 @@ function getPaymentBadge(payment: string) {
   return info ? { label: `${info.icon} ${info.label}`, color: info.color } : { label: payment, color: '#9ca3af' };
 }
 
+const PAY_METHODS = [
+  { id: 'pix', label: 'PIX' },
+  { id: 'dinheiro', label: 'Dinheiro' },
+  { id: 'debito', label: 'Débito' },
+  { id: 'credito', label: 'Crédito' },
+];
+
+// "pix:20,dinheiro:38" -> [{ method: 'pix', amount: 20 }, { method: 'dinheiro', amount: 38 }]
+function parsePayParts(raw: string): { method: string; amount: number }[] {
+  return String(raw || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => {
+      const i = p.lastIndexOf(':');
+      if (i > 0) {
+        const amount = Number(p.slice(i + 1));
+        if (Number.isFinite(amount) && amount > 0) {
+          return { method: p.slice(0, i), amount: Math.round(amount * 100) / 100 };
+        }
+      }
+      return { method: p, amount: 0 };
+    });
+}
+
+function payToString(parts: { method: string; amount: number }[]): string {
+  return parts
+    .filter((p) => Number(p.amount || 0) > 0)
+    .map((p) => `${p.method}:${Math.round(Number(p.amount) * 100) / 100}`)
+    .join(',');
+}
+
 function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, onNfe, onEdit, draggable, onDragStart, onDragEnd }: any) {
   const orderType = getOrderType(o);
   const typeBadge = TYPE_BADGE[orderType];
@@ -321,6 +353,8 @@ export default function Pedidos() {
   const [editOrder, setEditOrder] = useState<any | null>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
   const [editForm, setEditForm] = useState<any>({});
+  const [editSplit, setEditSplit] = useState(false);
+  const [editPayments, setEditPayments] = useState<{ method: string; amount: number }[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [addProductId, setAddProductId] = useState('');
   const [addQty, setAddQty] = useState(1);
@@ -444,6 +478,13 @@ export default function Pedidos() {
       payment: o.payment || 'pix', changeFor: o.changeFor ? String(o.changeFor) : '', note: o.note || '',
       customerCpf: o.customer?.cpf || '',
     });
+
+    // pagamento dividido: "pix:20,dinheiro:38" -> lista editavel de formas
+    const payStr = String(o.payment || 'pix');
+    const dividido = payStr.includes(',');
+    setEditSplit(dividido);
+    setEditPayments(dividido ? parsePayParts(payStr) : [{ method: payStr, amount: Number(o.total || 0) }]);
+
     setAddProductId(''); setAddQty(1);
     const p = await fetch('/api/products').then((r) => r.json()).catch(() => []);
     setProducts(Array.isArray(p) ? p : []);
@@ -454,6 +495,11 @@ export default function Pedidos() {
     if (editOrder.nfeStatus === 'issued') { alert('Nota fiscal emitida — cancele a nota antes de editar o pedido.'); return; }
     if (editItems.length === 0) { alert('O pedido precisa ter pelo menos 1 item.'); return; }
     const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
+    const subtotalEdit = editItems.reduce(
+      (s: number, it: any) => s + it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)),
+      0
+    );
+    const total = Math.max(0, subtotalEdit + fee - Number(editForm.discount || 0));
     const payload: any = {
       action: 'edit', orderId: editOrder.id,
       items: editItems.map((it: any) => ({ productId: it.productId, name: it.name, qty: it.qty, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
@@ -462,7 +508,21 @@ export default function Pedidos() {
       type: editForm.type, deliveryFee: fee, discount: Number(editForm.discount || 0),
       changeFor: editForm.changeFor ? Number(editForm.changeFor) : null, note: editForm.note,
     };
-    if (!String(editOrder.payment || '').includes(',')) payload.payment = editForm.payment;
+    if (editSplit) {
+      const partes = editPayments.filter((p) => Number(p.amount || 0) > 0);
+      if (partes.length < 2) {
+        alert('Pagamento dividido precisa de pelo menos 2 formas de pagamento.\n\nOu clique em "Cancelar divisão" para usar uma forma só.');
+        return;
+      }
+      const soma = Math.round(partes.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
+      if (Math.abs(soma - total) > 0.005) {
+        alert(`As formas de pagamento somam ${BRL(soma)}, mas o total do pedido é ${BRL(total)}.\n\nClique em "ajustar" no pagamento para acertar os valores.`);
+        return;
+      }
+      payload.payment = payToString(partes);
+    } else {
+      payload.payment = editForm.payment;
+    }
     try {
       const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const d = await r.json().catch(() => ({}));
@@ -654,7 +714,8 @@ export default function Pedidos() {
         const discount = Number(editForm.discount || 0);
         const total = Math.max(0, subtotal + fee - discount);
         const nfeLocked = editOrder.nfeStatus === 'issued';
-        const splitPay = String(editOrder.payment || '').includes(',');
+        const somaDividida = Math.round(editPayments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
+        const somaDivididaOk = Math.abs(somaDividida - total) < 0.005;
         const inputStyle = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#f0e8e0' };
         const setItem = (idx: number, patch: any) => setEditItems((arr: any[]) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
         return (
@@ -770,20 +831,103 @@ export default function Pedidos() {
                     <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>🏷️ Desconto</label>
                     <input type="number" min={0} step="0.5" value={editForm.discount} onChange={(e) => setEditForm((f: any) => ({ ...f, discount: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
                   </div>
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>💳 Pagamento</label>
-                    <select
-                      value={splitPay ? editOrder.payment : editForm.payment}
-                      onChange={(e) => setEditForm((f: any) => ({ ...f, payment: e.target.value }))}
-                      disabled={splitPay}
-                      className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none disabled:opacity-50" style={inputStyle}
-                    >
-                      {splitPay && <option value={editOrder.payment}>{editOrder.payment} (dividido)</option>}
-                      <option value="pix">PIX</option>
-                      <option value="dinheiro">Dinheiro</option>
-                      <option value="debito">Débito</option>
-                      <option value="credito">Crédito</option>
-                    </select>
+                  <div className="col-span-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] uppercase tracking-widest font-bold" style={{ color: '#8a7a6a' }}>💳 Pagamento</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editSplit) {
+                            setEditSplit(false);
+                            setEditForm((f: any) => ({ ...f, payment: editPayments[0]?.method || 'pix' }));
+                          } else {
+                            setEditSplit(true);
+                            setEditPayments([{ method: editForm.payment || 'pix', amount: total }]);
+                          }
+                        }}
+                        className="text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all hover:scale-105"
+                        style={{ background: 'rgba(255,255,255,0.05)', color: editSplit ? '#fb7185' : '#6b7280' }}
+                      >
+                        {editSplit ? '✕ Cancelar divisão' : '÷ Dividir conta'}
+                      </button>
+                    </div>
+
+                    {!editSplit ? (
+                      <select
+                        value={editForm.payment}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, payment: e.target.value }))}
+                        className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle}
+                      >
+                        {PAY_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                      </select>
+                    ) : (
+                      <div className="space-y-2">
+                        {editPayments.map((pmt, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <select
+                              value={pmt.method}
+                              onChange={(e) => setEditPayments((arr) => arr.map((x, i) => (i === idx ? { ...x, method: e.target.value } : x)))}
+                              className="w-28 px-2 py-2.5 rounded-xl text-xs font-bold outline-none" style={inputStyle}
+                            >
+                              {PAY_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                            </select>
+                            <div className="relative flex-1">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">R$</span>
+                              <input
+                                type="number" min={0} step="0.01" value={pmt.amount || ''}
+                                onChange={(e) => setEditPayments((arr) => arr.map((x, i) => (i === idx ? { ...x, amount: Number(e.target.value) } : x)))}
+                                placeholder="0,00" className="w-full pl-7 pr-2 py-2.5 rounded-xl text-xs font-bold outline-none" style={inputStyle}
+                              />
+                            </div>
+                            {editPayments.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setEditPayments((arr) => arr.filter((_, i) => i !== idx))}
+                                title="Remover forma"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+                                style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171' }}
+                              >
+                                <X size={13} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const falta = Math.round((total - editPayments.reduce((s, p) => s + Number(p.amount || 0), 0)) * 100) / 100;
+                              const proximo = PAY_METHODS[editPayments.length % PAY_METHODS.length].id;
+                              setEditPayments((arr) => [...arr, { method: proximo, amount: Math.max(0, falta) }]);
+                            }}
+                            className="text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all hover:scale-105"
+                            style={{ background: 'rgba(244,63,94,0.12)', color: '#fb7185' }}
+                          >
+                            + Adicionar forma
+                          </button>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold" style={{ color: somaDivididaOk ? '#4ade80' : '#fb7185' }}>
+                              {BRL(somaDividida)} / {BRL(total)}
+                            </span>
+                            {!somaDivididaOk && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const falta = Math.round((total - somaDividida) * 100) / 100;
+                                  setEditPayments((arr) => arr.map((x, i) => (i === arr.length - 1 ? { ...x, amount: Math.max(0, Math.round((Number(x.amount || 0) + falta) * 100) / 100) } : x)));
+                                }}
+                                title="Colocar a diferença na última forma"
+                                className="text-[10px] font-bold px-2 py-1 rounded-lg transition-all hover:scale-105"
+                                style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}
+                              >
+                                ajustar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>💵 Troco para</label>

@@ -1,0 +1,30 @@
+appId: com.rincao.painel
+productName: Rincao Lanches
+copyright: Rincao Lanches
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - electron/**/*
+  - package.json
+  - "!node_modules/**/*"
+
+npmRebuild: false
+
+extraResources:
+  - from: .next/standalone
+    to: server
+  - from: build/icon.ico
+    to: icon.ico
+  - from: scripts/rawprint.ps1
+    to: rawprint.ps1
+
+asar: true
+
+win:
+  target:
+    - dir
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
