@@ -118,8 +118,9 @@ function MovementItem({ m }: { m: any }) {
   );
 }
 
-function CloseModal({ data, driverTotal, driverPending, onClose, onConfirm, onEndTurno }: { data: any; driverTotal: number; driverPending: number; onClose: () => void; onConfirm: (informed: number) => void; onEndTurno: (informed: number) => void }) {
+function CloseModal({ data, driverTotal, driverPending, openTables, onClose, onConfirm, onEndTurno }: { data: any; driverTotal: number; driverPending: number; openTables: { count: number; total: number }; onClose: () => void; onConfirm: (informed: number, tablePayment: string) => void; onEndTurno: (informed: number, tablePayment: string) => void }) {
   const [informed, setInformed] = useState(0);
+  const [tablePayment, setTablePayment] = useState('dinheiro');
 
   const byMethod = useMemo(() => {
     const m: Record<string, number> = {};
@@ -136,7 +137,8 @@ function CloseModal({ data, driverTotal, driverPending, onClose, onConfirm, onEn
   }, [data]);
 
   const diff = informed - totals.expected;
-  const gaveta = data.open.initial + totals.entradas + (byMethod['dinheiro'] || 0) - totals.saidas;
+  const gaveta = data.open.initial + totals.entradas + (byMethod['dinheiro'] || 0) - totals.saidas + (tablePayment === 'dinheiro' ? openTables.total : 0);
+  const expectedWithTables = totals.expected + openTables.total;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
@@ -159,8 +161,11 @@ function CloseModal({ data, driverTotal, driverPending, onClose, onConfirm, onEn
               <div className="flex justify-between text-xs"><span className="text-gray-400">Vendas</span><span className="text-green-400 font-bold">+{BRL(totals.vendas)}</span></div>
               {totals.entradas > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Suprimentos</span><span className="text-blue-400 font-bold">+{BRL(totals.entradas)}</span></div>}
               {totals.saidas > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Sangrias</span><span className="text-red-400 font-bold">-{BRL(totals.saidas)}</span></div>}
+              {openTables.count > 0 && (
+                <div className="flex justify-between text-xs"><span className="text-amber-400 font-bold">Mesas abertas (serão fechadas)</span><span className="text-amber-400 font-bold">+{BRL(openTables.total)}</span></div>
+              )}
               <div className="flex justify-between text-xs pt-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                <span className="text-gray-300 font-bold">Esperado</span><span className="text-white font-black">{BRL(totals.expected)}</span>
+                <span className="text-gray-300 font-bold">Esperado</span><span className="text-white font-black">{BRL(expectedWithTables)}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-gray-400">Só dinheiro (gaveta)</span><span className="text-gray-400 font-bold">{BRL(gaveta)}</span>
@@ -168,6 +173,24 @@ function CloseModal({ data, driverTotal, driverPending, onClose, onConfirm, onEn
               {driverPending > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Taxas motoboy pendentes</span><span className="text-amber-400 font-bold">{BRL(driverPending)}</span></div>}
             </div>
           </div>
+
+          {openTables.count > 0 && (
+            <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+              <p className="text-[10px] uppercase tracking-wider font-bold text-amber-400 mb-2">⚠️ {openTables.count} mesa(s) ainda aberta(s)</p>
+              <p className="text-[11px] text-gray-400 mb-2">Todas as mesas serão fechadas automaticamente. Qual pagamento das contas de mesa?</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {PAYMENT_METHODS.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <button key={p.id} onClick={() => setTablePayment(p.id)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold pdv-btn-hover"
+                      style={tablePayment === p.id ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` } : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
+                      <Icon size={13} />{p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <p className="text-[10px] uppercase tracking-wider font-bold text-gray-500 mb-2">Por forma de pagamento</p>
@@ -218,12 +241,12 @@ function CloseModal({ data, driverTotal, driverPending, onClose, onConfirm, onEn
 
           <div className="flex gap-2">
             <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>Cancelar</button>
-            <button disabled={informed <= 0} onClick={() => onConfirm(informed)}
+            <button disabled={informed <= 0} onClick={() => onConfirm(informed, tablePayment)}
               className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white pdv-btn-hover disabled:opacity-30"
               style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
               Fechar caixa
             </button>
-            <button disabled={informed <= 0} onClick={() => onEndTurno(informed)}
+            <button disabled={informed <= 0} onClick={() => onEndTurno(informed, tablePayment)}
               className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white pdv-btn-hover disabled:opacity-30"
               style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', boxShadow: '0 4px 20px rgba(245,158,11,0.3)' }}>
               🔄 Encerrar turno
@@ -235,7 +258,7 @@ function CloseModal({ data, driverTotal, driverPending, onClose, onConfirm, onEn
   );
 }
 
-function SuccessModal({ expected, informed, diff, driverPending, onClose, onPrint }: { expected: number; informed: number; diff: number; driverPending: number; onClose: () => void; onPrint: () => void }) {
+function SuccessModal({ expected, informed, diff, driverPending, closedTables, onClose, onPrint }: { expected: number; informed: number; diff: number; driverPending: number; closedTables?: number; onClose: () => void; onPrint: () => void }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-sm rounded-2xl p-6 text-center" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
@@ -244,6 +267,7 @@ function SuccessModal({ expected, informed, diff, driverPending, onClose, onPrin
         </div>
         <h3 className="text-base font-black text-white mb-1">{diff >= 0 ? 'Caixa fechado!' : 'Caixa fechado com diferença'}</h3>
         <p className="text-xs text-gray-400 mb-4">{diff >= 0 ? 'Sobra de caixa' : 'Falta no caixa'} de <span className={`font-black ${diff >= 0 ? 'text-green-400' : 'text-red-400'}`}>{BRL(Math.abs(diff))}</span></p>
+        {closedTables ? <p className="text-[11px] text-amber-400 font-bold mb-3">🗂 {closedTables} mesa(s) fechada(s) automaticamente</p> : null}
         <div className="space-y-1.5 mb-4">
           <div className="flex justify-between text-xs px-2"><span className="text-gray-400">Esperado</span><span className="text-white font-bold">{BRL(expected)}</span></div>
           <div className="flex justify-between text-xs px-2"><span className="text-gray-400">Informado</span><span className="text-white font-bold">{BRL(informed)}</span></div>
@@ -279,14 +303,20 @@ export default function Caixa() {
   const [payingDriver, setPayingDriver] = useState<{ id: string; name: string; total: number } | null>(null);
   const [turnoOrderNumbers, setTurnoOrderNumbers] = useState<number[]>([]);
   const [dayDelivery, setDayDelivery] = useState<{ count: number; drivers: { label: string; count: number; fee: number }[] }>({ count: 0, drivers: [] });
+  const [openTables, setOpenTables] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
 
   const load = useCallback(async () => {
-    const [d, orders, drivers] = await Promise.all([
+    const [d, orders, drivers, tables] = await Promise.all([
       fetch('/api/cash').then((r) => r.json()),
       fetch('/api/orders?limit=500').then((r) => r.json()),
       fetch('/api/drivers').then((r) => r.json()),
+      fetch('/api/tables').then((r) => r.json()),
     ]);
     setData(d);
+    const activeTableOrders = orders.filter((o: any) => o.tableId && !['concluido', 'cancelado'].includes(o.status));
+    const tableIds = new Set(activeTableOrders.map((o: any) => o.tableId));
+    tables.forEach((t: any) => { if (t.status !== 'livre') tableIds.add(t.id); });
+    setOpenTables({ count: tableIds.size, total: activeTableOrders.filter((o: any) => o.source !== 'pdv').reduce((s: number, o: any) => s + Number(o.total || 0), 0) });
     const turnoId = String(d.turno || '1');
     const turnoOrders = orders.filter((o: any) => (o.turnoId || '1') === turnoId);
     setTurnoOrderNumbers(turnoOrders.map((o: any) => o.number).sort((a: number, b: number) => a - b));
@@ -393,28 +423,30 @@ export default function Caixa() {
     load();
   };
 
-  const closeCash = async (informed: number) => {
+  const closeCash = async (informed: number, tablePayment: string) => {
     const openData = data.open;
     const currentDriverTotal = driverTotal;
     const pending = driverBreakdown.reduce((s, d) => s + Number(d.remaining || 0), 0);
-    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) }).then((x) => x.json()).catch(() => null);
+    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed, tablePayment }) }).then((x) => x.json()).catch(() => null);
     playCashSound();
     setShowCloseModal(false);
-    setCloseResult({ ...openData, closedAt: new Date().toISOString(), expected: r?.expected ?? 0, informed: r?.informed ?? informed, diff: r?.diff ?? (informed - Number(openData.initial || 0)), driverTotal: currentDriverTotal, driverPending: pending, driverBreakdown, orderNumbers: turnoOrderNumbers, dayDelivery });
+    setCloseResult({ ...openData, movements: r?.movements ?? openData.movements, closedAt: new Date().toISOString(), expected: r?.expected ?? 0, informed: r?.informed ?? informed, diff: r?.diff ?? (informed - Number(openData.initial || 0)), driverTotal: currentDriverTotal, driverPending: pending, driverBreakdown, orderNumbers: turnoOrderNumbers, dayDelivery, closedTables: r?.closedTables ?? 0 });
+    setOpenTables({ count: 0, total: 0 });
     await load();
   };
 
-  const endTurno = async (informed: number) => {
+  const endTurno = async (informed: number, tablePayment: string) => {
     const openData = data.open;
     const currentDriverTotal = driverTotal;
     const pending = driverBreakdown.reduce((s, d) => s + Number(d.remaining || 0), 0);
-    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed }) }).then((x) => x.json()).catch(() => null);
+    const r = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'close', informed, tablePayment }) }).then((x) => x.json()).catch(() => null);
     await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'new_turno' }) });
     playCashSound();
     setShowCloseModal(false);
     setDriverTotal(0);
     setDriverBreakdown([]);
-    setCloseResult({ ...openData, closedAt: new Date().toISOString(), expected: r?.expected ?? 0, informed: r?.informed ?? informed, diff: r?.diff ?? (informed - Number(openData.initial || 0)), driverTotal: currentDriverTotal, driverPending: pending, driverBreakdown, orderNumbers: turnoOrderNumbers, dayDelivery });
+    setCloseResult({ ...openData, movements: r?.movements ?? openData.movements, closedAt: new Date().toISOString(), expected: r?.expected ?? 0, informed: r?.informed ?? informed, diff: r?.diff ?? (informed - Number(openData.initial || 0)), driverTotal: currentDriverTotal, driverPending: pending, driverBreakdown, orderNumbers: turnoOrderNumbers, dayDelivery, closedTables: r?.closedTables ?? 0 });
+    setOpenTables({ count: 0, total: 0 });
     await load();
   };
 
@@ -702,8 +734,8 @@ export default function Caixa() {
         </>
       )}
 
-      {showCloseModal && <CloseModal data={data} driverTotal={driverTotal} driverPending={driverPending} onClose={() => setShowCloseModal(false)} onConfirm={closeCash} onEndTurno={endTurno} />}
-      {closeResult && <SuccessModal expected={closeResult.expected} informed={closeResult.informed} diff={closeResult.diff} driverPending={closeResult.driverPending ?? 0} onClose={() => setCloseResult(null)} onPrint={() => { printClose(closeResult); setCloseResult(null); }} />}
+      {showCloseModal && <CloseModal data={data} driverTotal={driverTotal} driverPending={driverPending} openTables={openTables} onClose={() => setShowCloseModal(false)} onConfirm={closeCash} onEndTurno={endTurno} />}
+      {closeResult && <SuccessModal expected={closeResult.expected} informed={closeResult.informed} diff={closeResult.diff} driverPending={closeResult.driverPending ?? 0} closedTables={closeResult.closedTables ?? 0} onClose={() => setCloseResult(null)} onPrint={() => { printClose(closeResult); setCloseResult(null); }} />}
 
       {/* Modal Motoboys */}
       {showDriverModal && (

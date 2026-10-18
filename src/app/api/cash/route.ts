@@ -9,6 +9,26 @@ export async function GET() {
   const turno = await prisma.setting.upsert({ where: { key: 'turno_number' }, update: {}, create: { key: 'turno_number', value: '1' } });
   return NextResponse.json({ open, history: last, turno: Number(turno.value) });
 }
+
+// fecha todas as mesas em aberto (pedidos -> concluido, vendas -> caixa, mesa -> livre)
+async function closeOpenTables(registerId: string, payment: string) {
+  const tables = await prisma.tableMap.findMany({ where: { status: { in: ['ocupada', 'fechamento'] } }, orderBy: { number: 'asc' } });
+  let closedTables = 0;
+  let sales = 0;
+  for (const t of tables) {
+    const orders = await prisma.order.findMany({ where: { tableId: t.id, status: { notIn: ['concluido', 'cancelado'] } } });
+    for (const o of orders) {
+      await prisma.order.update({ where: { id: o.id }, data: { status: 'concluido', endedAt: new Date() } });
+      if (o.source !== 'pdv') {
+        await prisma.cashMovement.create({ data: { registerId, kind: 'venda', method: payment, amount: Number(o.total), orderId: o.id, reason: `${t.number} #${o.number}` } });
+        sales += Number(o.total);
+      }
+    }
+    await prisma.tableMap.update({ where: { id: t.id }, data: { status: 'livre' } });
+    closedTables++;
+  }
+  return { closedTables, sales };
+}
 export async function POST(req: Request) {
   const b = await req.json();
   if (b.action === 'open') {
@@ -23,17 +43,25 @@ export async function POST(req: Request) {
     return NextResponse.json(m);
   }
   if (b.action === 'close') {
-    const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, include: { movements: true }, orderBy: { openedAt: 'desc' } });
+    const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (!open) return NextResponse.json({ error: 'Nenhum caixa aberto' }, { status: 400 });
-    const vendas = open.movements.filter((m) => m.kind === 'venda').reduce((s, m) => s + m.amount, 0);
-    const expected = open.initial + open.movements.reduce((s, m) => s + (['venda','entrada','suprimento'].includes(m.kind) ? m.amount : -m.amount), 0);
+    const tablePayment = ['dinheiro', 'pix', 'debito', 'credito'].includes(b.tablePayment) ? b.tablePayment : 'dinheiro';
+    const closed = await closeOpenTables(open.id, tablePayment);
+    const reg = await prisma.cashRegister.findUnique({ where: { id: open.id }, include: { movements: true } });
+    const movements = reg?.movements || [];
+    const vendas = movements.filter((m) => m.kind === 'venda').reduce((s, m) => s + m.amount, 0);
+    const expected = open.initial + movements.reduce((s, m) => s + (['venda','entrada','suprimento'].includes(m.kind) ? m.amount : -m.amount), 0);
     const informed = Number(b.informed || 0);
     const r = await prisma.cashRegister.update({ where: { id: open.id }, data: { status: 'fechado', closedAt: new Date(), informed, expected } });
-    return NextResponse.json({ ...r, expected, informed, diff: informed - expected, vendas });
+    if (closed.closedTables > 0) {
+      await prisma.notification.create({ data: { kind: 'mesas', text: `${closed.closedTables} mesa(s) fechadas automaticamente no fechamento do caixa` } });
+    }
+    return NextResponse.json({ ...r, expected, informed, diff: informed - expected, vendas, movements, closedTables: closed.closedTables, closedTableSales: closed.sales });
   }
   if (b.action === 'new_turno') {
-    const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, include: { movements: true }, orderBy: { openedAt: 'desc' } });
+    const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (open) {
+      await closeOpenTables(open.id, 'dinheiro');
       await prisma.cashRegister.update({ where: { id: open.id }, data: { status: 'fechado', closedAt: new Date(), informed: 0, expected: 0 } });
     }
     const turno = await prisma.setting.findUnique({ where: { key: 'turno_number' } });
