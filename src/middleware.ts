@@ -17,6 +17,7 @@ const PUBLIC_API = [
   '/api/menu',
   '/api/settings',
   '/api/upload',
+  '/api/image',
 ];
 
 export async function middleware(req: NextRequest) {

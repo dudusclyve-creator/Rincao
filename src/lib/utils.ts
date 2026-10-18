@@ -104,7 +104,7 @@ export function receiptText(o: {
   width?: '58mm' | '80mm';
   variant?: 'full' | 'entregador';
 }) {
-  const cols = o.width === '58mm' ? 22 : 25;
+  const cols = o.width === '58mm' ? 22 : 24;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
   const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
@@ -266,7 +266,7 @@ export function cashReceiptText(o: {
   deliveryDayCount?: number;
   driverDay?: { label: string; count: number; fee: number }[];
 }) {
-  const cols = o.width === '58mm' ? 22 : 25;
+  const cols = o.width === '58mm' ? 22 : 24;
   const line = '-'.repeat(cols);
   const c = (s: string) => s.slice(0, cols);
   const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };

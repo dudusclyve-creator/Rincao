@@ -8,6 +8,41 @@ import {
 } from 'lucide-react';
 
 /* ══════════ IMAGE UPLOAD ══════════ */
+// Foto de celular vem com 3–5 MB e o cardápio mostra dezenas de fotos. Aqui a
+// imagem é reduzida (no máximo 1200px, JPEG 82%) antes de subir: fica leve para
+// o cliente abrir no celular e nunca estoura o limite de envio.
+async function prepararImagem(file: File): Promise<Blob> {
+  try {
+    if (typeof document === 'undefined' || !file.type.startsWith('image/')) return file;
+    if (file.type === 'image/gif') return file; // gif animado perderia a animação
+    const url = URL.createObjectURL(file);
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new window.Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error('imagem inválida'));
+      i.src = url;
+    });
+    const maiorLado = Math.max(img.width, img.height);
+    const escala = maiorLado > 1200 ? 1200 / maiorLado : 1;
+    if (escala === 1 && file.size <= 350 * 1024) { URL.revokeObjectURL(url); return file; }
+    const w = Math.max(1, Math.round(img.width * escala));
+    const h = Math.max(1, Math.round(img.height * escala));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { URL.revokeObjectURL(url); return file; }
+    ctx.fillStyle = '#ffffff'; // PNG transparente vira preto no JPEG
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.82));
+    return blob && blob.size > 0 && blob.size < file.size ? blob : file;
+  } catch {
+    return file;
+  }
+}
+
 function ImageUpload({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -15,16 +50,16 @@ function ImageUpload({ value, onChange }: { value: string; onChange: (url: strin
     if (!file.type.startsWith('image/')) return;
     setUploading(true);
     try {
+      const envio = await prepararImagem(file);
       const fd = new window.FormData();
-      fd.append('file', file);
+      fd.append('file', envio, 'foto.jpg');
       const r = await fetch('/api/upload', { method: 'POST', body: fd });
       const d = await r.json().catch(() => ({} as any));
       if (d.url) {
         onChange(d.url);
-        if (String(d.url).startsWith('/uploads/')) showToast('Imagem salva só no local — não vai aparecer no cardápio online', 'warning', 5000);
-        else showToast('Imagem enviada pro Supabase!', 'success');
+        showToast('Imagem enviada!', 'success');
       } else {
-        showToast('Falha no upload da imagem — tente de novo', 'error', 5000);
+        showToast(d.error || 'Falha no upload da imagem — tente de novo', 'error', 5000);
       }
     } catch {
       showToast('Falha no upload (servidor reiniciando?) — tente de novo', 'error', 5000);
