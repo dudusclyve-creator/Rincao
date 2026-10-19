@@ -5,8 +5,19 @@ dist
 .env.local
 *.db
 *.db-journal
+*.backup
 
 dev-test.log
 dev-output.log
 dev-error.log
 dev-run.log
+
+# scripts avulsos de teste/correção (mantidos só localmente)
+/scripts/legacy/
+
+# backups e arquivos locais
+backup-notas/
+prisma/seed-production.js
+tsconfig.tsbuildinfo
+last_rejected.xml
+
