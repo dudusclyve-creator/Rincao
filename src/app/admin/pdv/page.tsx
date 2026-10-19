@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { BRL, receiptText, showToast, printReceiptText, maskCpf } from '@/lib/utils';
+import { BRL, receiptText, showToast, printReceiptText, maskCpf, maskPhone } from '@/lib/utils';
 import { ItemCard } from '@/components/ItemCard';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
@@ -31,14 +31,6 @@ const PAYMENT_OPTIONS = [
   { id: 'debito', label: 'Débito', icon: CreditCard, color: '#3b82f6' },
   { id: 'credito', label: 'Crédito', icon: CreditCard, color: '#8b5cf6' },
 ];
-
-const maskPhone = (v: string) => {
-  const d = String(v || '').replace(/\D/g, '').slice(0, 11);
-  if (d.length <= 2) return d;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-};
 
 function ProductModal({ product, allProducts, onClose, onAdd }: { product: any; allProducts: any[]; onClose: () => void; onAdd: (item: any) => void }) {
   const [qty, setQty] = useState(1);
@@ -765,7 +757,7 @@ export default function PDV() {
                   </div>
                   <input value={clientCpf} onChange={(e) => setClientCpf(maskCpf(e.target.value))} placeholder="CPF (opcional — para emitir a nota)"
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                  <input value={clientPhone} onChange={(e) => setClientPhone(maskPhone(e.target.value))} placeholder="Telefone do cliente (opcional)" inputMode="tel" maxLength={15}
+                  <input value={clientPhone} onChange={(e) => setClientPhone(maskPhone(e.target.value))} placeholder="Telefone (ex: 55 99999-9999 ou +598 99 123 456)" inputMode="tel" maxLength={20}
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                 </div>
               </>

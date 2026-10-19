@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { Users, Phone, MapPin, TrendingUp, Clock, ChevronDown, ChevronUp, X, Heart, Calendar } from 'lucide-react';
-import { BRL } from '@/lib/utils';
+import { BRL, formatPhone, waNumber } from '@/lib/utils';
 
 const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   vip: { label: 'VIP', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', icon: '👑' },
@@ -87,17 +87,9 @@ export default function Clientes() {
 
   const getInitials = (name: string) => name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
-  const formatPhone = (p: string) => {
-    const d = p?.replace(/\D/g, '') || '';
-    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
-    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
-    return p || '—';
-  };
-
   const getWhatsAppUrl = (phone: string) => {
-    const d = phone?.replace(/\D/g, '') || '';
-    if (!d) return null;
-    const full = d.startsWith('55') ? d : `55${d}`;
+    const full = waNumber(phone || '');
+    if (!full) return null;
     return `https://wa.me/${full}`;
   };
 

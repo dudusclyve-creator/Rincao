@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, showToast } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { ItemCard } from '@/components/ItemCard';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -803,7 +803,7 @@ export default function Pedidos() {
                   </div>
                   <div>
                     <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📱 Telefone</label>
-                    <input value={editForm.customerPhone} onChange={(e) => setEditForm((f: any) => ({ ...f, customerPhone: e.target.value }))} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                    <input value={editForm.customerPhone} onChange={(e) => setEditForm((f: any) => ({ ...f, customerPhone: maskPhone(e.target.value) }))} inputMode="tel" maxLength={20} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
                   </div>
                   <div>
                     <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📦 Tipo</label>

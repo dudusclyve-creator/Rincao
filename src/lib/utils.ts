@@ -95,6 +95,67 @@ export function maskCpf(v: string) {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
+// ---- Telefone (Brasil DDI 55 e Uruguai +598) ----
+function fmtBR(d: string) {
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+// mascara de telefone: aceita BR ((DD) 99999-9999 / +55 ...) e UY (+598 99 123 456)
+export function maskPhone(v: string) {
+  const raw = String(v || '');
+  const plus = /^\s*\+/.test(raw);
+  let d = raw.replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  // Uruguai: 598..., 00598... (00 ja removido) ou 09xx xxx xxx (formato local)
+  if (d.startsWith('598') || (d.startsWith('09') && d.length <= 10)) {
+    const n = (d.startsWith('598') ? d.slice(3) : d.slice(1)).slice(0, 8);
+    let out = '+598';
+    if (n.length > 0) out += ' ' + n.slice(0, 2);
+    if (n.length > 2) out += ' ' + n.slice(2, 5);
+    if (n.length > 5) out += ' ' + n.slice(5, 8);
+    return out;
+  }
+  // Brasil com DDI (+55 ... ou 55 + DDD + numero = 12+ digitos)
+  if ((plus && d.startsWith('55')) || (d.startsWith('55') && d.length > 11)) {
+    const n = d.slice(2, 13);
+    return n ? `+55 ${fmtBR(n)}` : '+55';
+  }
+  if (plus) return '+' + d.slice(0, 15);
+  return fmtBR(d.slice(0, 11));
+}
+
+// normaliza para o formato internacional do wa.me (sem +)
+export function waNumber(phone: string) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('598')) return d.slice(0, 11);
+  if (d.startsWith('09') && d.length <= 10) return ('598' + d.slice(1)).slice(0, 11);
+  if (d.startsWith('55') && d.length >= 12) return d.slice(0, 13);
+  if (d.length === 8) return '598' + d;
+  if (d.length >= 10) return '55' + d;
+  return d;
+}
+
+// exibicao amigavel: BR (DD) 99999-9999 / +55 (DD) ... / UY +598 99 123 456
+export function formatPhone(p: string) {
+  const raw = String(p || '');
+  let d = raw.replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('598') && d.length >= 10) {
+    const n = d.slice(3, 11);
+    let out = '+598 ' + n.slice(0, 2);
+    if (n.length > 2) out += ' ' + n.slice(2, 5);
+    if (n.length > 5) out += ' ' + n.slice(5, 8);
+    return out;
+  }
+  if (d.startsWith('55') && d.length >= 12) return `+55 ${fmtBR(d.slice(2, 13))}`;
+  if (d.length === 10 || d.length === 11) return fmtBR(d);
+  return raw || '—';
+}
+
 export function receiptText(o: {
   store: string; number: number; date: string; customerName: string;
   customerPhone: string; items: { qty: number; name: string; unitPrice: number; addons: CartAddon[]; note?: string }[];
