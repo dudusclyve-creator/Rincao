@@ -366,9 +366,9 @@ export default function PDV() {
       note: [orderNote, splitNote].filter(Boolean).join(' | '),
       width: '80mm' as const,
     };
-    const pages = [receiptText(receiptBase)];
-    // 1a impressao de entrega: sai junto a comanda do entregador
-    if (type === 'entrega') pages.push(receiptText({ ...receiptBase, variant: 'entregador' }));
+    // comanda dupla: 2 vias identicas (1a e unica impressao da venda) — corte no meio
+    const comanda = receiptText(receiptBase);
+    const pages = [comanda, comanda];
     fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, printed: true }) }).catch(() => {});
     for (const p of pages) {
       fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});

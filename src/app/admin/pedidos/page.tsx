@@ -403,9 +403,9 @@ export default function Pedidos() {
       width: '80mm' as const,
     };
     const isFirst = !o.printCount;
-    const pages = [receiptText(base)];
-    // 1a impressao de entrega: sai junto a comanda do entregador
-    if (isFirst && o.type === 'entrega') pages.push(receiptText({ ...base, variant: 'entregador' }));
+    const comanda = receiptText(base);
+    // 1a impressao: 2 vias identicas (corte no meio); reimpressao: 1 via so
+    const pages = isFirst ? [comanda, comanda] : [comanda];
     if (isFirst) {
       await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, printed: true }) }).catch(() => {});
       o.printCount = (Number(o.printCount) || 0) + 1;

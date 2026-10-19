@@ -163,7 +163,6 @@ export function receiptText(o: {
   addressText?: string; driverName?: string; motoboy?: string; changeFor?: number | null;
   type?: string; note?: string;
   width?: '58mm' | '80mm';
-  variant?: 'full' | 'entregador';
 }) {
   const cols = o.width === '58mm' ? 22 : 24;
   const line = '-'.repeat(cols);
@@ -242,10 +241,8 @@ export function receiptText(o: {
   const addrUp = (o.addressText || '').toUpperCase();
   const tipo = (o.type || '').toLowerCase();
   const semEndereco = tipo === 'retirada' || tipo === 'local' || tipo === 'balcao' || tipo === 'mesa' || /RETIRADA|CONSUMO NO LOCAL/.test(addrUp);
-  // banner do tipo logo abaixo da logo (variante entregador = via do motorista)
-  const driver = o.variant === 'entregador';
-  const tipoTxt = driver ? 'ENTREGADOR'
-    : tipo === 'mesa'
+  // banner do tipo logo abaixo da logo
+  const tipoTxt = tipo === 'mesa'
     ? (/^\d+$/.test((o.addressText || '').trim()) ? `MESA ${o.addressText}` : ((o.addressText || '').trim() ? o.addressText!.toUpperCase() : 'MESA'))
     : tipo === 'entrega' ? 'ENTREGA'
     : tipo === 'retirada' ? 'RETIRADA'
@@ -257,16 +254,17 @@ export function receiptText(o: {
   out.push(c(`PEDIDO #${o.number}`));
   out.push(c(o.date));
   out.push('='.repeat(cols));
-  const cli = `Cliente: ${o.customerName}${o.customerPhone ? ` ${o.customerPhone}` : ''}`;
-  if (cli.length <= cols) out.push(c(cli));
-  else {
-    wrapWords(`Cliente: ${o.customerName}`, '  ').forEach((l) => out.push(l));
-    if (o.customerPhone) out.push(c(`  ${o.customerPhone}`));
-  }
+  wrapWords(`Cliente: ${o.customerName}`, '  ').forEach((l) => out.push(l));
   if (o.addressText && !semEndereco) {
     wrapAddress(o.addressText).forEach((l) => out.push(l));
   }
   if (o.driverName) wrapWords(`Entregador: ${o.driverName}${o.motoboy ? ` -> ${o.motoboy}` : ''}`, '  ').forEach((l) => out.push(l));
+  // WhatsApp do cliente: motoboy contata se nao conseguir entregar
+  if (o.customerPhone) {
+    const wa = `WhatsApp: ${formatPhone(o.customerPhone)}`;
+    if (wa.length <= cols) out.push(c(wa));
+    else { out.push(c('WhatsApp:')); out.push(c(`  ${formatPhone(o.customerPhone)}`)); }
+  }
   out.push(line);
   o.items.forEach((it) => {
     rowWrap(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty)).forEach((l) => out.push(l));
@@ -278,42 +276,20 @@ export function receiptText(o: {
   });
   if (o.note) wrapWords(`OBS: ${o.note}`, '  ').forEach((l) => out.push(l));
   out.push(line);
-  out.push(row('Subtotal', BRL(o.subtotal)));
-  if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) out.push(row('Entrega', BRL(o.fee)));
-  if (o.discount) out.push(row('Desconto', '-' + BRL(o.discount)));
-  out.push(row('TOTAL', BRL(o.total)));
-  if (driver) {
-    // via do motorista: quanto cobrar e se ja esta pago
-    const cashPart = (() => {
-      const pay = String(o.payment || '');
-      if (pay.includes(',')) return pay.split(',').filter((p) => p.startsWith('dinheiro:')).reduce((s, p) => s + Number(p.split(':')[1] || 0), 0);
-      return pay === 'dinheiro' ? o.total : 0;
-    })();
-    if (cashPart > 0) {
-      out.push(row('COBRAR', BRL(cashPart)));
-      if (cashPart < o.total - 0.005) out.push(row('Resto ja pago', BRL(Math.max(0, o.total - cashPart))));
-      if (troco > 0) {
-        out.push(row('Recebido', BRL(o.changeFor!)));
-        out.push(row('TROCO', BRL(troco)));
-      }
-    } else {
-      out.push(c('JA PAGO - NAO COBRAR'));
-      formatPayment(o.payment).forEach((l) => out.push(c(`  ${l}`)));
-    }
-  } else {
-    out.push(c(o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:'));
-    formatPayment(o.payment).forEach((l) => out.push(c(`  ${l}`)));
-    if (troco > 0) {
-      out.push(row('Recebido', BRL(o.changeFor!)));
-      out.push(row('TROCO', BRL(troco)));
-    }
+  rowWrap('Subtotal', BRL(o.subtotal)).forEach((l) => out.push(l));
+  if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) rowWrap('Entrega', BRL(o.fee)).forEach((l) => out.push(l));
+  if (o.discount) rowWrap('Desconto', '-' + BRL(o.discount)).forEach((l) => out.push(l));
+  rowWrap('TOTAL', BRL(o.total)).forEach((l) => out.push(l));
+  out.push(c(o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:'));
+  formatPayment(o.payment).forEach((l) => out.push(c(`  ${l}`)));
+  if (troco > 0) {
+    rowWrap('Recebido', BRL(o.changeFor!)).forEach((l) => out.push(l));
+    rowWrap('TROCO', BRL(troco)).forEach((l) => out.push(l));
   }
   out.push(line);
-  if (!driver) {
-    const bye = 'Obrigado pela preferencia!';
-    if (bye.length <= cols) out.push(center(bye));
-    else { out.push(center('Obrigado pela')); out.push(center('preferencia!')); }
-  }
+  const bye = 'Obrigado pela preferencia!';
+  if (bye.length <= cols) out.push(center(bye));
+  else { out.push(center('Obrigado pela')); out.push(center('preferencia!')); }
   return out.join('\n');
 }
 
@@ -335,48 +311,54 @@ export function cashReceiptText(o: {
     const sp = Math.max(1, cols - l.length - r.length);
     return c(l + ' '.repeat(sp) + r);
   };
+  // valor nunca corta: se nao couber na linha, sai inteiro na linha seguinte
+  const rowWrap = (l: string, r: string): string[] => {
+    if (!r) return [c(l)];
+    if (l.length + r.length + 1 <= cols) return [row(l, r)];
+    return [c(l), c(`  ${r}`)];
+  };
   const out: string[] = [];
   out.push(center(`*** ${o.store.toUpperCase()} ***`));
   out.push(center('FECHAMENTO DE CAIXA'));
   out.push('='.repeat(cols));
-  out.push(row('Operador:', o.operator));
+  rowWrap('Operador:', o.operator).forEach((l) => out.push(l));
   out.push(c('Abertura:'));
   out.push(c(`  ${o.openedAt}`));
   out.push(c('Fechamento:'));
   out.push(c(`  ${o.closedAt}`));
   out.push(line);
-  out.push(row('Valor inicial', BRL(o.initial)));
-  out.push(row('Vendas', BRL(o.vendas)));
+  rowWrap('Valor inicial', BRL(o.initial)).forEach((l) => out.push(l));
+  rowWrap('Vendas', BRL(o.vendas)).forEach((l) => out.push(l));
   if (o.orderNumbers && o.orderNumbers.length > 0) {
     out.push(c(`  Pedidos (#${o.orderNumbers[0]}-${o.orderNumbers[o.orderNumbers.length - 1]})`));
     out.push(c(`  Qtd: ${o.orderNumbers.length} pedido(s)`));
   }
-  if (o.deliveryDayCount !== undefined) out.push(row('Entregas do dia', String(o.deliveryDayCount)));
+  if (o.deliveryDayCount !== undefined) rowWrap('Entregas do dia', String(o.deliveryDayCount)).forEach((l) => out.push(l));
   if (o.driverDay && o.driverDay.length > 0) {
     out.push(c('  Por motoboy (hoje):'));
-    o.driverDay.forEach((d) => out.push(row(`    ${d.label}`, `${d.count}x ${BRL(d.fee)}`)));
+    o.driverDay.forEach((d) => rowWrap(`    ${d.label}`, `${d.count}x ${BRL(d.fee)}`).forEach((l) => out.push(l)));
   }
-  if (o.entradas > 0) out.push(row('Suprimentos', BRL(o.entradas)));
-  if (o.saidas > 0) out.push(row('Sangrias', '-' + BRL(o.saidas)));
+  if (o.entradas > 0) rowWrap('Suprimentos', BRL(o.entradas)).forEach((l) => out.push(l));
+  if (o.saidas > 0) rowWrap('Sangrias', '-' + BRL(o.saidas)).forEach((l) => out.push(l));
   out.push(line);
-  out.push(row('ESPERADO', BRL(o.expected)));
-  out.push(row('INFORMADO', BRL(o.informed)));
-  out.push(row('DIFERENCA', (o.diff >= 0 ? '+' : '') + BRL(o.diff)));
-  out.push(row('So dinheiro', BRL(o.initial + o.entradas + (o.byMethod['dinheiro'] || 0) - o.saidas)));
+  rowWrap('ESPERADO', BRL(o.expected)).forEach((l) => out.push(l));
+  rowWrap('INFORMADO', BRL(o.informed)).forEach((l) => out.push(l));
+  rowWrap('DIFERENCA', (o.diff >= 0 ? '+' : '') + BRL(o.diff)).forEach((l) => out.push(l));
+  rowWrap('So dinheiro', BRL(o.initial + o.entradas + (o.byMethod['dinheiro'] || 0) - o.saidas)).forEach((l) => out.push(l));
   if (o.driverTotal && o.driverTotal > 0) {
     const pend = o.driverBreakdown && o.driverBreakdown.length > 0
       ? o.driverBreakdown.reduce((s, d) => s + Number(d.remaining || 0), 0)
       : Number(o.driverTotal);
     out.push(c('Taxas motoboy (a pagar):'));
-    out.push(row('  pendente', BRL(pend)));
+    rowWrap('  pendente', BRL(pend)).forEach((l) => out.push(l));
     (o.driverBreakdown || []).filter((d) => (d.remaining || 0) > 0).forEach((d) => {
-      out.push(row(`    ${d.name}`, BRL(d.remaining)));
+      rowWrap(`    ${d.name}`, BRL(d.remaining)).forEach((l) => out.push(l));
     });
   }
   out.push(line);
   out.push(c('Formas de pagamento:'));
   Object.entries(o.byMethod).forEach(([k, v]) => {
-    out.push(row(`  ${k.toUpperCase()}`, BRL(v)));
+    rowWrap(`  ${k.toUpperCase()}`, BRL(v)).forEach((l) => out.push(l));
   });
   out.push(line);
   out.push(center('Obrigado pela preferencia!'));
