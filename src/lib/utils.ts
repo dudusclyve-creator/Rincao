@@ -411,16 +411,14 @@ ${pagesHtml}
     };
     // fallback: imprime mesmo que o logo demore
     const fallback = setTimeout(doPrint, 1400);
-    // carrega o logo do restaurante e imprime quando chegar
-    fetch('/api/settings').then((r) => r.json()).then((s: any) => {
-      const raw = s && s.logoUrl;
-      const url = raw && typeof raw === 'string' && raw.startsWith('/') ? window.location.origin + raw : raw;
-      const img = w.document.getElementById('logo') as HTMLImageElement | null;
-      if (!url || !img) return;
+    // O cupom usa a versao clara da logo (public/logo-cupom.png): a logo colorida
+    // sairia como um bloco escuro no papel termico.
+    const img = w.document.getElementById('logo') as HTMLImageElement | null;
+    if (img) {
       img.onload = () => { img.style.display = 'block'; clearTimeout(fallback); setTimeout(doPrint, 250); };
       img.onerror = () => { try { img.remove(); } catch {} };
-      img.src = url;
-    }).catch(() => {});
+      img.src = window.location.origin + '/logo-cupom.png';
+    }
   } catch {}
 }
 

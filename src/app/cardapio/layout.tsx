@@ -16,11 +16,20 @@ export const metadata: Metadata = {
     siteName: 'Rincão Lanches',
     locale: 'pt_BR',
     type: 'website',
+    images: [
+      {
+        url: 'https://rincao.vercel.app/cardapio-og.png',
+        width: 1200,
+        height: 630,
+        alt: 'Rincão Lanches - Cardápio Digital',
+      },
+    ],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: TITULO,
     description: DESCRICAO,
+    images: ['https://rincao.vercel.app/cardapio-og.png'],
   },
 };
 

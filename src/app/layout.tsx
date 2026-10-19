@@ -3,10 +3,18 @@ import type { Metadata } from 'next';
 import { CartProvider } from '@/lib/store';
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://rincao.vercel.app'),
   title: 'Rincão Lanches — Cardápio & Gestão',
   description: 'Cardápio digital, pedidos, PDV, caixa e gestão do Rincão Lanches.',
   manifest: '/manifest.json',
-  icons: { icon: '/icon.svg' },
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export const viewport = { themeColor: '#890000' };
