@@ -21,9 +21,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const [notif, setNotif] = useState<any>(null);
+  const [nfeAlert, setNfeAlert] = useState<string | null>(null);
   const [role, setRole] = useState<string>('');
   const prevCount = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
+  const nfeTimerRef = useRef<any>(null);
+  const seenNotifs = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.role) setRole(d.role); }).catch(() => {});
@@ -57,7 +60,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     const check = async () => {
       try {
-        const orders = await fetch('/api/orders?limit=10').then(r => r.json());
+        const [orders, notifs] = await Promise.all([
+          fetch('/api/orders?limit=10').then(r => r.json()),
+          fetch('/api/notifications').then(r => r.json()).catch(() => []),
+        ]);
         const active = orders.filter((o: any) => o.status === 'novo');
         if (prevCount.current !== null && active.length > prevCount.current) {
           const newest = active[0];
@@ -68,11 +74,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           timerRef.current = setTimeout(() => setNotif(null), 6000);
         }
         prevCount.current = active.length;
+        // alerta vermelho de erro de NFC-e (novo e ainda não lido)
+        const erros = (Array.isArray(notifs) ? notifs : []).filter((n: any) => n.kind === 'nfe_erro' && !n.read && !seenNotifs.current.has(n.id));
+        if (erros.length) {
+          erros.forEach((n: any) => seenNotifs.current.add(n.id));
+          const maisRecente = erros[erros.length - 1];
+          playNotifSound();
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('⚠️ Erro na nota fiscal', { body: maisRecente.text, icon: '/favicon.ico', tag: 'nfe-erro', requireInteraction: true } as any);
+          }
+          setNfeAlert(maisRecente.text + (erros.length > 1 ? ` (+${erros.length - 1} outro(s) erro(s))` : ''));
+          if (nfeTimerRef.current) clearTimeout(nfeTimerRef.current);
+          nfeTimerRef.current = setTimeout(() => setNfeAlert(null), 12000);
+          fetch('/api/notifications', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'read', ids: erros.map((n: any) => n.id) }) }).catch(() => {});
+        }
       } catch {}
     };
     check();
     const t = setInterval(check, 5000);
-    return () => { clearInterval(t); if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => { clearInterval(t); if (timerRef.current) clearTimeout(timerRef.current); if (nfeTimerRef.current) clearTimeout(nfeTimerRef.current); };
   }, [playNotifSound, showBrowserNotif]);
 
   const isActive = (href: string) => {
@@ -95,6 +115,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <p className="text-[10px]" style={{ color: '#8a7a6a' }}>{notif.type === 'entrega' ? '🛵 Entrega' : notif.type === 'mesa' ? '🍽 Mesa' : '📋 Retirada'} · {new Date(notif.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
             </div>
             <button onClick={() => setNotif(null)} className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Popup vermelho — erro de NFC-e */}
+      {nfeAlert && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[110] animate-slideDown" style={{ width: 'min(440px, 92vw)' }}>
+          <div className="rounded-2xl p-4 flex items-center gap-3" style={{ background: '#241016', border: '2px solid #ef4444', boxShadow: '0 10px 40px rgba(239,68,68,0.4), 0 0 24px rgba(239,68,68,0.25)' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(239,68,68,0.2)' }}>
+              <span className="text-xl">🚨</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-black" style={{ color: '#ef4444' }}>ERRO NA NOTA FISCAL (NFC-e)</p>
+              <p className="text-[12px] text-white font-bold leading-snug break-words">{nfeAlert}</p>
+              <p className="text-[10px] mt-1" style={{ color: '#8a7a6a' }}>Abra Pedidos → botão da NFC-e para tentar de novo</p>
+            </div>
+            <button onClick={() => setNfeAlert(null)} className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
               <X size={12} />
             </button>
           </div>

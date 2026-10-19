@@ -37,6 +37,13 @@ export interface EmitResult {
   nProt?: string;
 }
 
+// aviso vermelho no painel (o admin/layout faz poll e abre o popup)
+async function alertarErro(orderNumber: number, msg: string) {
+  try {
+    await prisma.notification.create({ data: { kind: 'nfe_erro', text: `Pedido #${orderNumber} — ${msg}` } });
+  } catch {}
+}
+
 export async function emitirPedido(orderId: string): Promise<EmitResult> {
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true, customer: true } });
   if (!order) return { ok: false, error: 'Pedido não encontrado', http: 404 };
@@ -55,7 +62,10 @@ export async function emitirPedido(orderId: string): Promise<EmitResult> {
     try {
       r = await emitir(order, fiscal, numero);
     } catch (e: any) {
-      return { ok: false, error: e?.message || 'Falha ao enviar para a SEFAZ', http: 502 };
+      const msg = (e?.message || 'Falha ao enviar para a SEFAZ').slice(0, 500);
+      await prisma.order.update({ where: { id: order.id }, data: { nfeStatus: 'error', nfeError: msg } }).catch(() => {});
+      await alertarErro(order.number, msg);
+      return { ok: false, error: msg, http: 502 };
     }
     if (r.ok) break;
     const erro = String(r.erro || '');
@@ -94,6 +104,7 @@ export async function emitirPedido(orderId: string): Promise<EmitResult> {
     where: { id: order.id },
     data: { nfeStatus: 'error', nfeError: (erroFinal || 'Erro desconhecido').slice(0, 500), nfeKey: r.chave || null },
   });
+  await alertarErro(order.number, (erroFinal || 'Erro desconhecido').slice(0, 300));
   if (r.xml) {
     try { writeFileSync('last_rejected.xml', r.xml); } catch {}
   }
