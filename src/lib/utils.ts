@@ -164,10 +164,8 @@ export function receiptText(o: {
   type?: string; note?: string;
   width?: '58mm' | '80mm';
 }) {
-  const cols = o.width === '58mm' ? 22 : 24;               // fonte dobrada (2x)
-  const colsFinas = o.width === '58mm' ? 32 : 48;          // fonte normal (1x)
+  const cols = o.width === '58mm' ? 22 : 24;               // largura da comanda (fonte 2x)
   const line = '-'.repeat(cols);
-  const lineF = '-'.repeat(colsFinas);
   const c = (s: string, w = cols) => s.slice(0, w);
   const center = (s: string, w = cols) => { const t = c(s, w); return ' '.repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t; };
   const row = (l: string, r: string, w = cols) => {
@@ -291,38 +289,35 @@ export function receiptText(o: {
   const entregador = (o.driverName || o.motoboy || '').trim();
   if (entregador) wrapWords(`Entregador: ${entregador}`, '  ').forEach((l) => out.push(l));
 
-  // itens e valores em letra normal (1x): a linha fica mais compacta e o
-  // espaco entre o nome e o preco para de parecer um buraco
-  out.push('[[FONTE:1]]');
-  out.push(lineF);
+  // itens e valores na mesma letra da comanda (2x), menos o numero do pedido
+  out.push(line);
   o.items.forEach((it) => {
-    rowWrap(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty), colsFinas).forEach((l) => out.push(l));
+    rowWrap(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty)).forEach((l) => out.push(l));
     it.addons.forEach((a) => {
       const left = `  + ${a.name}${a.qty && a.qty > 1 ? ` ${a.qty}x` : ''}`;
-      rowWrap(left, a.price ? BRL(a.price) : '', colsFinas).forEach((l) => out.push(l));
+      rowWrap(left, a.price ? BRL(a.price) : '').forEach((l) => out.push(l));
     });
-    if (it.note) wrapWords(`  obs: ${it.note}`, '  ', colsFinas).forEach((l) => out.push(l));
+    if (it.note) wrapWords(`  obs: ${it.note}`, '  ').forEach((l) => out.push(l));
   });
-  if (o.note) wrapWords(`OBS: ${o.note}`, '  ', colsFinas).forEach((l) => out.push(l));
-  out.push(lineF);
-  rowWrap('Subtotal', BRL(o.subtotal), colsFinas).forEach((l) => out.push(l));
-  if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) rowWrap('Entrega', BRL(o.fee), colsFinas).forEach((l) => out.push(l));
-  if (o.discount) rowWrap('Desconto', '-' + BRL(o.discount), colsFinas).forEach((l) => out.push(l));
-  rowWrap('TOTAL', BRL(o.total), colsFinas).forEach((l) => out.push(l));
+  if (o.note) wrapWords(`OBS: ${o.note}`, '  ').forEach((l) => out.push(l));
+  out.push(line);
+  rowWrap('Subtotal', BRL(o.subtotal)).forEach((l) => out.push(l));
+  if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) rowWrap('Entrega', BRL(o.fee)).forEach((l) => out.push(l));
+  if (o.discount) rowWrap('Desconto', '-' + BRL(o.discount)).forEach((l) => out.push(l));
+  rowWrap('TOTAL', BRL(o.total)).forEach((l) => out.push(l));
   const pagamentos = formatPayment(o.payment);
   const rotuloPag = o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:';
   if (pagamentos.length === 1) {
     // tudo na mesma linha ("PAGAMENTO: PIX R$ 72,90")
-    out.push(c(`${rotuloPag} ${pagamentos[0]}`, colsFinas));
+    linhasComRecuo(`${rotuloPag} ${pagamentos[0]}`, '  ').forEach((l) => out.push(c(l)));
   } else {
-    out.push(c(rotuloPag, colsFinas));
-    pagamentos.forEach((l) => out.push(c(`  ${l}`, colsFinas)));
+    out.push(c(rotuloPag));
+    pagamentos.forEach((l) => out.push(c(`  ${l}`)));
   }
   if (troco > 0) {
-    rowWrap('Recebido', BRL(o.changeFor!), colsFinas).forEach((l) => out.push(l));
-    rowWrap('TROCO', BRL(troco), colsFinas).forEach((l) => out.push(l));
+    rowWrap('Recebido', BRL(o.changeFor!)).forEach((l) => out.push(l));
+    rowWrap('TROCO', BRL(troco)).forEach((l) => out.push(l));
   }
-  out.push('[[FONTE:2]]');
   out.push(line);
   const bye = 'Obrigado pela preferencia!';
   if (bye.length <= cols) out.push(center(bye));
