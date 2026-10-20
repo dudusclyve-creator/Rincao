@@ -354,6 +354,7 @@ export default function Pedidos() {
   const [editItems, setEditItems] = useState<any[]>([]);
   const [editForm, setEditForm] = useState<any>({});
   const [editSplit, setEditSplit] = useState(false);
+  const [editCardFeeOn, setEditCardFeeOn] = useState(false);
   const [editPayments, setEditPayments] = useState<{ method: string; amount: number }[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [addProductId, setAddProductId] = useState('');
@@ -393,12 +394,14 @@ export default function Pedidos() {
   };
 
   const print = async (o: any) => {
+    const met = String(o.payment || '').split(',')[0].split(':')[0];
+    const cardFeeLabel = `Taxa cartao ${met === 'credito' ? '3,9%' : met === 'debito' ? '1,9%' : ''}`.trim();
     const base = {
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: o.customerName, customerPhone: o.customerPhone,
       items: o.items.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: JSON.parse(it.addonsJson || '[]'), note: it.note })),
       payment: o.payment, subtotal: o.subtotal, fee: o.deliveryFee, discount: o.discount, total: o.total,
-      cardFee: o.cardFee, cardFeeLabel: 'Taxa cartao',
+      cardFee: o.cardFee, cardFeeLabel,
       addressText: o.addressText, type: o.type, driverName: o.driver?.name, motoboy: (o.note || '').match(/Motoboy:\s*([^|]+)/)?.[1]?.trim(), changeFor: o.changeFor,
       note: o.note || '',
       width: '80mm' as const,
@@ -484,6 +487,7 @@ export default function Pedidos() {
     const payStr = String(o.payment || 'pix');
     const dividido = payStr.includes(',');
     setEditSplit(dividido);
+    setEditCardFeeOn(Number(o.cardFee || 0) > 0 && !dividido);
     setEditPayments(dividido ? parsePayParts(payStr) : [{ method: payStr, amount: Number(o.total || 0) }]);
 
     setAddProductId(''); setAddQty(1);
@@ -500,13 +504,19 @@ export default function Pedidos() {
       (s: number, it: any) => s + it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)),
       0
     );
-    const total = Math.max(0, subtotalEdit + fee - Number(editForm.discount || 0));
+    const discountEdit = Number(editForm.discount || 0);
+    // taxa da maquininha: credito 3,9% / debito 1,9% (so quando nao esta dividido)
+    const cardFeePctEdit = !editSplit ? (editForm.payment === 'credito' ? 3.9 : editForm.payment === 'debito' ? 1.9 : 0) : 0;
+    const cardFeeEdit = editCardFeeOn && cardFeePctEdit > 0
+      ? Math.round(Math.max(0, subtotalEdit + fee - discountEdit) * cardFeePctEdit) / 100
+      : 0;
+    const total = Math.max(0, subtotalEdit + fee - discountEdit + cardFeeEdit);
     const payload: any = {
       action: 'edit', orderId: editOrder.id,
       items: editItems.map((it: any) => ({ productId: it.productId, name: it.name, qty: it.qty, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
       customerName: editForm.customerName, customerPhone: editForm.customerPhone, addressText: editForm.addressText,
       customerCpf: editForm.customerCpf || '',
-      type: editForm.type, deliveryFee: fee, discount: Number(editForm.discount || 0),
+      type: editForm.type, deliveryFee: fee, discount: discountEdit, cardFee: cardFeeEdit,
       changeFor: editForm.changeFor ? Number(editForm.changeFor) : null, note: editForm.note,
     };
     if (editSplit) {
@@ -713,8 +723,11 @@ export default function Pedidos() {
         const subtotal = editItems.reduce((s: number, it: any) => s + it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)), 0);
         const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
         const discount = Number(editForm.discount || 0);
-        const cardFee = Number(editOrder.cardFee || 0);
-        const total = Math.max(0, subtotal + fee - discount + cardFee);
+        // taxa da maquininha (credito 3,9% / debito 1,9%) — so no pagamento unico
+        const cardFeePct = !editSplit ? (editForm.payment === 'credito' ? 3.9 : editForm.payment === 'debito' ? 1.9 : 0) : 0;
+        const baseTotal = Math.max(0, subtotal + fee - discount);
+        const cardFee = editCardFeeOn && cardFeePct > 0 ? Math.round(baseTotal * cardFeePct) / 100 : 0;
+        const total = Math.max(0, baseTotal + cardFee);
         const nfeLocked = editOrder.nfeStatus === 'issued';
         const somaDividida = Math.round(editPayments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
         const somaDivididaOk = Math.abs(somaDividida - total) < 0.005;
@@ -848,7 +861,8 @@ export default function Pedidos() {
                             setEditForm((f: any) => ({ ...f, payment: editPayments[0]?.method || 'pix' }));
                           } else {
                             setEditSplit(true);
-                            setEditPayments([{ method: editForm.payment || 'pix', amount: total }]);
+                            setEditCardFeeOn(false);
+                            setEditPayments([{ method: editForm.payment || 'pix', amount: baseTotal }]);
                           }
                         }}
                         className="text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all hover:scale-105"
@@ -859,13 +873,37 @@ export default function Pedidos() {
                     </div>
 
                     {!editSplit ? (
-                      <select
-                        value={editForm.payment}
-                        onChange={(e) => setEditForm((f: any) => ({ ...f, payment: e.target.value }))}
-                        className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle}
-                      >
-                        {PAY_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-                      </select>
+                      <div className="space-y-2">
+                        <select
+                          value={editForm.payment}
+                          onChange={(e) => {
+                            const m = e.target.value;
+                            setEditForm((f: any) => ({ ...f, payment: m }));
+                            if (m !== 'credito' && m !== 'debito') setEditCardFeeOn(false);
+                          }}
+                          className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle}
+                        >
+                          {PAY_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                        </select>
+                        {cardFeePct > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setEditCardFeeOn(!editCardFeeOn)}
+                            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200"
+                            style={editCardFeeOn
+                              ? { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#f59e0b' }
+                              : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#9ca3af' }}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className="w-4 h-4 rounded flex items-center justify-center" style={{ border: `1px solid ${editCardFeeOn ? '#f59e0b' : '#6b7280'}`, background: editCardFeeOn ? '#f59e0b' : 'transparent', color: '#1a1520' }}>
+                                {editCardFeeOn && <span className="text-[10px] font-black leading-none">✓</span>}
+                              </span>
+                              Cobrar taxa do cartão ({String(cardFeePct).replace('.', ',')}%)
+                            </span>
+                            <span className="tabular-nums">+{BRL(Math.round(baseTotal * cardFeePct) / 100)}</span>
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <div className="space-y-2">
                         {editPayments.map((pmt, idx) => (
@@ -950,6 +988,9 @@ export default function Pedidos() {
                   <div className="flex justify-between text-[11px] text-gray-400"><span>Subtotal</span><span>{BRL(subtotal)}</span></div>
                   <div className="flex justify-between text-[11px] text-gray-400"><span>Taxa</span><span>{BRL(fee)}</span></div>
                   <div className="flex justify-between text-[11px] text-gray-400"><span>Desconto</span><span>− {BRL(discount)}</span></div>
+                  {cardFee > 0 && (
+                    <div className="flex justify-between text-[11px] font-bold" style={{ color: '#f59e0b' }}><span>Taxa cartão ({String(cardFeePct).replace('.', ',')}%)</span><span>+ {BRL(cardFee)}</span></div>
+                  )}
                   <div className="flex justify-between text-[15px] font-black text-white pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}><span>Total</span><span style={{ color: '#4ade80' }}>{BRL(total)}</span></div>
                 </div>
               </div>
