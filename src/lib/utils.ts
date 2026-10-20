@@ -217,23 +217,29 @@ export function receiptText(o: {
     return o.payment === 'dinheiro' ? Math.max(0, o.changeFor - o.total) : 0;
   })();
 
-  // endereco completo: a 1a linha precisa caber depois do prefixo "Endereco: "
-  const wrapAddress = (addr: string) => {
-    const out: string[] = [];
-    let remaining = addr.trim();
-    let prefix = 'Endereco: ';
-    while (remaining.length > cols - prefix.length) {
-      const limit = cols - prefix.length;
-      let breakAt = remaining.lastIndexOf(', ', limit);
-      const spaceAt = remaining.lastIndexOf(' ', limit);
-      if (spaceAt > breakAt) breakAt = spaceAt;
-      if (breakAt <= 0) breakAt = limit;
-      out.push(prefix + remaining.slice(0, breakAt).trimEnd());
-      remaining = remaining.slice(breakAt).replace(/^[, ]+/, '');
-      prefix = '  ';
+  // endereco: separa em partes ("rua, numero" / complemento / "bairro, cidade")
+  const partesEndereco = (addr: string): string[] => {
+    const txt = addr.trim();
+    const m = txt.match(/^(.+?),\s*([^,]+?)(?:\s*-\s*([^,]+?))?\s*-\s*(.+)$/);
+    if (m) return [`${m[1].trim()}, ${m[2].trim()}`, (m[3] || '').trim(), m[4].trim()].filter(Boolean);
+    const partes = txt.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
+    return partes.length > 1 ? partes : [txt];
+  };
+  // quebra um texto em linhas de ate "cols" colunas, ja com o recuo
+  const linhasComRecuo = (txt: string, recuo: string): string[] => {
+    const limite = cols - recuo.length;
+    const res: string[] = [];
+    let resto = txt.trim();
+    while (resto.length > limite) {
+      let corte = resto.lastIndexOf(', ', limite);
+      const espaco = resto.lastIndexOf(' ', limite);
+      if (espaco > corte) corte = espaco;
+      if (corte <= 0) corte = limite;
+      res.push(recuo + resto.slice(0, corte).trimEnd());
+      resto = resto.slice(corte).replace(/^[, ]+/, '');
     }
-    if (remaining || out.length === 0) out.push(prefix + remaining);
-    return out;
+    if (resto.length) res.push(recuo + resto);
+    return res;
   };
 
   const out: string[] = [];
@@ -251,20 +257,29 @@ export function receiptText(o: {
     : tipo ? o.type!.toUpperCase() : '';
   if (tipoTxt) out.push(center(`=== ${tipoTxt} ===`));
   out.push(center(`*** ${o.store.toUpperCase()} ***`));
-  out.push(c(`PEDIDO #${o.number}`));
   out.push(c(o.date));
   out.push('='.repeat(cols));
+
+  // cliente: o WhatsApp dele vem logo abaixo do nome (antes ficava depois do
+  // entregador e parecia ser o numero do motoboy)
   wrapWords(`Cliente: ${o.customerName}`, '  ').forEach((l) => out.push(l));
-  if (o.addressText && !semEndereco) {
-    wrapAddress(o.addressText).forEach((l) => out.push(l));
-  }
-  if (o.driverName) wrapWords(`Entregador: ${o.driverName}${o.motoboy ? ` -> ${o.motoboy}` : ''}`, '  ').forEach((l) => out.push(l));
-  // WhatsApp do cliente: motoboy contata se nao conseguir entregar
   if (o.customerPhone) {
     const wa = `WhatsApp: ${formatPhone(o.customerPhone)}`;
     if (wa.length <= cols) out.push(c(wa));
     else { out.push(c('WhatsApp:')); out.push(c(`  ${formatPhone(o.customerPhone)}`)); }
   }
+
+  // endereco em blocos: rua/numero, complemento e bairro/cidade
+  if (o.addressText && !semEndereco) {
+    out.push(c('Endereco:'));
+    partesEndereco(o.addressText).forEach((parte) => {
+      linhasComRecuo(parte, '  ').forEach((l) => out.push(c(l)));
+    });
+  }
+
+  const entregador = (o.driverName || o.motoboy || '').trim();
+  if (entregador) wrapWords(`Entregador: ${entregador}`, '  ').forEach((l) => out.push(l));
+
   out.push(line);
   o.items.forEach((it) => {
     rowWrap(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty)).forEach((l) => out.push(l));

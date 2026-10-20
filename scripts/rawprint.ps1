@@ -247,9 +247,9 @@ foreach ($pagina in $paginas) {
   Add-Bytes $dados @(0x1B, 0x21, $n)                       # ESC ! n  tamanho da fonte
 
   # altura entre linhas: sobra uma folga boa embaixo das letras (nao fica colado)
-  $alturaLinha = 56
-  if ($dobraAltura) { $alturaLinha = 80 }
-  if (-not $dobraLargura -and -not $dobraAltura) { $alturaLinha = 48 }
+  $alturaLinha = 68
+  if ($dobraAltura) { $alturaLinha = 96 }
+  if (-not $dobraLargura -and -not $dobraAltura) { $alturaLinha = 60 }
   if ($Espaco -gt 0) { $alturaLinha = $Espaco }
   Add-Bytes $dados @(0x1B, 0x33, $alturaLinha)             # ESC 3 n  espaco entre linhas
 
