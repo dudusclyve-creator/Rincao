@@ -290,6 +290,10 @@ export function receiptText(o: {
   const bye = 'Obrigado pela preferencia!';
   if (bye.length <= cols) out.push(center(bye));
   else { out.push(center('Obrigado pela')); out.push(center('preferencia!')); }
+  // numero do pedido em destaque, no rodape: a impressora termica reconhece esta
+  // ultima linha ("PEDIDO #123") e imprime em letra grande, centralizada.
+  out.push('');
+  out.push(center(`PEDIDO #${o.number}`));
   return out.join('\n');
 }
 
@@ -370,8 +374,21 @@ export function printReceiptText(text: string | string[], width: '58mm' | '80mm'
     const pages = Array.isArray(text) ? text : [text];
     const w = window.open('', '_blank', 'width=420,height=700');
     if (!w) return;
+    // a ultima linha do cupom ("PEDIDO #123") sai grande e centralizada tambem
+    // no navegador. Na impressora termica quem faz isso e o scripts/rawprint.ps1
+    // (o texto continua sendo "PEDIDO #123", so muda o visual aqui).
+    const marcarPedido = (p: string) => {
+      const linhas = p.split('\n');
+      for (let i = linhas.length - 1; i >= 0; i--) {
+        const t = linhas[i].trim();
+        if (!t) continue;
+        if (/^PEDIDO\s*#?\s*\d+$/i.test(t)) linhas[i] = `<span class="pedido">${t}</span>`;
+        break;
+      }
+      return linhas.join('\n');
+    };
     const pagesHtml = pages.map((p, i) =>
-      `<div class="pg"${i < pages.length - 1 ? ' style="page-break-after: always;"' : ''}><pre class="receipt">${p}</pre></div>`
+      `<div class="pg"${i < pages.length - 1 ? ' style="page-break-after: always;"' : ''}><pre class="receipt">${marcarPedido(p)}</pre></div>`
     ).join('\n');
     w.document.write(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Impressao</title>
@@ -391,6 +408,14 @@ export function printReceiptText(text: string | string[], width: '58mm' | '80mm'
     color: #000;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  pre.receipt .pedido {
+    display: block;
+    font-size: 2.2em;
+    line-height: 1.15;
+    font-weight: 900;
+    text-align: center;
+    letter-spacing: 1px;
   }
   @media screen {
     body { padding: 12px; background: #f0f0f0; }

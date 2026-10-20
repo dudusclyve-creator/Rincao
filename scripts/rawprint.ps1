@@ -255,13 +255,45 @@ foreach ($pagina in $paginas) {
 
   if ($primeira -and $logo) { Add-Bytes $dados $logo; Add-Bytes $dados @(0x0A, 0x0A) }
 
-  foreach ($linha in ($pagina -split "`n")) {
+  # numero do pedido no rodape: a ULTIMA linha do cupom ("PEDIDO #123") sai em
+  # letra grande e centralizada, logo abaixo do "obrigado pela preferencia".
+  $linhasPagina = @($pagina -split "`n")
+  $idxGrande = -1
+  $textoGrande = ''
+  for ($i = $linhasPagina.Count - 1; $i -ge 0; $i--) {
+    $t = $linhasPagina[$i].Trim()
+    if ($t.Length -eq 0) { continue }
+    $mp = [regex]::Match($t, '^PEDIDO\s*#?\s*(\d+)$')
+    if ($mp.Success) { $idxGrande = $i; $textoGrande = 'PEDIDO #' + $mp.Groups[1].Value }
+    break
+  }
+
+  for ($i = 0; $i -lt $linhasPagina.Count; $i++) {
+    $linha = $linhasPagina[$i]
     if ($linha.Trim() -eq '[[QR]]') {
       if ($qr) { Add-Bytes $dados $qr }
       else {
         Add-Bytes $dados $enc.GetBytes('(QR Code indisponivel)')
         Add-Bytes $dados @(0x0A)
       }
+      continue
+    }
+    if ($i -eq $idxGrande) {
+      # maior tamanho que cabe na largura do papel (letra base = 12 dots)
+      $escala = [int][Math]::Floor($LarguraDots / (12.0 * [Math]::Max(1, $textoGrande.Length)))
+      if ($escala -lt 2) { $escala = 2 }
+      if ($escala -gt 6) { $escala = 6 }
+      $nGrande = (($escala - 1) * 16) + ($escala - 1)
+      Add-Bytes $dados @(0x1B, 0x61, 0x01)                    # ESC a 1  centraliza
+      Add-Bytes $dados @(0x1B, 0x33, (24 * $escala + 16))     # ESC 3 n  espaco da linha grande
+      Add-Bytes $dados @(0x1B, 0x45, 0x01)                    # ESC E 1  negrito
+      Add-Bytes $dados @(0x1D, 0x21, $nGrande)                # GS ! n   letra grande
+      Add-Bytes $dados $enc.GetBytes($textoGrande)
+      Add-Bytes $dados @(0x0A)
+      Add-Bytes $dados @(0x1D, 0x21, 0x00)                    # GS ! 0   volta ao normal
+      Add-Bytes $dados @(0x1B, 0x45, 0x00)                    # ESC E 0  sem negrito
+      Add-Bytes $dados @(0x1B, 0x33, $alturaLinha)            # volta o espaco normal
+      Add-Bytes $dados @(0x1B, 0x61, 0x00)                    # ESC a 0  volta a esquerda
       continue
     }
     if ($linha.Length -gt 0) { Add-Bytes $dados $enc.GetBytes($linha) }
