@@ -164,21 +164,23 @@ export function receiptText(o: {
   type?: string; note?: string;
   width?: '58mm' | '80mm';
 }) {
-  const cols = o.width === '58mm' ? 22 : 24;
+  const cols = o.width === '58mm' ? 22 : 24;               // fonte dobrada (2x)
+  const colsFinas = o.width === '58mm' ? 32 : 48;          // fonte normal (1x)
   const line = '-'.repeat(cols);
-  const c = (s: string) => s.slice(0, cols);
-  const center = (s: string) => { const t = c(s); return ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t; };
-  const row = (l: string, r: string) => {
-    const sp = Math.max(1, cols - l.length - r.length);
-    return c(l + ' '.repeat(sp) + r);
+  const lineF = '-'.repeat(colsFinas);
+  const c = (s: string, w = cols) => s.slice(0, w);
+  const center = (s: string, w = cols) => { const t = c(s, w); return ' '.repeat(Math.max(0, Math.floor((w - t.length) / 2))) + t; };
+  const row = (l: string, r: string, w = cols) => {
+    const sp = Math.max(1, w - l.length - r.length);
+    return c(l + ' '.repeat(sp) + r, w);
   };
   // quebra texto longo em varias linhas (nunca corta no meio)
-  const wrapWords = (s: string, indent = ''): string[] => {
+  const wrapWords = (s: string, indent = '', w = cols): string[] => {
     const parts: string[] = [];
     let remaining = s;
     let first = true;
-    while (remaining.length > (first ? cols : cols - indent.length)) {
-      const limit = first ? cols : cols - indent.length;
+    while (remaining.length > (first ? w : w - indent.length)) {
+      const limit = first ? w : w - indent.length;
       let breakAt = remaining.lastIndexOf(', ', limit);
       const spaceAt = remaining.lastIndexOf(' ', limit);
       if (spaceAt > breakAt) breakAt = spaceAt;
@@ -190,10 +192,10 @@ export function receiptText(o: {
     if (remaining || first) parts.push((first ? '' : indent) + remaining);
     return parts;
   };
-  const rowWrap = (l: string, r: string) => {
-    if (!r) return wrapWords(l);
-    if (l.length + r.length + 1 <= cols) return [row(l, r)];
-    return [...wrapWords(l, '  '), row('', r)];
+  const rowWrap = (l: string, r: string, w = cols) => {
+    if (!r) return wrapWords(l, '', w);
+    if (l.length + r.length + 1 <= w) return [row(l, r, w)];
+    return [...wrapWords(l, '  ', w), row('', r, w)];
   };
 
   const formatPayment = (pay: string) => {
@@ -217,11 +219,15 @@ export function receiptText(o: {
     return o.payment === 'dinheiro' ? Math.max(0, o.changeFor - o.total) : 0;
   })();
 
-  // endereco: separa em partes ("rua, numero" / complemento / "bairro, cidade")
+  // endereco: separa em partes ("rua" / "numero + complemento" / "bairro, cidade")
   const partesEndereco = (addr: string): string[] => {
     const txt = addr.trim();
     const m = txt.match(/^(.+?),\s*([^,]+?)(?:\s*-\s*([^,]+?))?\s*-\s*(.+)$/);
-    if (m) return [`${m[1].trim()}, ${m[2].trim()}`, (m[3] || '').trim(), m[4].trim()].filter(Boolean);
+    if (m) {
+      const numero = m[2].trim();
+      const complemento = (m[3] || '').trim();
+      return [m[1].trim(), complemento ? `${numero} - ${complemento}` : numero, m[4].trim()].filter(Boolean);
+    }
     const partes = txt.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
     return partes.length > 1 ? partes : [txt];
   };
@@ -285,27 +291,38 @@ export function receiptText(o: {
   const entregador = (o.driverName || o.motoboy || '').trim();
   if (entregador) wrapWords(`Entregador: ${entregador}`, '  ').forEach((l) => out.push(l));
 
-  out.push(line);
+  // itens e valores em letra normal (1x): a linha fica mais compacta e o
+  // espaco entre o nome e o preco para de parecer um buraco
+  out.push('[[FONTE:1]]');
+  out.push(lineF);
   o.items.forEach((it) => {
-    rowWrap(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty)).forEach((l) => out.push(l));
+    rowWrap(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty), colsFinas).forEach((l) => out.push(l));
     it.addons.forEach((a) => {
       const left = `  + ${a.name}${a.qty && a.qty > 1 ? ` ${a.qty}x` : ''}`;
-      rowWrap(left, a.price ? BRL(a.price) : '').forEach((l) => out.push(l));
+      rowWrap(left, a.price ? BRL(a.price) : '', colsFinas).forEach((l) => out.push(l));
     });
-    if (it.note) wrapWords(`  obs: ${it.note}`, '  ').forEach((l) => out.push(l));
+    if (it.note) wrapWords(`  obs: ${it.note}`, '  ', colsFinas).forEach((l) => out.push(l));
   });
-  if (o.note) wrapWords(`OBS: ${o.note}`, '  ').forEach((l) => out.push(l));
-  out.push(line);
-  rowWrap('Subtotal', BRL(o.subtotal)).forEach((l) => out.push(l));
-  if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) rowWrap('Entrega', BRL(o.fee)).forEach((l) => out.push(l));
-  if (o.discount) rowWrap('Desconto', '-' + BRL(o.discount)).forEach((l) => out.push(l));
-  rowWrap('TOTAL', BRL(o.total)).forEach((l) => out.push(l));
-  out.push(c(o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:'));
-  formatPayment(o.payment).forEach((l) => out.push(c(`  ${l}`)));
-  if (troco > 0) {
-    rowWrap('Recebido', BRL(o.changeFor!)).forEach((l) => out.push(l));
-    rowWrap('TROCO', BRL(troco)).forEach((l) => out.push(l));
+  if (o.note) wrapWords(`OBS: ${o.note}`, '  ', colsFinas).forEach((l) => out.push(l));
+  out.push(lineF);
+  rowWrap('Subtotal', BRL(o.subtotal), colsFinas).forEach((l) => out.push(l));
+  if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) rowWrap('Entrega', BRL(o.fee), colsFinas).forEach((l) => out.push(l));
+  if (o.discount) rowWrap('Desconto', '-' + BRL(o.discount), colsFinas).forEach((l) => out.push(l));
+  rowWrap('TOTAL', BRL(o.total), colsFinas).forEach((l) => out.push(l));
+  const pagamentos = formatPayment(o.payment);
+  const rotuloPag = o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:';
+  if (pagamentos.length === 1) {
+    // tudo na mesma linha ("PAGAMENTO: PIX R$ 72,90")
+    out.push(c(`${rotuloPag} ${pagamentos[0]}`, colsFinas));
+  } else {
+    out.push(c(rotuloPag, colsFinas));
+    pagamentos.forEach((l) => out.push(c(`  ${l}`, colsFinas)));
   }
+  if (troco > 0) {
+    rowWrap('Recebido', BRL(o.changeFor!), colsFinas).forEach((l) => out.push(l));
+    rowWrap('TROCO', BRL(troco), colsFinas).forEach((l) => out.push(l));
+  }
+  out.push('[[FONTE:2]]');
   out.push(line);
   const bye = 'Obrigado pela preferencia!';
   if (bye.length <= cols) out.push(center(bye));
@@ -407,8 +424,12 @@ export function printReceiptText(text: string | string[], width: '58mm' | '80mm'
       }
       return linhas.join('\n');
     };
+    // troca as marcas de fonte do cupom por trechos menores no navegador
+    const trocarFonte = (p: string) => p
+      .replace(/^[ \t]*\[\[FONTE:1\]\][ \t]*\r?\n/gm, '<span class="miudo">')
+      .replace(/^[ \t]*\[\[FONTE:2\]\][ \t]*\r?\n/gm, '</span>');
     const pagesHtml = pages.map((p, i) =>
-      `<div class="pg"${i < pages.length - 1 ? ' style="page-break-after: always;"' : ''}><pre class="receipt">${marcarPedido(p)}</pre></div>`
+      `<div class="pg"${i < pages.length - 1 ? ' style="page-break-after: always;"' : ''}><pre class="receipt">${marcarPedido(trocarFonte(p))}</pre></div>`
     ).join('\n');
     w.document.write(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Impressao</title>
@@ -436,6 +457,10 @@ export function printReceiptText(text: string | string[], width: '58mm' | '80mm'
     font-weight: 900;
     text-align: center;
     letter-spacing: 1px;
+  }
+  pre.receipt .miudo {
+    font-size: 0.56em;
+    line-height: 2.6;
   }
   @media screen {
     body { padding: 12px; background: #f0f0f0; }

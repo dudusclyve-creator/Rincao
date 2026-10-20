@@ -178,14 +178,28 @@ $enc = [System.Text.Encoding]::GetEncoding(850)   # PC850: acentos em portugues
 $larguraChar = if ($dobraLargura) { 24 } else { 12 }
 $maxCols = [int][Math]::Floor($LarguraDots / $larguraChar)
 
-# se alguma linha nao couber na fonte escolhida, cai para a fonte normal
-$linhasTodas = @()
-foreach ($p in $paginas) { $linhasTodas += ($p -split "`n") }
+# confere se alguma linha nao cabe na largura do modo em que sera impressa
+# (as marcas [[FONTE:1]] / [[FONTE:2]] trocam entre letra normal e dobrada)
+$maxDobrada = [int][Math]::Floor($LarguraDots / 24)
+$maxNormal = [int][Math]::Floor($LarguraDots / 12)
+$modoScan = if ($dobraLargura) { 2 } else { 1 }
 $maior = 0
-foreach ($l in $linhasTodas) { if ($l.Length -gt $maior) { $maior = $l.Length } }
-if ($maior -gt $maxCols) {
+$estourou = $false
+foreach ($p in $paginas) {
+  foreach ($l in ($p -split "`n")) {
+    $t = $l.Trim()
+    if ($t -eq '[[FONTE:1]]') { $modoScan = 1; continue }
+    if ($t -eq '[[FONTE:2]]') { $modoScan = 2; continue }
+    if ($l.Length -gt $maior) { $maior = $l.Length }
+    $limite = if ($modoScan -eq 2) { $maxDobrada } else { $maxNormal }
+    if ($l.Length -gt $limite) { $estourou = $true }
+  }
+}
+if ($estourou) {
+  # nada de cortar texto: imprime tudo em fonte normal e ignora as trocas
   $Fonte = '1x1'; $dobraLargura = $false; $dobraAltura = $false
   $larguraChar = 12
+  $paginas = @($paginas | ForEach-Object { $_ -replace '\[\[FONTE:[12]\]\]', '' })
   Write-Output ("AVISO: linha de " + $maior + " colunas nao cabe na fonte dobrada; usando fonte normal.")
 }
 
@@ -270,12 +284,24 @@ foreach ($pagina in $paginas) {
 
   for ($i = 0; $i -lt $linhasPagina.Count; $i++) {
     $linha = $linhasPagina[$i]
-    if ($linha.Trim() -eq '[[QR]]') {
+    $tLinha = $linha.Trim()
+    if ($tLinha -eq '[[QR]]') {
       if ($qr) { Add-Bytes $dados $qr }
       else {
         Add-Bytes $dados $enc.GetBytes('(QR Code indisponivel)')
         Add-Bytes $dados @(0x0A)
       }
+      continue
+    }
+    # troca de fonte no meio do cupom (itens/totais em letra normal)
+    if ($tLinha -eq '[[FONTE:1]]') {
+      Add-Bytes $dados @(0x1B, 0x21, 0x00)                  # ESC ! 0  fonte normal (1x)
+      Add-Bytes $dados @(0x1B, 0x33, 60)                    # ESC 3 60 espaco entre linhas
+      continue
+    }
+    if ($tLinha -eq '[[FONTE:2]]') {
+      Add-Bytes $dados @(0x1B, 0x21, $n)                    # volta a fonte do cupom (2x1)
+      Add-Bytes $dados @(0x1B, 0x33, $alturaLinha)
       continue
     }
     if ($i -eq $idxGrande) {
