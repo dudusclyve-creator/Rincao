@@ -225,20 +225,23 @@ export function receiptText(o: {
     const partes = txt.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
     return partes.length > 1 ? partes : [txt];
   };
-  // quebra um texto em linhas de ate "cols" colunas, ja com o recuo
-  const linhasComRecuo = (txt: string, recuo: string): string[] => {
-    const limite = cols - recuo.length;
+  // quebra um texto em linhas de ate "cols" colunas; as continuacoes levam recuo
+  const linhasComRecuo = (txt: string, recuo: string, indentarPrimeira = false): string[] => {
     const res: string[] = [];
     let resto = txt.trim();
-    while (resto.length > limite) {
+    let primeira = true;
+    const prefixo = () => (primeira && !indentarPrimeira ? '' : recuo);
+    while (resto.length > cols - prefixo().length) {
+      const limite = cols - prefixo().length;
       let corte = resto.lastIndexOf(', ', limite);
       const espaco = resto.lastIndexOf(' ', limite);
       if (espaco > corte) corte = espaco;
       if (corte <= 0) corte = limite;
-      res.push(recuo + resto.slice(0, corte).trimEnd());
+      res.push(prefixo() + resto.slice(0, corte).trimEnd());
       resto = resto.slice(corte).replace(/^[, ]+/, '');
+      primeira = false;
     }
-    if (resto.length) res.push(recuo + resto);
+    if (resto.length) res.push(prefixo() + resto);
     return res;
   };
 
@@ -264,16 +267,18 @@ export function receiptText(o: {
   // entregador e parecia ser o numero do motoboy)
   wrapWords(`Cliente: ${o.customerName}`, '  ').forEach((l) => out.push(l));
   if (o.customerPhone) {
-    const wa = `WhatsApp: ${formatPhone(o.customerPhone)}`;
+    // numero na MESMA linha do rotulo: sem o espaco depois do DDD ele cabe
+    const wa = `WhatsApp: ${formatPhone(o.customerPhone).replace(/\)\s+/, ')')}`;
     if (wa.length <= cols) out.push(c(wa));
     else { out.push(c('WhatsApp:')); out.push(c(`  ${formatPhone(o.customerPhone)}`)); }
   }
 
-  // endereco em blocos: rua/numero, complemento e bairro/cidade
+  // endereco: "End: Rua X, 123" na mesma linha; o resto alinhado embaixo
   if (o.addressText && !semEndereco) {
-    out.push(c('Endereco:'));
-    partesEndereco(o.addressText).forEach((parte) => {
-      linhasComRecuo(parte, '  ').forEach((l) => out.push(c(l)));
+    const partes = partesEndereco(o.addressText);
+    linhasComRecuo(`End: ${partes[0] || ''}`, '  ').forEach((l) => out.push(c(l)));
+    partes.slice(1).forEach((parte) => {
+      linhasComRecuo(parte, '  ', true).forEach((l) => out.push(c(l)));
     });
   }
 
