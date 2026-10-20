@@ -411,8 +411,8 @@ export function printReceiptText(text: string | string[], width: '58mm' | '80mm'
   }
   pre.receipt .pedido {
     display: block;
-    font-size: 2.2em;
-    line-height: 1.15;
+    font-size: 1.6em;
+    line-height: 1.2;
     font-weight: 900;
     text-align: center;
     letter-spacing: 1px;

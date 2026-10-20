@@ -279,13 +279,14 @@ foreach ($pagina in $paginas) {
       continue
     }
     if ($i -eq $idxGrande) {
-      # maior tamanho que cabe na largura do papel (letra base = 12 dots)
-      $escala = [int][Math]::Floor($LarguraDots / (12.0 * [Math]::Max(1, $textoGrande.Length)))
-      if ($escala -lt 2) { $escala = 2 }
-      if ($escala -gt 6) { $escala = 6 }
-      $nGrande = (($escala - 1) * 16) + ($escala - 1)
+      # destaque do numero: 2x na largura e 2x na altura (o resto do cupom e 2x1)
+      $escalaW = 2
+      $escalaH = 2
+      # so diminui a largura se o numero for comprido demais para o papel
+      while ($escalaW -gt 1 -and (12 * $escalaW * $textoGrande.Length) -gt $LarguraDots) { $escalaW-- }
+      $nGrande = (($escalaH - 1) * 16) + ($escalaW - 1)
       Add-Bytes $dados @(0x1B, 0x61, 0x01)                    # ESC a 1  centraliza
-      Add-Bytes $dados @(0x1B, 0x33, (24 * $escala + 16))     # ESC 3 n  espaco da linha grande
+      Add-Bytes $dados @(0x1B, 0x33, (24 * $escalaH + 16))    # ESC 3 n  espaco da linha grande
       Add-Bytes $dados @(0x1B, 0x45, 0x01)                    # ESC E 1  negrito
       Add-Bytes $dados @(0x1D, 0x21, $nGrande)                # GS ! n   letra grande
       Add-Bytes $dados $enc.GetBytes($textoGrande)
