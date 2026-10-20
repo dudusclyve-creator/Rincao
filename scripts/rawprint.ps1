@@ -267,7 +267,7 @@ foreach ($pagina in $paginas) {
   if ($Espaco -gt 0) { $alturaLinha = $Espaco }
   Add-Bytes $dados @(0x1B, 0x33, $alturaLinha)             # ESC 3 n  espaco entre linhas
 
-  if ($primeira -and $logo) { Add-Bytes $dados $logo; Add-Bytes $dados @(0x0A, 0x0A) }
+  if ($logo) { Add-Bytes $dados $logo; Add-Bytes $dados @(0x0A, 0x0A) }
 
   # numero do pedido no rodape: a ULTIMA linha do cupom ("PEDIDO #123") sai em
   # letra grande e centralizada, logo abaixo do "obrigado pela preferencia".
