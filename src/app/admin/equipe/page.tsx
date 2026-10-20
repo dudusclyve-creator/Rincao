@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Users, Plus, Shield, UserCheck, UserX, X, Check } from 'lucide-react';
+import { Users, Plus, UserCheck, UserX, X, Check, Pencil, Mail, KeyRound } from 'lucide-react';
 
 const ROLES: Record<string, { label: string; color: string; bg: string; desc: string }> = {
   admin: { label: 'Admin', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', desc: 'Acesso total' },
@@ -10,24 +10,61 @@ const ROLES: Record<string, { label: string; color: string; bg: string; desc: st
   entregador: { label: 'Entregador', color: '#a855f7', bg: 'rgba(168,85,247,0.08)', desc: 'Apenas entregas' },
 };
 
+const VAZIO = { name: '', email: '', password: '', role: 'caixa' };
+
 export default function Equipe() {
   const [list, setList] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [f, setF] = useState({ name: '', email: '', password: '', role: 'caixa' });
+  const [editing, setEditing] = useState<any | null>(null);
+  const [f, setF] = useState({ ...VAZIO });
+  const [err, setErr] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const load = async () => setList(await fetch('/api/users').then((r) => r.json()));
   useEffect(() => { load(); }, []);
 
-  const create = async () => {
-    if (!f.name.trim() || !f.email.trim()) return;
-    await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
-    setF({ name: '', email: '', password: '', role: 'caixa' });
+  const abrirNovo = () => {
+    setEditing(null);
+    setF({ ...VAZIO });
+    setErr('');
+    setShowForm(true);
+  };
+
+  const fechar = () => {
     setShowForm(false);
-    load();
+    setEditing(null);
+    setF({ ...VAZIO });
+    setErr('');
+  };
+
+  const abrirEdicao = (u: any) => {
+    setEditing(u);
+    setF({ name: u.name || '', email: u.email || '', password: '', role: u.role || 'caixa' });
+    setErr('');
+    setShowForm(true);
+  };
+
+  const salvar = async () => {
+    if (saving) return;
+    setErr('');
+    if (!f.name.trim() || !f.email.trim()) { setErr('Preencha nome e e-mail'); return; }
+    if (!editing && !f.password) { setErr('Escolha uma senha para o novo membro'); return; }
+    setSaving(true);
+    try {
+      const body: any = { name: f.name, email: f.email, role: f.role, password: f.password || undefined };
+      if (editing) body.id = editing.id;
+      const r = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(data.error || 'Nao foi possivel salvar'); return; }
+      fechar();
+      await load();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggle = async (u: any) => {
-    await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id, name: u.name, role: u.role, active: !u.active }) });
+    await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id, active: !u.active }) });
     load();
   };
 
@@ -46,16 +83,22 @@ export default function Equipe() {
             <p className="text-[10px] text-gray-500">{list.length} membro(s) · {activeCount} ativo(s)</p>
           </div>
         </div>
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={() => (showForm ? fechar() : abrirNovo())}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold transition-all duration-200"
           style={{ background: showForm ? 'rgba(239,68,68,0.15)' : 'linear-gradient(135deg, #e11d48, #be123c)', color: showForm ? '#ef4444' : '#fff', boxShadow: showForm ? 'none' : '0 4px 16px rgba(225,29,72,0.3)' }}>
           {showForm ? <><X size={14} /> Cancelar</> : <><Plus size={14} /> Novo Membro</>}
         </button>
       </div>
 
-      {/* Create Form */}
+      {/* Form: novo / editar */}
       {showForm && (
-        <div className="rounded-xl p-4 mb-5 space-y-3" style={{ background: 'rgba(225,29,72,0.04)', border: '1px solid rgba(225,29,72,0.15)', animation: 'slideDown 0.3s ease' }}>
+        <div className="rounded-xl p-4 mb-5 space-y-3" style={{ background: editing ? 'rgba(59,130,246,0.04)' : 'rgba(225,29,72,0.04)', border: editing ? '1px solid rgba(59,130,246,0.2)' : '1px solid rgba(225,29,72,0.15)', animation: 'slideDown 0.3s ease' }}>
+          <div className="flex items-center gap-2">
+            {editing ? <Pencil size={14} style={{ color: '#60a5fa' }} /> : <Plus size={14} style={{ color: '#e11d48' }} />}
+            <p className="text-[11px] font-black uppercase tracking-wider" style={{ color: editing ? '#60a5fa' : '#e11d48' }}>
+              {editing ? `Editando: ${editing.name}` : 'Novo membro'}
+            </p>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Nome</label>
@@ -66,8 +109,10 @@ export default function Equipe() {
               <input className="input w-full" placeholder="email@rincao.com" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />
             </div>
             <div>
-              <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Senha</label>
-              <input className="input w-full" type="password" placeholder="••••••" value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
+              <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">
+                {editing ? 'Nova senha (opcional)' : 'Senha'}
+              </label>
+              <input className="input w-full" type="password" placeholder={editing ? 'em branco = manter a atual' : '••••••'} value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} />
             </div>
             <div>
               <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Cargo</label>
@@ -76,9 +121,18 @@ export default function Equipe() {
               </select>
             </div>
           </div>
-          <div className="flex justify-end">
-            <button onClick={create} className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }}>
-              <Check size={14} /> Criar Membro
+          {editing && (
+            <p className="flex items-center gap-1.5 text-[10px] text-gray-500">
+              <KeyRound size={11} /> A senha fica guardada com hash (bcrypt) — nem nós conseguimos ver a atual.
+            </p>
+          )}
+          {err && <p className="text-[11px] font-bold" style={{ color: '#f87171' }}>{err}</p>}
+          <div className="flex justify-end gap-2">
+            <button onClick={fechar} className="px-4 py-2 rounded-xl text-[12px] font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: '#c0b8c8' }}>
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff' }}>
+              <Check size={14} /> {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Criar Membro'}
             </button>
           </div>
         </div>
@@ -93,7 +147,7 @@ export default function Equipe() {
             <div key={u.id} className="rounded-xl p-4 transition-all duration-200"
               style={{
                 background: u.active ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)',
-                border: u.active ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.03)',
+                border: editing?.id === u.id ? '1px solid rgba(59,130,246,0.4)' : u.active ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.03)',
                 opacity: u.active ? 1 : 0.6,
                 animation: `slideUp 0.3s ease ${i * 30}ms both`,
               }}>
@@ -107,11 +161,18 @@ export default function Equipe() {
                     {!u.active && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(107,114,128,0.15)', color: '#6b7280' }}>INATIVO</span>}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-gray-500">{u.email}</span>
+                    <span className="flex items-center gap-1 text-[10px] text-gray-500">
+                      <Mail size={10} /> {u.email || 'sem e-mail'}
+                    </span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: role.bg, color: role.color }}>{role.label}</span>
                   </div>
                 </div>
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-2">
+                  <button onClick={() => abrirEdicao(u)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
+                    style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                    <Pencil size={12} /> Editar
+                  </button>
                   <button onClick={() => toggle(u)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
                     style={{

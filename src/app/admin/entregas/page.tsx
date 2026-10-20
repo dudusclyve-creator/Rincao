@@ -173,6 +173,21 @@ export default function Entregas() {
     load();
   };
 
+  // volta tudo para a ordem alfabetica (por cidade). Depois disso e so arrastar
+  // de novo quem quiser deixar no topo.
+  const ordenarAreasAZ = async () => {
+    const cityOf = (a: any) => a.city || 'Santana do Livramento';
+    const cmp = (x: string, y: string) => String(x).localeCompare(String(y), 'pt-BR', { sensitivity: 'base', numeric: true });
+    const cidades = ['Santana do Livramento', 'Rivera'];
+    const outras = Array.from(new Set(areas.map(cityOf))).filter((c: string) => !cidades.includes(c));
+    const ordenado = [
+      ...cidades.flatMap((c) => areas.filter((a: any) => cityOf(a) === c).sort((x: any, y: any) => cmp(x.name, y.name))),
+      ...outras.flatMap((c) => areas.filter((a: any) => cityOf(a) === c).sort((x: any, y: any) => cmp(x.name, y.name))),
+    ];
+    setAreas(ordenado);
+    await fetch('/api/delivery-areas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reorder', ids: ordenado.map((a: any) => a.id) }) });
+  };
+
   const onAreaDragEnd = async (event: DragEndEvent, city: string) => {
     try {
       const { active, over } = event;
@@ -400,7 +415,10 @@ export default function Entregas() {
         <div className="grid lg:grid-cols-2 gap-4 items-start">
           {/* Add Area */}
           <div className="min-w-0 rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold mb-2">Novo bairro</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Novo bairro</p>
+              <button onClick={ordenarAreasAZ} title="Colocar todos os bairros em ordem alfabética" className="text-[10px] font-bold px-2 py-1 rounded-lg pdv-hover" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)' }}>A-Z</button>
+            </div>
             <div className="flex flex-wrap gap-2 items-center">
               <select className="input text-xs w-44 shrink-0" value={newAreaCity} onChange={(e) => setNewAreaCity(e.target.value)}>
                 <option value="Santana do Livramento">Santana do Livramento</option>

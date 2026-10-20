@@ -46,7 +46,18 @@ export async function POST(req: Request) {
 
   if (b.action === 'create') {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    areas.push({ id, city: b.city, name: b.name, fee: Number(b.fee || 0), active: true });
+    const cidade = b.city || 'Santana do Livramento';
+    const novo = { id, city: cidade, name: b.name, fee: Number(b.fee || 0), active: true };
+    // entra ja na ordem alfabetica dentro da cidade (o arrastar continua valendo
+    // para o dono colocar os que mais usa no topo)
+    const cmp = (x: string, y: string) => String(x).localeCompare(String(y), 'pt-BR', { sensitivity: 'base', numeric: true });
+    const cityOf = (a: any) => a.city || 'Santana do Livramento';
+    let pos = areas.findIndex((a: any) => cityOf(a) === cidade && cmp(a.name, novo.name) > 0);
+    if (pos < 0) {
+      const ultimoDaCidade = areas.reduce((ult: number, a: any, i: number) => (cityOf(a) === cidade ? i : ult), -1);
+      pos = ultimoDaCidade >= 0 ? ultimoDaCidade + 1 : areas.length;
+    }
+    areas.splice(pos, 0, novo);
   } else if (b.action === 'update') {
     const idx = areas.findIndex((a: any) => a.id === b.id);
     if (idx >= 0) {

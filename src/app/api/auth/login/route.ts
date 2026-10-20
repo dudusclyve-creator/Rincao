@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   const { email, password } = await req.json();
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email: String(email || '').trim().toLowerCase() } });
   if (!user || !user.active) return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });

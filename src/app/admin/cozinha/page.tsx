@@ -39,15 +39,65 @@ function TimerBadge({ createdAt }: { createdAt: string }) {
   );
 }
 
+function MiniPedido({ o, cor }: { o: any; cor: string }) {
+  const type = TYPE_META[o.type] || TYPE_META.balcao;
+  const quando = new Date(o.createdAt);
+  const hoje = new Date();
+  const mesmoDia = quando.toDateString() === hoje.toDateString();
+  const hora = mesmoDia
+    ? quando.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : quando.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: `${cor}06`, border: `1px solid ${cor}25` }}>
+      <div className="px-3 py-1.5 flex items-center justify-between" style={{ background: `${type.color}12`, borderBottom: `1px solid ${type.color}25` }}>
+        <span className="flex items-center gap-1 text-[11px] font-black uppercase" style={{ color: type.color }}>
+          {type.icon} {o.type === 'mesa' && o.table?.number ? `MESA ${o.table.number}` : type.label}
+        </span>
+        <span className="text-sm font-black text-white">#{o.number}</span>
+      </div>
+      <div className="px-3 py-2 space-y-1">
+        {(o.items || []).map((it: any) => {
+          const addons = JSON.parse(it.addonsJson || '[]');
+          return (
+            <div key={it.id}>
+              <p className="text-xs font-bold text-gray-300">
+                <span style={{ color: cor }}>{it.qty}x</span> {it.name}
+              </p>
+              {addons.length > 0 && (
+                <p className="ml-5 text-[10px] font-bold" style={{ color: '#c4b5fd' }}>+ {addons.map((a: any) => a.name).join(', ')}</p>
+              )}
+              {it.note && <p className="ml-5 text-[10px] font-black" style={{ color: '#fbbf24' }}>OBS: {it.note}</p>}
+            </div>
+          );
+        })}
+        {o.customerName && <p className="text-xs font-black text-gray-300 pt-1">👤 {o.customerName}</p>}
+        <p className="text-[10px] text-gray-500 pt-0.5">{hora}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function Cozinha() {
   const [orders, setOrders] = useState<any[]>([]);
+  const [cancelados, setCancelados] = useState<any[]>([]);
   const [showReady, setShowReady] = useState(true);
+  const [showDone, setShowDone] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
 
-  const load = async () => setOrders(await fetch('/api/orders?limit=60').then((r) => r.json()));
+  const load = async () => {
+    const [recentes, canc] = await Promise.all([
+      fetch('/api/orders?limit=60').then((r) => r.json()).catch(() => []),
+      fetch('/api/orders?status=cancelado&limit=10').then((r) => r.json()).catch(() => []),
+    ]);
+    setOrders(Array.isArray(recentes) ? recentes : []);
+    setCancelados(Array.isArray(canc) ? canc : []);
+  };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
 
   const list = orders.filter((o) => ['confirmado', 'preparo'].includes(o.status));
   const readyList = orders.filter((o) => o.status === 'pronto');
+  const doneList = orders.filter((o) => o.status === 'concluido').sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const cancelledList = cancelados;
 
   const set = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
@@ -279,6 +329,60 @@ export default function Cozinha() {
                 );
               })}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Concluidos */}
+      {doneList.length > 0 && (
+        <div className="mt-4">
+          <button onClick={() => setShowDone(!showDone)}
+            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all duration-200"
+            style={{ background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.3)' }}>
+            <CheckCircle2 size={18} style={{ color: '#94a3b8' }} />
+            <span className="text-sm font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>
+              Concluídos ({doneList.length})
+            </span>
+            <span className="ml-auto text-gray-500">
+              {showDone ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
+          </button>
+          {showDone && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                {doneList.slice(0, 12).map((o) => <MiniPedido key={o.id} o={o} cor="#94a3b8" />)}
+              </div>
+              {doneList.length > 12 && (
+                <p className="text-[11px] text-gray-500 mt-2 text-center">+{doneList.length - 12} anteriores</p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Cancelados */}
+      {cancelledList.length > 0 && (
+        <div className="mt-4">
+          <button onClick={() => setShowCancelled(!showCancelled)}
+            className="w-full flex items-center gap-2.5 px-4 py-3 rounded-xl transition-all duration-200"
+            style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <AlertTriangle size={18} style={{ color: '#ef4444' }} />
+            <span className="text-sm font-black uppercase tracking-wider" style={{ color: '#ef4444' }}>
+              Cancelados ({cancelledList.length})
+            </span>
+            <span className="ml-auto text-gray-500">
+              {showCancelled ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </span>
+          </button>
+          {showCancelled && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
+                {cancelledList.slice(0, 12).map((o) => <MiniPedido key={o.id} o={o} cor="#ef4444" />)}
+              </div>
+              {cancelledList.length > 12 && (
+                <p className="text-[11px] text-gray-500 mt-2 text-center">+{cancelledList.length - 12} anteriores</p>
+              )}
+            </>
           )}
         </div>
       )}

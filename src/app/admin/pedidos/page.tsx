@@ -137,8 +137,8 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
       onClick={() => onSelect(o.id)}
     >
       <div className="px-4 py-3">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             <span className="text-sm font-black text-white">#{o.number}</span>
             {orderType === 'mesa' ? (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: '#581c87', color: '#d8b4fe' }}>📍 {o.addressText || 'Mesa'}</span>
@@ -148,7 +148,7 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
             {overdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600 text-white">ATRASADO</span>}
             {wasOverdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600/80 text-white">ATRASADO</span>}
           </div>
-          <span className="text-xs font-bold text-white">{BRL(o.total)}</span>
+          <span className="text-xs font-bold text-white whitespace-nowrap shrink-0">{BRL(o.total)}</span>
         </div>
 
           <div className="flex items-center gap-2 mb-2">
@@ -188,9 +188,9 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
               const addons = JSON.parse(it.addonsJson || '[]');
               return (
                 <div key={it.id}>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-gray-300"><span className="font-bold text-white">{it.qty}x</span> {it.name}</span>
-                    <span className="font-bold text-white">{BRL(it.unitPrice * it.qty)}</span>
+                  <div className="flex items-start justify-between gap-2 text-[11px]">
+                    <span className="text-gray-300 min-w-0 break-words"><span className="font-bold text-white">{it.qty}x</span> {it.name}</span>
+                    <span className="font-bold text-white whitespace-nowrap shrink-0">{BRL(it.unitPrice * it.qty)}</span>
                   </div>
                   {addons.map((a: any, j: number) => (
                     <p key={j} className="text-[9px] text-gray-500 ml-4">+ {a.name}{a.price ? ` ${BRL(a.price)}` : ''}</p>
