@@ -517,7 +517,8 @@ export default function Mesas() {
       if (cardFee > 0) {
         const alvo = [...activeOrders].reverse()[0];
         if (alvo) {
-          await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: alvo.id, cardFee }) }).then((x) => x.json()).catch(() => null);
+          const novaTaxa = Math.round((Number(alvo.cardFee || 0) + cardFee) * 100) / 100;
+          await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: alvo.id, cardFee: novaTaxa }) }).then((x) => x.json()).catch(() => null);
         }
       }
       for (const o of activeOrders) {
