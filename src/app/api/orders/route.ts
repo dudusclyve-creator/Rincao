@@ -288,24 +288,50 @@ export async function POST(req: Request) {
   // A checagem do caixa lia o valor cru (undefined) e por isso as vendas
   // feitas pelo site nao entravam no caixa.
   const orderSource = b.source || 'cardapio';
+  const orderType = b.type || 'entrega';
+  // venda que ja entra no caixa junto com o pedido:
+  //  - PDV (balcao/retirada/entrega/mesa): pago na hora, inclusive dividido
+  //  - cardapio: pedido pago no site (mesa paga no fechamento da mesa)
+  const cashAtCreation = orderSource === 'pdv' || (orderSource === 'cardapio' && orderType !== 'mesa');
+  const cashTotal = Math.max(0, Math.round((total - cardFee) * 100) / 100);
+  const cashParts = parsePayments(b.payment || 'pix', cashTotal);
+  const cashReason = orderSource === 'pdv' ? 'PDV' : 'Pedido';
+  let cashRegisterOpen = true;
 
-  const order = await prisma.order.create({
-    data: {
-      number: seq,
-      turnoId,
-      customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
-      addressText: b.addressText || '', type: b.type || 'entrega',
-      status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
-      subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
-      total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
-      source: orderSource, emitRequested: !!b.emitRequested,
-      items: { create: (b.items || []).map((it: any) => ({
-        productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
-        unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
-      })) },
-      payments: { create: parsePayments(b.payment || 'pix', total).map((p) => ({ method: p.method, amount: p.amount })) },
-    },
-    include: { items: true },
+  // pedido + lancamento no caixa na MESMA requisicao: se o caixa nao receber
+  // (dividido, conexao caindo, etc.) o pedido tambem nao e criado — nunca fica
+  // venda no sistema sem o dinheiro no caixa.
+  const order = await prisma.$transaction(async (tx) => {
+    const created = await tx.order.create({
+      data: {
+        number: seq,
+        turnoId,
+        customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
+        addressText: b.addressText || '', type: orderType,
+        status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
+        subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
+        total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
+        source: orderSource, emitRequested: !!b.emitRequested,
+        items: { create: (b.items || []).map((it: any) => ({
+          productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
+          unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
+        })) },
+        payments: { create: cashParts.map((p) => ({ method: p.method, amount: p.amount })) },
+      },
+      include: { items: true },
+    });
+    if (cashAtCreation) {
+      const open = await tx.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
+      if (!open) cashRegisterOpen = false;
+      else {
+        for (const p of cashParts) {
+          await tx.cashMovement.create({
+            data: { registerId: open.id, kind: 'venda', method: p.method, amount: p.amount, reason: `${cashReason} #${created.number}`, orderId: created.id },
+          });
+        }
+      }
+    }
+    return created;
   });
   await prisma.notification.create({ data: { kind: 'novo_pedido', text: `Novo pedido #${order.number} — ${order.customerName} — R$ ${total.toFixed(2)}` } });
 
@@ -318,18 +344,9 @@ export async function POST(req: Request) {
     }
   }
 
-  // pedidos de mesa pagam somente no fechamento da mesa (mesas/closeTable);
-  // os do PDV tambem sao lancados pela propria pagina do PDV
-  if (orderSource === 'cardapio' && (b.type || 'entrega') !== 'mesa') {
-    const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
-    if (open) {
-      for (const p of parsePayments(b.payment || 'pix', total)) {
-        await prisma.cashMovement.create({ data: { registerId: open.id, kind: 'venda', method: p.method, amount: p.amount, reason: `Pedido #${order.number}`, orderId: order.id } });
-      }
-    }
-  }
-
-  return NextResponse.json(order);
+  // pedidos de mesa (cardapio) pagam somente no fechamento da mesa (mesas/closeTable);
+  // PDV e cardapio ja foram lancados no caixa na criacao (transacao acima)
+  return NextResponse.json({ ...order, cashRegisterOpen });
 }
 
 export async function PATCH(req: Request) {

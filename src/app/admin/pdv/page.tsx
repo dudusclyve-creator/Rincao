@@ -337,29 +337,13 @@ export default function PDV() {
     setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]); setCardFeeOn(false);
     setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
     localStorage.removeItem(PDV_STORAGE_KEY);
-    let cashError: string | null = null;
-    try {
-      if (splitPayment) {
-        for (const p of activePayments) {
-          const cr = await fetch('/api/cash', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'movement', kind: 'venda', method: p.method, amount: Number(p.amount), orderId: o.id, reason: `PDV #${o.number}` })
-          }).then((x) => x.json()).catch(() => null);
-          if (cr?.error && !cashError) cashError = cr.error;
-        }
-      } else {
-        const cr = await fetch('/api/cash', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: Math.round((o.total - (o.cardFee || 0)) * 100) / 100, orderId: o.id, reason: `PDV #${o.number}` })
-        }).then((x) => x.json()).catch(() => null);
-        if (cr?.error) cashError = cr.error;
-      }
-    } catch {}
+    // o caixa e lancado pelo servidor na mesma transacao do pedido (inclusive
+    // pagamento dividido). Aqui so avisamos quando o caixa estava fechado.
     if (type === 'mesa' && selectedTable) {
       try { await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: selectedTable, status: 'ocupada' }) }); } catch {}
     }
-    if (cashError) {
-      showToast(`Pedido #${o.number} criado, mas NAO lancado no caixa (${cashError}) — abra o caixa e registre manualmente`, 'error');
+    if (o.cashRegisterOpen === false) {
+      showToast(`Pedido #${o.number} criado, mas o CAIXA ESTA FECHADO — abra o caixa e registre a venda`, 'error');
     } else {
       showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
     }
