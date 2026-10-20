@@ -316,7 +316,7 @@ export default function Caixa() {
     const activeTableOrders = orders.filter((o: any) => o.tableId && !['concluido', 'cancelado'].includes(o.status));
     const tableIds = new Set(activeTableOrders.map((o: any) => o.tableId));
     tables.forEach((t: any) => { if (t.status !== 'livre') tableIds.add(t.id); });
-    setOpenTables({ count: tableIds.size, total: activeTableOrders.filter((o: any) => o.source !== 'pdv').reduce((s: number, o: any) => s + Number(o.total || 0), 0) });
+    setOpenTables({ count: tableIds.size, total: activeTableOrders.filter((o: any) => o.source !== 'pdv').reduce((s: number, o: any) => s + Math.max(0, Number(o.total || 0) - Number(o.cardFee || 0)), 0) });
     const turnoId = String(d.turno || '1');
     const turnoOrders = orders.filter((o: any) => (o.turnoId || '1') === turnoId);
     setTurnoOrderNumbers(turnoOrders.map((o: any) => o.number).sort((a: number, b: number) => a - b));

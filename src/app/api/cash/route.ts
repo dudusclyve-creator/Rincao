@@ -20,8 +20,9 @@ async function closeOpenTables(registerId: string, payment: string) {
     for (const o of orders) {
       await prisma.order.update({ where: { id: o.id }, data: { status: 'concluido', endedAt: new Date() } });
       if (o.source !== 'pdv') {
-        await prisma.cashMovement.create({ data: { registerId, kind: 'venda', method: payment, amount: Number(o.total), orderId: o.id, reason: `${t.number} #${o.number}` } });
-        sales += Number(o.total);
+        const valor = Math.round((Number(o.total) - Number(o.cardFee || 0)) * 100) / 100;
+        await prisma.cashMovement.create({ data: { registerId, kind: 'venda', method: payment, amount: valor, orderId: o.id, reason: `${t.number} #${o.number}` } });
+        sales += valor;
       }
     }
     await prisma.tableMap.update({ where: { id: t.id }, data: { status: 'livre' } });

@@ -512,26 +512,21 @@ export default function Mesas() {
     setClosing(true);
     try {
       let fail: string | null = null;
-      // taxa do cartao: entra no ultimo pedido da mesa, entao o valor ja cai no caixa junto com ele
-      let taxaAplicada = false;
+      // taxa do cartao: fica registrada no pedido (comanda/total), mas o caixa recebe
+      // so o valor da venda (sem a taxa) para bater com o extrato da maquininha
       if (cardFee > 0) {
-        const alvo = [...activeOrders].reverse().find((o: any) => o.source !== 'pdv');
+        const alvo = [...activeOrders].reverse()[0];
         if (alvo) {
-          const tr = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: alvo.id, cardFee }) }).then((x) => x.json()).catch(() => null);
-          if (tr && !tr.error) taxaAplicada = true;
+          await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: alvo.id, cardFee }) }).then((x) => x.json()).catch(() => null);
         }
       }
       for (const o of activeOrders) {
         const pr = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, status: 'concluido', payment: o.source === 'pdv' ? undefined : payment }) }).then((x) => x.json()).catch(() => null);
         if (!pr || pr.error) { fail = pr?.error || 'falha na conexao'; break; }
         if (o.source === 'pdv') continue; // venda ja lancada no caixa pelo PDV
-        const mr = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: Number(pr.total ?? o.total), orderId: o.id, reason: `${activeTable?.number} #${o.number}` }) }).then((x) => x.json()).catch(() => null);
+        const valorCaixa = Math.round((Number(pr.total ?? o.total) - Number(pr.cardFee ?? o.cardFee ?? 0)) * 100) / 100;
+        const mr = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: valorCaixa, orderId: o.id, reason: `${activeTable?.number} #${o.number}` }) }).then((x) => x.json()).catch(() => null);
         if (!mr || mr.error) { fail = mr?.error || 'falha na conexao'; break; }
-      }
-      // mesa so com vendas do PDV (ja lancadas): a taxa entra como movimento separado
-      if (!fail && cardFee > 0 && !taxaAplicada) {
-        const mr = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: cardFee, reason: `Taxa cartao - ${activeTable?.number}` }) }).then((x) => x.json()).catch(() => null);
-        if (!mr || mr.error) fail = mr?.error || 'falha na conexao';
       }
       if (fail) {
         showToast(`Mesa nao fechada: ${fail}`, 'error');

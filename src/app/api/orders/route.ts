@@ -49,8 +49,10 @@ function lineTotal(it: any): number {
 async function syncOrderMoney(orderId: string, number: number, total: number): Promise<string> {
   const ord = await prisma.order.findUnique({ where: { id: orderId } });
   if (!ord) return '';
+  // caixa e pagamentos registram o valor da venda sem a taxa da maquininha
+  const cashTotal = Math.max(0, Math.round((total - Number(ord.cardFee || 0)) * 100) / 100);
   let paymentStr = String(ord.payment || 'pix');
-  const parts = parsePayments(paymentStr, total);
+  const parts = parsePayments(paymentStr, cashTotal);
   if (paymentStr.includes(',')) {
     const norm = parts.map((x) => `${x.method}:${x.amount}`).join(',');
     if (norm !== paymentStr) { paymentStr = norm; await prisma.order.update({ where: { id: orderId }, data: { payment: paymentStr } }); }

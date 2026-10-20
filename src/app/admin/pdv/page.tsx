@@ -350,7 +350,7 @@ export default function PDV() {
       } else {
         const cr = await fetch('/api/cash', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: o.total, orderId: o.id, reason: `PDV #${o.number}` })
+          body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: Math.round((o.total - (o.cardFee || 0)) * 100) / 100, orderId: o.id, reason: `PDV #${o.number}` })
         }).then((x) => x.json()).catch(() => null);
         if (cr?.error) cashError = cr.error;
       }
