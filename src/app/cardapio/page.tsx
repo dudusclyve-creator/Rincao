@@ -228,9 +228,15 @@ export default function CardapioPage() {
             <div className="min-w-0">
               <h2 className="font-black text-lg sm:text-xl lg:text-2xl truncate" style={{ color: C.textLight }}>{R.name}</h2>
               <p className="text-[10px] lg:text-xs mt-0.5 italic truncate" style={{ color: C.textMuted }}>O melhor sabor da fronteira</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                {/* o pin fica parado; so o endereco desliza para a esquerda */}
                 <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#d4a574' }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span className="text-[10px] lg:text-xs truncate" style={{ color: C.textMuted }}>{R.address}</span>
+                <div className="overflow-hidden min-w-0 flex-1">
+                  <div className="marquee-endereco">
+                    <span className="text-[10px] lg:text-xs pr-10 whitespace-nowrap" style={{ color: C.textMuted }}>{R.address}</span>
+                    <span className="text-[10px] lg:text-xs pr-10 whitespace-nowrap" aria-hidden="true" style={{ color: C.textMuted }}>{R.address}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

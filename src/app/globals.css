@@ -86,3 +86,19 @@ input[type="number"]:hover::-webkit-outer-spin-button { opacity: 0.6; }
   transform: scale(0.92);
   transition-duration: 0.08s;
 }
+
+/* cardapio: endereco deslizando para a esquerda (o pin do mapa fica parado) */
+@keyframes marqueeEndereco {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-endereco {
+  display: inline-flex;
+  width: max-content;
+  animation: marqueeEndereco 26s linear infinite;
+  will-change: transform;
+}
+.marquee-endereco:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .marquee-endereco { animation: none; }
+}
