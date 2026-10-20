@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     }
     const remaining = order.items.filter((_: any, i: number) => i !== b.itemIndex);
     const newSubtotal = remaining.reduce((s: number, it: any) => s + lineTotal(it), 0);
-    const newTotal = Math.max(0, newSubtotal + (order.type === 'entrega' ? order.deliveryFee : 0) - order.discount);
+    const newTotal = Math.max(0, newSubtotal + (order.type === 'entrega' ? order.deliveryFee : 0) - order.discount + (order.cardFee || 0));
     if (remaining.length === 0) {
       // apagou o ultimo item: estorna a venda do caixa antes de remover o pedido
       const openReg = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
@@ -180,7 +180,8 @@ export async function POST(req: Request) {
     const type = b.type !== undefined ? String(b.type) : order.type;
     const fee = type === 'entrega' ? Number(b.deliveryFee ?? order.deliveryFee) : 0;
     const discount = Number(b.discount ?? order.discount);
-    const total = Math.max(0, subtotal + fee - discount);
+    const cardFee = b.cardFee !== undefined ? Math.max(0, Number(b.cardFee) || 0) : Number(order.cardFee || 0);
+    const total = Math.max(0, subtotal + fee - discount + cardFee);
 
     // cliente (relinka quando o telefone muda)
     let customerId = order.customerId ?? null;
@@ -220,7 +221,7 @@ export async function POST(req: Request) {
       type, payment: b.payment !== undefined ? String(b.payment) : order.payment,
       changeFor: b.changeFor !== undefined ? (b.changeFor ? Number(b.changeFor) : null) : order.changeFor,
       note: b.note !== undefined ? String(b.note) : order.note,
-      subtotal, deliveryFee: fee, discount, total, customerId,
+      subtotal, deliveryFee: fee, discount, total, customerId, cardFee,
     };
     const updated = await prisma.order.update({ where: { id: order.id }, data, include: { items: true, customer: true, table: true, driver: true } });
 
@@ -270,7 +271,8 @@ export async function POST(req: Request) {
   const itemsIn = Array.isArray(b.items) ? b.items : [];
   const subtotal = itemsIn.length > 0 ? itemsIn.reduce((s: number, it: any) => s + lineTotal(it), 0) : Number(b.subtotal || 0);
   const fee = b.type === 'entrega' ? Number(b.deliveryFee || 0) : 0;
-  const total = Math.max(0, subtotal + fee - Number(b.discount || 0));
+  const cardFee = Math.max(0, Number(b.cardFee || 0));
+  const total = Math.max(0, subtotal + fee - Number(b.discount || 0) + cardFee);
 
   const turnoSetting = await prisma.setting.findUnique({ where: { key: 'turno_number' } });
   const turnoId = turnoSetting?.value || '1';
@@ -292,7 +294,7 @@ export async function POST(req: Request) {
       customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
       addressText: b.addressText || '', type: b.type || 'entrega',
       status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
-      subtotal, deliveryFee: fee, discount: Number(b.discount || 0),
+      subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
       total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
       source: orderSource, emitRequested: !!b.emitRequested,
       items: { create: (b.items || []).map((it: any) => ({
@@ -343,6 +345,14 @@ export async function PATCH(req: Request) {
   if (b.note !== undefined) data.note = b.note;
   if (b.discount !== undefined) data.discount = b.discount;
   if (b.printed) data.printCount = { increment: 1 }; // registra 1a impressao da comanda
+  if (b.cardFee !== undefined) {
+    const atual = await prisma.order.findUnique({ where: { id: b.id }, select: { subtotal: true, deliveryFee: true, discount: true } });
+    if (atual) {
+      const cardFee = Math.max(0, Number(b.cardFee) || 0);
+      data.cardFee = cardFee;
+      data.total = Math.max(0, atual.subtotal + atual.deliveryFee - atual.discount + cardFee);
+    }
+  }
   const order = await prisma.order.update({ where: { id: b.id }, data });
   if (b.status === 'cancelado') {
     await prisma.notification.create({ data: { kind: 'cancelado', text: `Pedido #${order.number} cancelado` } });

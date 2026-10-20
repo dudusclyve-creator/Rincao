@@ -176,6 +176,7 @@ export default function PDV() {
   const [selectedTable, setSelectedTable] = useState(saved?.selectedTable || '');
   const [changeFor, setChangeFor] = useState(0);
   const [splitPayment, setSplitPayment] = useState(false);
+  const [cardFeeOn, setCardFeeOn] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [payments, setPayments] = useState<{ method: string; amount: number }[]>([{ method: 'pix', amount: 0 }]);
   const [deliveryCity, setDeliveryCity] = useState(saved?.deliveryCity || '');
@@ -249,7 +250,12 @@ export default function PDV() {
   });
 
   const sub = cart.reduce((s: number, i: any) => s + i.qty * (i.unitPrice + (i.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0)), 0);
-  const total = Math.max(0, sub + deliveryFee);
+  // taxa da maquininha: credito 3,9% / debito 1,9% (opcional, marcada no pagamento)
+  const cardFeePct = payment === 'credito' ? 3.9 : payment === 'debito' ? 1.9 : 0;
+  const cardFee = !splitPayment && cardFeeOn && cardFeePct > 0
+    ? Math.round((sub + deliveryFee) * cardFeePct) / 100
+    : 0;
+  const total = Math.max(0, sub + deliveryFee + cardFee);
   const itemCount = cart.reduce((s: number, i: any) => s + i.qty, 0);
   const troco = (() => {
     if (changeFor <= 0) return 0;
@@ -318,7 +324,7 @@ export default function PDV() {
         street: deliveryStreet, number: deliveryNum, complement: deliveryComp,
         district: deliveryBairro, addressText,
         type, payment: paymentMethod, changeFor: (payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0 ? changeFor : undefined,
-        subtotal: sub, deliveryFee, discount: 0, source: 'pdv', note: [orderNote, splitNote].filter(Boolean).join(' | '),
+        subtotal: sub, deliveryFee, discount: 0, cardFee, source: 'pdv', note: [orderNote, splitNote].filter(Boolean).join(' | '),
         tableId: type === 'mesa' ? selectedTable : undefined,
         items: cart.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons || [], note: i.note || '' })),
       })
@@ -328,7 +334,7 @@ export default function PDV() {
       return;
     }
     // limpa o carrinho na hora: se algo falhar depois, nao da pra finalizar de novo
-    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]);
+    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]); setCardFeeOn(false);
     setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
     localStorage.removeItem(PDV_STORAGE_KEY);
     let cashError: string | null = null;
@@ -361,7 +367,9 @@ export default function PDV() {
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: client || 'PDV', customerPhone: clientPhone || '',
       items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
-      payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, total: o.total,
+      payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, cardFee,
+      cardFeeLabel: `Taxa cartao ${String(cardFeePct).replace('.', ',')}%`,
+      total: o.total,
       addressText, type, changeFor: ((payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0) ? changeFor : undefined,
       note: [orderNote, splitNote].filter(Boolean).join(' | '),
       width: '80mm' as const,
@@ -629,20 +637,37 @@ export default function PDV() {
                     </button>
                   </div>
                   {!splitPayment ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {PAYMENT_OPTIONS.map((p) => {
-                        const Icon = p.icon;
-                        return (
-                          <button key={p.id} onClick={() => setPayment(p.id)}
-                            className="flex items-center gap-2 px-4 py-4 rounded-xl text-base font-bold pdv-btn-hover"
-                            style={payment === p.id
-                              ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` }
-                              : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <Icon size={17} />{p.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        {PAYMENT_OPTIONS.map((p) => {
+                          const Icon = p.icon;
+                          return (
+                            <button key={p.id} onClick={() => { setPayment(p.id); if (p.id !== 'credito' && p.id !== 'debito') setCardFeeOn(false); }}
+                              className="flex items-center gap-2 px-4 py-4 rounded-xl text-base font-bold pdv-btn-hover"
+                              style={payment === p.id
+                                ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` }
+                                : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
+                              <Icon size={17} />{p.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {cardFeePct > 0 && (
+                        <button onClick={() => setCardFeeOn(!cardFeeOn)}
+                          className="mt-2 w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200"
+                          style={cardFeeOn
+                            ? { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#f59e0b' }
+                            : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#9ca3af' }}>
+                          <span className="flex items-center gap-2">
+                            <span className="w-4 h-4 rounded flex items-center justify-center" style={{ border: `1px solid ${cardFeeOn ? '#f59e0b' : '#6b7280'}`, background: cardFeeOn ? '#f59e0b' : 'transparent', color: '#1a1520' }}>
+                              {cardFeeOn && <span className="text-[10px] font-black leading-none">✓</span>}
+                            </span>
+                            Cobrar taxa do cartão ({String(cardFeePct).replace('.', ',')}%)
+                          </span>
+                          <span className="tabular-nums">+{BRL(Math.round((sub + deliveryFee) * cardFeePct) / 100)}</span>
+                        </button>
+                      )}
+                    </>
                   ) : (
                     <div className="space-y-2">
                       {payments.map((pmt, idx) => {
@@ -769,6 +794,11 @@ export default function PDV() {
               <div className="shrink-0 p-4 rounded-b-2xl" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-base text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
+                  {cardFee > 0 && (
+                    <div className="flex justify-between text-base font-bold" style={{ color: '#f59e0b' }}>
+                      <span>Taxa cartão ({String(cardFeePct).replace('.', ',')}%)</span><span>{BRL(cardFee)}</span>
+                    </div>
+                  )}
                   {type === 'entrega' && (
                     <div className="flex items-center justify-between text-base text-gray-400">
                       <span>Taxa entrega {feeOverride !== null && feeOverride !== zoneFee && <span className="text-[11px] font-bold" style={{ color: '#f59e0b' }}>editada</span>}</span>

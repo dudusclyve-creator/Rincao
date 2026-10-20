@@ -398,6 +398,7 @@ export default function Pedidos() {
       customerName: o.customerName, customerPhone: o.customerPhone,
       items: o.items.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: JSON.parse(it.addonsJson || '[]'), note: it.note })),
       payment: o.payment, subtotal: o.subtotal, fee: o.deliveryFee, discount: o.discount, total: o.total,
+      cardFee: o.cardFee, cardFeeLabel: 'Taxa cartao',
       addressText: o.addressText, type: o.type, driverName: o.driver?.name, motoboy: (o.note || '').match(/Motoboy:\s*([^|]+)/)?.[1]?.trim(), changeFor: o.changeFor,
       note: o.note || '',
       width: '80mm' as const,
@@ -712,7 +713,8 @@ export default function Pedidos() {
         const subtotal = editItems.reduce((s: number, it: any) => s + it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)), 0);
         const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
         const discount = Number(editForm.discount || 0);
-        const total = Math.max(0, subtotal + fee - discount);
+        const cardFee = Number(editOrder.cardFee || 0);
+        const total = Math.max(0, subtotal + fee - discount + cardFee);
         const nfeLocked = editOrder.nfeStatus === 'issued';
         const somaDividida = Math.round(editPayments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
         const somaDivididaOk = Math.abs(somaDividida - total) < 0.005;

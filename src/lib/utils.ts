@@ -160,6 +160,7 @@ export function receiptText(o: {
   store: string; number: number; date: string; customerName: string;
   customerPhone: string; items: { qty: number; name: string; unitPrice: number; addons: CartAddon[]; note?: string }[];
   payment: string; subtotal: number; fee: number; discount: number; total: number;
+  cardFee?: number; cardFeeLabel?: string;
   addressText?: string; driverName?: string; motoboy?: string; changeFor?: number | null;
   type?: string; note?: string;
   width?: '58mm' | '80mm';
@@ -304,6 +305,7 @@ export function receiptText(o: {
   rowWrap('Subtotal', BRL(o.subtotal)).forEach((l) => out.push(l));
   if (!semEndereco && (tipo === 'entrega' || o.fee > 0)) rowWrap('Entrega', BRL(o.fee)).forEach((l) => out.push(l));
   if (o.discount) rowWrap('Desconto', '-' + BRL(o.discount)).forEach((l) => out.push(l));
+  if (o.cardFee && o.cardFee > 0) rowWrap(o.cardFeeLabel || 'Taxa cartao', BRL(o.cardFee)).forEach((l) => out.push(l));
   rowWrap('TOTAL', BRL(o.total)).forEach((l) => out.push(l));
   const pagamentos = formatPayment(o.payment);
   const rotuloPag = o.payment?.includes(',') ? 'PAGAMENTO DIVIDIDO:' : 'PAGAMENTO:';

@@ -131,6 +131,7 @@ model Order {
   subtotal    Float    @default(0)
   deliveryFee Float    @default(0)
   discount    Float    @default(0)
+  cardFee     Float    @default(0) // taxa da maquininha (credito 3,9% / debito 1,9%) repassada ao cliente
   total       Float    @default(0)
   note        String   @default("")
   emitRequested Boolean @default(false)

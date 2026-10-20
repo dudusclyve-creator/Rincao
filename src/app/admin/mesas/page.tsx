@@ -239,12 +239,16 @@ function TransferModal({ table, tables, onTransfer, onClose }: { table: any; tab
   );
 }
 
-function CloseModal({ table, orders, onClose, onConfirm }: { table: any; orders: any[]; onClose: () => void; onConfirm: (payment: string, received: number) => void }) {
+function CloseModal({ table, orders, onClose, onConfirm }: { table: any; orders: any[]; onClose: () => void; onConfirm: (payment: string, received: number, cardFee: number) => void }) {
   const total = orders.reduce((s: number, o: any) => s + o.total, 0);
   const [payment, setPayment] = useState('pix');
   const [received, setReceived] = useState('');
+  const [feeOn, setFeeOn] = useState(false);
+  const cardFeePct = payment === 'credito' ? 3.9 : payment === 'debito' ? 1.9 : 0;
+  const cardFee = feeOn && cardFeePct > 0 ? Math.round(total * cardFeePct) / 100 : 0;
+  const totalComTaxa = total + cardFee;
   const receivedNum = parseFloat(received.replace(',', '.')) || 0;
-  const change = payment === 'dinheiro' && receivedNum > total ? receivedNum - total : 0;
+  const change = payment === 'dinheiro' && receivedNum > totalComTaxa ? receivedNum - totalComTaxa : 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
@@ -260,20 +264,35 @@ function CloseModal({ table, orders, onClose, onConfirm }: { table: any; orders:
         </div>
         <div className="flex items-center justify-between mb-4 px-1">
           <span className="text-sm font-bold text-gray-400">Total</span>
-          <span className="text-xl font-black text-white">{BRL(total)}</span>
+          <div className="text-right">
+            {cardFee > 0 && <p className="text-[10px] font-bold" style={{ color: '#f59e0b' }}>+ taxa {String(cardFeePct).replace('.', ',')}% {BRL(cardFee)}</p>}
+            <span className="text-xl font-black text-white">{BRL(totalComTaxa)}</span>
+          </div>
         </div>
         <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Forma de pagamento</p>
-        <div className="grid grid-cols-2 gap-1.5 mb-4">
+        <div className="grid grid-cols-2 gap-1.5 mb-3">
           {PAYMENT_OPTIONS.map((p) => {
             const Icon = p.icon;
             return (
-              <button key={p.id} onClick={() => { setPayment(p.id); setReceived(''); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold pdv-btn-hover"
+              <button key={p.id} onClick={() => { setPayment(p.id); setReceived(''); if (p.id !== 'credito' && p.id !== 'debito') setFeeOn(false); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold pdv-btn-hover"
                 style={payment === p.id ? { background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}40` } : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <Icon size={13} />{p.label}
               </button>
             );
           })}
         </div>
+        {cardFeePct > 0 && (
+          <button onClick={() => setFeeOn(!feeOn)} className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold mb-4 transition-all duration-200"
+            style={feeOn ? { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#f59e0b' } : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#9ca3af' }}>
+            <span className="flex items-center gap-2">
+              <span className="w-4 h-4 rounded flex items-center justify-center" style={{ border: `1px solid ${feeOn ? '#f59e0b' : '#6b7280'}`, background: feeOn ? '#f59e0b' : 'transparent', color: '#1a1520' }}>
+                {feeOn && <span className="text-[10px] font-black leading-none">✓</span>}
+              </span>
+              Cobrar taxa do cartão ({String(cardFeePct).replace('.', ',')}%)
+            </span>
+            <span className="tabular-nums">+{BRL(Math.round(total * cardFeePct) / 100)}</span>
+          </button>
+        )}
         {payment === 'dinheiro' && (
           <div className="mb-4">
             <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Valor recebido</p>
@@ -286,14 +305,14 @@ function CloseModal({ table, orders, onClose, onConfirm }: { table: any; orders:
                 <span className="text-sm font-black text-green-400">{BRL(change)}</span>
               </div>
             )}
-            {receivedNum > 0 && receivedNum < total && (
+            {receivedNum > 0 && receivedNum < totalComTaxa && (
               <p className="text-[11px] text-red-400 font-bold mt-1 px-1">Valor insuficiente</p>
             )}
           </div>
         )}
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>Cancelar</button>
-          <button disabled={payment === 'dinheiro' && (receivedNum <= 0 || receivedNum < total)} onClick={() => onConfirm(payment, receivedNum)}
+          <button disabled={payment === 'dinheiro' && (receivedNum <= 0 || receivedNum < totalComTaxa)} onClick={() => onConfirm(payment, receivedNum, cardFee)}
             className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white pdv-btn-hover disabled:opacity-30"
             style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>Confirmar</button>
         </div>
@@ -487,18 +506,32 @@ export default function Mesas() {
     load();
   };
 
-  const closeTable = async (payment: string, received: number) => {
+  const closeTable = async (payment: string, received: number, cardFee: number) => {
     if (!activeTableId || closingRef.current) return;
     closingRef.current = true;
     setClosing(true);
     try {
       let fail: string | null = null;
+      // taxa do cartao: entra no ultimo pedido da mesa, entao o valor ja cai no caixa junto com ele
+      let taxaAplicada = false;
+      if (cardFee > 0) {
+        const alvo = [...activeOrders].reverse().find((o: any) => o.source !== 'pdv');
+        if (alvo) {
+          const tr = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: alvo.id, cardFee }) }).then((x) => x.json()).catch(() => null);
+          if (tr && !tr.error) taxaAplicada = true;
+        }
+      }
       for (const o of activeOrders) {
         const pr = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, status: 'concluido', payment: o.source === 'pdv' ? undefined : payment }) }).then((x) => x.json()).catch(() => null);
         if (!pr || pr.error) { fail = pr?.error || 'falha na conexao'; break; }
         if (o.source === 'pdv') continue; // venda ja lancada no caixa pelo PDV
         const mr = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: Number(pr.total ?? o.total), orderId: o.id, reason: `${activeTable?.number} #${o.number}` }) }).then((x) => x.json()).catch(() => null);
         if (!mr || mr.error) { fail = mr?.error || 'falha na conexao'; break; }
+      }
+      // mesa so com vendas do PDV (ja lancadas): a taxa entra como movimento separado
+      if (!fail && cardFee > 0 && !taxaAplicada) {
+        const mr = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: cardFee, reason: `Taxa cartao - ${activeTable?.number}` }) }).then((x) => x.json()).catch(() => null);
+        if (!mr || mr.error) fail = mr?.error || 'falha na conexao';
       }
       if (fail) {
         showToast(`Mesa nao fechada: ${fail}`, 'error');
