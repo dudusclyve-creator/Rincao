@@ -99,6 +99,3 @@ input[type="number"]:hover::-webkit-outer-spin-button { opacity: 0.6; }
   will-change: transform;
 }
 .marquee-endereco:hover { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) {
-  .marquee-endereco { animation: none; }
-}
