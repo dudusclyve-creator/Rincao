@@ -101,6 +101,11 @@ export default function Entregas() {
   const [editAreaName, setEditAreaName] = useState('');
   const [editAreaFee, setEditAreaFee] = useState(0);
   const [editAreaCity, setEditAreaCity] = useState('');
+  // confirmacao dentro da propria tela (o confirm() do sistema travava o teclado
+  // no app depois de excluir: o mouse funcionava, mas nao dava para digitar nos
+  // proximos bairros)
+  const [confirmDeleteArea, setConfirmDeleteArea] = useState<string | null>(null);
+  const [confirmDeleteDriver, setConfirmDeleteDriver] = useState<string | null>(null);
   const draggingRef = useRef(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -134,7 +139,7 @@ export default function Entregas() {
   };
 
   const deleteDriver = async (id: string) => {
-    if (!confirm('Excluir entregador?')) return;
+    setConfirmDeleteDriver(null);
     await fetch(`/api/drivers?id=${id}`, { method: 'DELETE' });
     load();
   };
@@ -158,7 +163,7 @@ export default function Entregas() {
   };
 
   const deleteArea = async (id: string) => {
-    if (!confirm('Excluir bairro?')) return;
+    setConfirmDeleteArea(null);
     await fetch('/api/delivery-areas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', id }) });
     load();
   };
@@ -350,8 +355,18 @@ export default function Entregas() {
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          <button title="Editar entregador" onClick={() => { setEditingDriver(d.id); setEditDriverName(d.name); setEditDriverPhone(d.phone || ''); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400"><Pencil size={12} /></button>
-                          <button title="Excluir entregador" onClick={() => deleteDriver(d.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                          {confirmDeleteDriver === d.id ? (
+                            <>
+                              <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>Excluir?</span>
+                              <button title="Confirmar exclusão" onClick={() => deleteDriver(d.id)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><Check size={12} /></button>
+                              <button title="Cancelar" onClick={() => setConfirmDeleteDriver(null)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}><X size={12} /></button>
+                            </>
+                          ) : (
+                            <>
+                              <button title="Editar entregador" onClick={() => { setEditingDriver(d.id); setEditDriverName(d.name); setEditDriverPhone(d.phone || ''); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400"><Pencil size={12} /></button>
+                              <button title="Excluir entregador" onClick={() => setConfirmDeleteDriver(d.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-1">
@@ -449,11 +464,21 @@ export default function Entregas() {
                                   <span className="text-[10px] font-bold" style={{ color: '#22c55e' }}>+{BRL(a.fee)}</span>
                                 </div>
                                 <div className="flex items-center gap-1 ml-auto">
-                                  <button title={a.active !== false ? 'Desativar' : 'Ativar'} onClick={() => toggleAreaActive(a.id, !(a.active !== false))} className="p-1.5 rounded-lg pdv-hover" style={{ color: a.active !== false ? '#22c55e' : '#6b7280' }}>
-                                    {a.active !== false ? <CircleDot size={12} /> : <Ban size={12} />}
-                                  </button>
-                                  <button title="Editar" onClick={() => { setEditingArea(a.id); setEditAreaName(a.name); setEditAreaFee(a.fee); setEditAreaCity(a.city || 'Santana do Livramento'); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400"><Pencil size={12} /></button>
-                                  <button title="Excluir" onClick={() => deleteArea(a.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                                  {confirmDeleteArea === a.id ? (
+                                    <>
+                                      <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>Excluir?</span>
+                                      <button title="Confirmar exclusão" onClick={() => deleteArea(a.id)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><Check size={12} /></button>
+                                      <button title="Cancelar" onClick={() => setConfirmDeleteArea(null)} className="p-1.5 rounded-lg pdv-hover" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}><X size={12} /></button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button title={a.active !== false ? 'Desativar' : 'Ativar'} onClick={() => toggleAreaActive(a.id, !(a.active !== false))} className="p-1.5 rounded-lg pdv-hover" style={{ color: a.active !== false ? '#22c55e' : '#6b7280' }}>
+                                        {a.active !== false ? <CircleDot size={12} /> : <Ban size={12} />}
+                                      </button>
+                                      <button title="Editar" onClick={() => { setEditingArea(a.id); setEditAreaName(a.name); setEditAreaFee(a.fee); setEditAreaCity(a.city || 'Santana do Livramento'); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400"><Pencil size={12} /></button>
+                                      <button title="Excluir" onClick={() => setConfirmDeleteArea(a.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             )}

@@ -718,6 +718,10 @@ export default function Pedidos() {
         const somaDivididaOk = Math.abs(somaDividida - total) < 0.005;
         const inputStyle = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#f0e8e0' };
         const setItem = (idx: number, patch: any) => setEditItems((arr: any[]) => arr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+        // lista do "+ Adicionar item" em ordem alfabetica (mais facil de achar)
+        const produtosDisponiveis = (products as any[])
+          .filter((p: any) => p.available !== false)
+          .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name), 'pt-BR', { sensitivity: 'base', numeric: true }));
         return (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}>
             <div className="rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
@@ -765,7 +769,7 @@ export default function Pedidos() {
                   <div className="flex gap-1.5 mt-2">
                     <select value={addProductId} onChange={(e) => setAddProductId(e.target.value)} className="flex-1 min-w-0 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputStyle}>
                       <option value="">+ Adicionar item do cardápio…</option>
-                      {(products as any[]).filter((p: any) => p.available !== false).map((p: any) => (
+                      {(produtosDisponiveis).map((p: any) => (
                         <option key={p.id} value={p.id}>{p.name} — {BRL(Number(p.promoPrice || p.price))}</option>
                       ))}
                     </select>
