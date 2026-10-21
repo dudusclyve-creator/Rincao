@@ -347,6 +347,10 @@ export default function Pedidos() {
   const [selectedDriver, setSelectedDriver] = useState<string>('');
   const [driverNote, setDriverNote] = useState<string>('');
   const [confirmPopup, setConfirmPopup] = useState<any | null>(null);
+  // Janela propria para emitir/cancelar nota: o confirm()/prompt() do sistema
+  // travava o teclado no app portatil.
+  const [nfeDialog, setNfeDialog] = useState<{ order: any; mode: 'emit' | 'cancel' } | null>(null);
+  const [nfeMotivo, setNfeMotivo] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
@@ -440,34 +444,35 @@ export default function Pedidos() {
   };
 
   const emitNfe = async (o: any) => {
-    if (!confirm(`Emitir nota fiscal (NFC-e) do pedido #${o.number}?`)) return;
     document.body.style.cursor = 'wait';
     const { ok, d } = await nfeApi({ action: 'emit', orderId: o.id });
     document.body.style.cursor = '';
-    if (!ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao emitir a nota')); load(); return; }
-    alert(`✅ Nota fiscal #${d.numero} emitida com sucesso!`);
+    if (!ok) { showToast(typeof d.error === 'string' ? d.error : 'Falha ao emitir a nota', 'error', 7000); load(); return; }
+    showToast(`Nota fiscal #${d.numero} emitida com sucesso!`, 'success', 5000);
     load();
   };
 
-  const cancelNfe = async (o: any) => {
-    const motivo = prompt('Motivo do cancelamento (mínimo 15 caracteres):', `Cancelamento do pedido #${o.number} solicitado pelo cliente`);
-    if (!motivo) return;
+  const cancelNfe = async (o: any, motivo: string) => {
     document.body.style.cursor = 'wait';
     const { ok, d } = await nfeApi({ action: 'cancel', orderId: o.id, motivo });
     document.body.style.cursor = '';
-    if (!ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao cancelar a nota')); return; }
-    alert('❌ Nota fiscal cancelada.');
+    if (!ok) { showToast(typeof d.error === 'string' ? d.error : 'Falha ao cancelar a nota', 'error', 8000); return; }
+    showToast('Nota fiscal cancelada', 'success');
     load();
   };
 
   const onNfe = (o: any, mode?: string) => {
-    if (mode === 'cancel') { cancelNfe(o); return; }
+    if (mode === 'cancel') {
+      setNfeMotivo(`Cancelamento do pedido #${o.number} solicitado pelo cliente`);
+      setNfeDialog({ order: o, mode: 'cancel' });
+      return;
+    }
     if (mode === 'danfe') { printDanfe(o); return; }
     if (o.nfeStatus === 'issued') { printDanfe(o); return; }
-    if (o.nfeStatus === 'cancelled') { alert('Nota fiscal já cancelada.'); return; }
-    if (o.nfeStatus === 'error') { emitNfe(o); return; }
+    if (o.nfeStatus === 'cancelled') { showToast('Nota fiscal já cancelada.', 'error'); return; }
+    if (o.nfeStatus === 'error') { setNfeDialog({ order: o, mode: 'emit' }); return; }
     if (o.nfeStatus) { pollNfe(o.id); return; }
-    emitNfe(o);
+    setNfeDialog({ order: o, mode: 'emit' });
   };
 
   const openEdit = async (o: any) => {
@@ -1119,6 +1124,45 @@ export default function Pedidos() {
         </div>
         );
       })()}
+
+      {nfeDialog && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setNfeDialog(null)}>
+          <div className="rounded-2xl p-6 max-w-sm w-full" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.15)', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: nfeDialog.mode === 'emit' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)' }}>
+                <span className="text-2xl">{nfeDialog.mode === 'emit' ? '🧾' : '❌'}</span>
+              </div>
+              <h3 className="font-black text-lg text-white">{nfeDialog.mode === 'emit' ? 'Emitir nota fiscal' : 'Cancelar nota fiscal'}</h3>
+              <p className="text-[12px] mt-1" style={{ color: '#8a7a6a' }}>Pedido #{nfeDialog.order.number} · {BRL(nfeDialog.order.total)}</p>
+            </div>
+
+            {nfeDialog.mode === 'cancel' && (
+              <div className="mb-4">
+                <label className="label">Motivo do cancelamento (mínimo 15 caracteres)</label>
+                <textarea className="input w-full text-xs" rows={3} value={nfeMotivo} onChange={(e) => setNfeMotivo(e.target.value)} />
+                {nfeMotivo.trim().length < 15 && (
+                  <p className="text-[10px] mt-1" style={{ color: '#f59e0b' }}>Faltam {15 - nfeMotivo.trim().length} caracteres</p>
+                )}
+              </div>
+            )}
+
+            {nfeDialog.mode === 'emit' && (
+              <p className="text-[11px] text-center mb-4 px-2" style={{ color: '#8a7a6a' }}>A nota é enviada para a SEFAZ e só pode ser cancelada em até 30 minutos.</p>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => setNfeDialog(null)} className="flex-1 rounded-xl py-3 text-[12px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Voltar</button>
+              <button
+                onClick={() => { const dlg = nfeDialog; setNfeDialog(null); if (dlg.mode === 'emit') emitNfe(dlg.order); else cancelNfe(dlg.order, nfeMotivo.trim()); }}
+                disabled={nfeDialog.mode === 'cancel' && nfeMotivo.trim().length < 15}
+                className="flex-1 rounded-xl py-3 text-[12px] font-bold text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: nfeDialog.mode === 'emit' ? '#22c55e' : '#ef4444' }}>
+                {nfeDialog.mode === 'emit' ? 'Emitir nota' : 'Cancelar nota'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,8 @@ export default function Estoque() {
   const [moveKind, setMoveKind] = useState<'entrada' | 'saida'>('entrada');
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  // Confirmacao na propria tela: o confirm() do sistema travava o teclado no app.
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
 
   const load = async () => setList(await fetch('/api/inventory').then((r) => r.json()));
   useEffect(() => { load(); }, []);
@@ -65,7 +67,7 @@ export default function Estoque() {
   };
 
   const deleteItem = async (id: string) => {
-    if (!confirm('Excluir item do estoque?')) return;
+    setConfirmDel(null);
     await fetch(`/api/inventory?id=${id}`, { method: 'DELETE' });
     load();
   };
@@ -207,13 +209,29 @@ export default function Estoque() {
                     style={{ background: historyId === item.id ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.1)', color: historyId === item.id ? '#a855f7' : '#a855f7' }}>
                     <BarChart3 size={14} />
                   </button>
-                  <button onClick={() => deleteItem(item.id)} title="Excluir"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
-                    style={{ background: 'rgba(239,68,68,0.06)', color: '#6b7280' }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#ef4444'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.06)'; e.currentTarget.style.color = '#6b7280'; }}>
-                    <Trash2 size={14} />
-                  </button>
+                  {confirmDel === item.id ? (
+                    <>
+                      <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>Excluir?</span>
+                      <button onClick={() => deleteItem(item.id)} title="Confirmar exclusão"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                        <Check size={14} />
+                      </button>
+                      <button onClick={() => setConfirmDel(null)} title="Cancelar"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                        <X size={14} />
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => setConfirmDel(item.id)} title="Excluir"
+                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
+                      style={{ background: 'rgba(239,68,68,0.06)', color: '#6b7280' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.color = '#ef4444'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.06)'; e.currentTarget.style.color = '#6b7280'; }}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
 

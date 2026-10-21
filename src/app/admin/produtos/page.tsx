@@ -108,6 +108,10 @@ export default function CardapioAdmin() {
   const [newGroupMax, setNewGroupMax] = useState(2);
   const [newGroupRequired, setNewGroupRequired] = useState(false);
 
+  // Confirmacao dentro da tela (o confirm() do sistema travava o teclado no app).
+  const [confirmDel, setConfirmDel] = useState<string | null>(null); // 'prod:<id>' | 'cat:<id>' | 'grupo:<id>' | 'desativar:<id>'
+  const [renamingCat, setRenamingCat] = useState<{ id: string; name: string } | null>(null);
+
   const [dragType, setDragType] = useState<'category' | 'product' | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragCatId, setDragCatId] = useState<string | null>(null);
@@ -138,18 +142,29 @@ export default function CardapioAdmin() {
     await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newCatName, order: cats.length }) });
     setNewCatName(''); load();
   };
-  const renameCategory = async (id: string, oldName: string) => {
-    const name = prompt('Nome da categoria:', oldName);
-    if (name && name !== oldName) { await fetch('/api/categories', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name }) }); load(); }
+  const saveCategoryName = async (id: string) => {
+    const nome = (renamingCat?.name || '').trim();
+    const atual = cats.find((c) => c.id === id)?.name || '';
+    setRenamingCat(null);
+    if (!nome || nome === atual) return;
+    await fetch('/api/categories', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name: nome }) });
+    load();
   };
   const deleteCategory = async (id: string) => {
-    if (confirm('Excluir categoria e todos os produtos?')) { await fetch(`/api/categories?id=${id}`, { method: 'DELETE' }); load(); }
+    setConfirmDel(null);
+    await fetch(`/api/categories?id=${id}`, { method: 'DELETE' });
+    load();
   };
   const toggleCategoryActive = async (cat: any) => {
     const next = !(cat.active !== false);
-    if (!next && !confirm(`Desativar a categoria "${cat.name}"? Ela some do cardápio online — os produtos ficam guardados e voltam quando ativar de novo.`)) return;
+    setConfirmDel(null);
     await fetch('/api/categories', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: cat.id, active: next }) });
     showToast(next ? `Categoria "${cat.name}" ativada` : `Categoria "${cat.name}" desativada do cardápio`, next ? 'success' : 'warning');
+    load();
+  };
+  const deleteProduct = async (id: string) => {
+    setConfirmDel(null);
+    await fetch(`/api/products?id=${id}`, { method: 'DELETE' });
     load();
   };
 
@@ -252,7 +267,11 @@ export default function CardapioAdmin() {
     await fetch('/api/addon-groups', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ addonId, name: addonEditForm.name, price: addonEditForm.price }) });
     setEditingAddon(null); load();
   };
-  const deleteAddonGroup = async (id: string) => { if (confirm('Excluir grupo e todos os adicionais?')) { await fetch(`/api/addon-groups?id=${id}`, { method: 'DELETE' }); load(); } };
+  const deleteAddonGroup = async (id: string) => {
+    setConfirmDel(null);
+    await fetch(`/api/addon-groups?id=${id}`, { method: 'DELETE' });
+    load();
+  };
 
   return (
     <div className="min-h-[calc(100vh-48px)] rounded-2xl p-4 md:p-5" style={{ background: '#1a1520', color: '#f0e8e0' }}>
@@ -367,14 +386,47 @@ export default function CardapioAdmin() {
                       {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </button>
                     <div className="min-w-0">
-                      <span className="text-sm font-bold block truncate" style={{ color: cat.active !== false ? '#fff' : '#6b7280' }}>{cat.name}</span>
+                      {renamingCat?.id === cat.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus
+                            value={renamingCat.name}
+                            onChange={(e) => setRenamingCat({ id: cat.id, name: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') saveCategoryName(cat.id);
+                              if (e.key === 'Escape') setRenamingCat(null);
+                            }}
+                            className="input text-sm py-0.5 px-2 w-56"
+                          />
+                          <button onClick={() => saveCategoryName(cat.id)} className="p-1.5 rounded-lg" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e' }} title="Salvar (Enter)"><Check size={13} /></button>
+                          <button onClick={() => setRenamingCat(null)} className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} title="Cancelar (Esc)"><X size={13} /></button>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold block truncate" style={{ color: cat.active !== false ? '#fff' : '#6b7280' }}>{cat.name}</span>
+                      )}
                       <span className="text-[10px] text-gray-500">{prods.length} produtos{cat.active === false && <span className="ml-1 font-bold" style={{ color: '#f59e0b' }}>· desativada do cardápio</span>}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5">
-                    <button onClick={() => toggleCategoryActive(cat)} className={`p-1.5 rounded-lg ${cat.active !== false ? 'text-gray-500 hover:text-amber-400' : 'text-amber-500 hover:text-emerald-400'}`} title={cat.active !== false ? 'Desativar categoria (some do cardápio)' : 'Ativar categoria'}>{cat.active !== false ? <Eye size={13} /> : <EyeOff size={13} />}</button>
-                    <button onClick={() => renameCategory(cat.id, cat.name)} className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Renomear"><Pencil size={13} /></button>
-                    <button onClick={() => deleteCategory(cat.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                    {confirmDel === 'desativar:' + cat.id ? (
+                      <>
+                        <span className="text-[10px] font-bold" style={{ color: '#f59e0b' }}>Desativar?</span>
+                        <button onClick={() => toggleCategoryActive(cat)} className="p-1.5 rounded-lg" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }} title="Confirmar"><Check size={13} /></button>
+                        <button onClick={() => setConfirmDel(null)} className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} title="Cancelar"><X size={13} /></button>
+                      </>
+                    ) : confirmDel === 'cat:' + cat.id ? (
+                      <>
+                        <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>Excluir tudo?</span>
+                        <button onClick={() => deleteCategory(cat.id)} className="p-1.5 rounded-lg" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }} title="Confirmar exclusão"><Check size={13} /></button>
+                        <button onClick={() => setConfirmDel(null)} className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} title="Cancelar"><X size={13} /></button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => { if (cat.active !== false) setConfirmDel('desativar:' + cat.id); else toggleCategoryActive(cat); }} className={`p-1.5 rounded-lg ${cat.active !== false ? 'text-gray-500 hover:text-amber-400' : 'text-amber-500 hover:text-emerald-400'}`} title={cat.active !== false ? 'Desativar categoria (some do cardápio)' : 'Ativar categoria'}>{cat.active !== false ? <Eye size={13} /> : <EyeOff size={13} />}</button>
+                        <button onClick={() => setRenamingCat({ id: cat.id, name: cat.name })} className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Renomear"><Pencil size={13} /></button>
+                        <button onClick={() => setConfirmDel('cat:' + cat.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -423,7 +475,15 @@ export default function CardapioAdmin() {
                               <button onClick={() => { fetch(`/api/products?id=${p.id}&duplicate=1`, { method: 'DELETE' }); load(); }} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300" title="Duplicar"><Copy size={13} /></button>
                               <button onClick={() => { fetch('/api/products', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, available: !p.available }) }); load(); }}
                                 className={`p-1.5 rounded-lg ${p.available ? 'text-amber-500' : 'text-gray-600'}`} title={p.available ? 'Desativar' : 'Ativar'}>{p.available ? <Eye size={13} /> : <EyeOff size={13} />}</button>
-                              <button onClick={() => { if (confirm('Excluir?')) { fetch(`/api/products?id=${p.id}`, { method: 'DELETE' }); load(); } }} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                              {confirmDel === 'prod:' + p.id ? (
+                                <>
+                                  <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>Excluir?</span>
+                                  <button onClick={() => deleteProduct(p.id)} className="p-1.5 rounded-lg" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }} title="Confirmar exclusão"><Check size={13} /></button>
+                                  <button onClick={() => setConfirmDel(null)} className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} title="Cancelar"><X size={13} /></button>
+                                </>
+                              ) : (
+                                <button onClick={() => setConfirmDel('prod:' + p.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -535,7 +595,15 @@ export default function CardapioAdmin() {
                     <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280' }}>{gr.addons.length}</span>
                     <button onClick={() => { setEditingGroup(isEditingGroup ? null : gr.id); setGroupEditForm({ name: gr.name, minSel: gr.minSel, maxSel: gr.maxSel, required: gr.required }); }}
                       className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Editar"><Pencil size={13} /></button>
-                    <button onClick={() => deleteAddonGroup(gr.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                    {confirmDel === 'grupo:' + gr.id ? (
+                      <>
+                        <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>Excluir?</span>
+                        <button onClick={() => deleteAddonGroup(gr.id)} className="p-1.5 rounded-lg" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }} title="Confirmar exclusão"><Check size={13} /></button>
+                        <button onClick={() => setConfirmDel(null)} className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }} title="Cancelar"><X size={13} /></button>
+                      </>
+                    ) : (
+                      <button onClick={() => setConfirmDel('grupo:' + gr.id)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400" title="Excluir"><Trash2 size={13} /></button>
+                    )}
                   </div>
 
                   {isEditingGroup && (
