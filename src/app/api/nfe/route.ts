@@ -2,69 +2,43 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
-import { cancelar, statusServico, amb } from '@/lib/nfe';
-import { emitirPedido } from '@/lib/nfe-order';
+import { handleNfe } from '@/lib/nfe-api';
+import { nfeProxySign } from '@/lib/nfe-proxy';
 
 export async function POST(req: Request) {
+  let b: any = {};
   try {
-    const b = await req.json();
-    const { action, orderId } = b;
-
-    if (action === 'test') {
-      try {
-        const st = await statusServico();
-        return NextResponse.json(st);
-      } catch (e: any) {
-        return NextResponse.json({ error: e?.message || 'Falha ao consultar a SEFAZ' }, { status: 502 });
-      }
-    }
-
-    if (!orderId) return NextResponse.json({ error: 'Pedido não informado' }, { status: 400 });
-    const order = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true, customer: true } });
-    if (!order) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
-
-    if (action === 'emit') {
-      const r = await emitirPedido(orderId);
-      if (r.ok) return NextResponse.json({ status: 'issued', numero: r.numero, chave: r.chave, nProt: r.nProt });
-      return NextResponse.json({ error: r.error }, { status: r.http || 502 });
-    }
-
-    if (action === 'status') {
-      // estado gravado no banco (emissao e sincrona)
-      return NextResponse.json({
-        status: order.nfeStatus,
-        numero: order.nfeNumber,
-        chave: order.nfeKey,
-        error: order.nfeError,
-        ambiente: amb(),
-      });
-    }
-
-    if (action === 'cancel') {
-      if (order.nfeStatus !== 'issued') return NextResponse.json({ error: 'Só é possível cancelar nota já emitida' }, { status: 400 });
-      if (!order.nfeKey || !order.nfeProtocol) return NextResponse.json({ error: 'Nota sem chave/protocolo para cancelar' }, { status: 400 });
-      const motivo = String(b.motivo || '').trim();
-      if (motivo.length < 15) return NextResponse.json({ error: 'Motivo precisa de ao menos 15 caracteres (exigência da SEFAZ)' }, { status: 400 });
-      let r;
-      try {
-        r = await cancelar(order.nfeKey, order.nfeProtocol, motivo);
-      } catch (e: any) {
-        return NextResponse.json({ error: e?.message || 'Falha ao cancelar na SEFAZ' }, { status: 502 });
-      }
-      if (r.ok) {
-        await prisma.order.update({
-          where: { id: order.id },
-          data: { nfeStatus: 'cancelled', nfeCancelledAt: new Date(), nfeError: motivo.slice(0, 500) },
-        });
-        return NextResponse.json({ status: 'cancelled' });
-      }
-      return NextResponse.json({ error: r.erro ? `${r.erro}${/^\s*501\b/.test(r.erro) ? ' — A legislação permite cancelar NFC-e somente em até 30 minutos após a emissão.' : ''}` : 'Falha ao cancelar' }, { status: 502 });
-    }
-
-    return NextResponse.json({ error: 'Ação inválida' }, { status: 400 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Erro interno' }, { status: 500 });
+    b = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 });
   }
+
+  const action = String(b?.action || '');
+  const remoto = String(process.env.NFE_REMOTE_URL || '').replace(/\/+$/, '');
+  const semCertificado = !process.env.NFE_CERT_PFX_B64;
+
+  // App portatil: sem certificado local, quem assina/envia para a SEFAZ e o site
+  // (mesmo banco). O status continua sendo lido direto do banco aqui.
+  if (semCertificado && remoto && ['test', 'emit', 'cancel'].includes(action)) {
+    try {
+      const raw = JSON.stringify(b);
+      const r = await fetch(`${remoto}/api/nfe-remote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-rincao-sign': nfeProxySign(raw) },
+        body: raw,
+      });
+      const data = await r.json().catch(() => ({}));
+      return NextResponse.json(data, { status: r.status });
+    } catch (e: any) {
+      return NextResponse.json(
+        { error: `Sem conexão com o emissor de notas (${remoto}): ${e?.message || 'falha de rede'}` },
+        { status: 502 }
+      );
+    }
+  }
+
+  const r = await handleNfe(b);
+  return NextResponse.json(r.body, { status: r.status });
 }
 
 // download do XML da nota

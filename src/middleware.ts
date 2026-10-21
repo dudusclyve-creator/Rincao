@@ -12,25 +12,15 @@ async function verifyToken(token: string): Promise<{ ok: boolean; role?: string 
   } catch { return { ok: false }; }
 }
 
-// Leitura publica: o cardapio precisa desses dados sem login.
-// ATENCAO: aqui so entram GET/HEAD/OPTIONS. Escrita fica sempre autenticada.
-const PUBLIC_GET = [
+const PUBLIC_API = [
   '/api/auth',
   '/api/menu',
   '/api/settings',
-  '/api/delivery-areas',
+  '/api/upload',
   '/api/image',
+  // chamada servidor->servidor do app portatil (assinada com NFE_PROXY_SECRET)
+  '/api/nfe-remote',
 ];
-
-// Escrita publica: login e criacao de pedido pelo cardapio.
-const PUBLIC_POST = [
-  '/api/auth',
-  '/api/orders',
-];
-
-function matchesAny(pathname: string, list: string[]) {
-  return list.some((p) => pathname === p || pathname.startsWith(p + '/'));
-}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -61,14 +51,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // API routes — por metodo: leitura publica, escrita autenticada
+  // API routes — require JWT for non-public endpoints
   if (pathname.startsWith('/api')) {
-    const isRead = req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS';
+    // Public API endpoints
+    if (PUBLIC_API.some(p => pathname.startsWith(p))) return NextResponse.next();
 
-    if (isRead && matchesAny(pathname, PUBLIC_GET)) return NextResponse.next();
-    if (req.method === 'POST' && matchesAny(pathname, PUBLIC_POST)) return NextResponse.next();
+    // POST /api/orders is public (cardápio checkout) — but only POST, not PATCH/DELETE
+    if (pathname === '/api/orders' && req.method === 'POST') return NextResponse.next();
 
-    // Todo o resto exige sessao valida (ex.: PATCH /api/settings, POST /api/upload)
+    // Everything else requires auth
     const session = req.cookies.get('session')?.value;
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
