@@ -2,10 +2,19 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { CartProvider } from '@/lib/store';
 
+const TITULO = "Rincão Lanches — Xis e delivery em Sant'Ana do Livramento";
+const DESCRICAO =
+  "Xis montado na hora, combos, tábuas e porções no bairro Umbu, em Sant'Ana do Livramento. " +
+  'Delivery em cerca de 40 minutos e retirada no balcão.';
+
 export const metadata: Metadata = {
   metadataBase: new URL('https://rincao.vercel.app'),
-  title: 'Rincão Lanches — Cardápio & Gestão',
-  description: 'Cardápio digital, pedidos, PDV, caixa e gestão do Rincão Lanches.',
+  title: {
+    default: TITULO,
+    template: '%s · Rincão Lanches',
+  },
+  description: DESCRICAO,
+  applicationName: 'Rincão Lanches',
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -14,6 +23,14 @@ export const metadata: Metadata = {
       { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
     apple: '/apple-touch-icon.png',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    siteName: 'Rincão Lanches',
+    url: 'https://rincao.vercel.app',
+    title: TITULO,
+    description: DESCRICAO,
   },
 };
 
