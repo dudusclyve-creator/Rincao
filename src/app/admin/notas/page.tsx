@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { FileText, Copy, Check, ExternalLink, CalendarDays, Printer, X } from 'lucide-react';
-import { BRL } from '@/lib/utils';
+import { BRL, showToast } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 
 const STATUS: Record<string, { label: string; color: string; bg: string; icon: string }> = {
@@ -27,6 +27,9 @@ export default function NotasPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState('');
   const [filter, setFilter] = useState<'all' | 'issued' | 'cancelled' | 'error'>('all');
+  // Janela propria: prompt()/alert() do sistema travavam o teclado no app portatil.
+  const [cancelDialog, setCancelDialog] = useState<any | null>(null);
+  const [cancelMotivo, setCancelMotivo] = useState('');
 
   const load = async () => {
     try {
@@ -84,13 +87,11 @@ export default function NotasPage() {
     const url = URL.createObjectURL(new Blob([o.nfeXml], { type: 'application/xml' }));
     window.open(url, '_blank');
   };
-  const cancelNota = async (o: any) => {
-    const motivo = prompt(`Motivo do cancelamento da NFC-e nº ${o.nfeNumber} (mínimo 15 caracteres):`, `Cancelamento do pedido #${o.number} solicitado pelo cliente`);
-    if (!motivo) return;
+  const cancelNota = async (o: any, motivo: string) => {
     const r = await fetch('/api/nfe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', orderId: o.id, motivo }) });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) { alert(typeof d.error === 'string' ? d.error : JSON.stringify(d.error || 'Falha ao cancelar a nota')); return; }
-    alert('❌ Nota fiscal cancelada.');
+    if (!r.ok) { showToast(typeof d.error === 'string' ? d.error : 'Falha ao cancelar a nota', 'error', 8000); return; }
+    showToast('Nota fiscal cancelada', 'success');
     load();
   };
 
@@ -200,7 +201,7 @@ export default function NotasPage() {
                         <button onClick={() => printDanfe(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }} title="Imprimir 2ª via do DANFE">
                           <Printer size={10} /> Imprimir
                         </button>
-                        <button onClick={() => cancelNota(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }} title="Cancelar nota (até 30 min após a emissão)">
+                        <button onClick={() => { setCancelMotivo(`Cancelamento do pedido #${o.number} solicitado pelo cliente`); setCancelDialog(o); }} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }} title="Cancelar nota (até 30 min após a emissão)">
                           <X size={10} /> Cancelar
                         </button>
                       </>
@@ -215,6 +216,39 @@ export default function NotasPage() {
           </div>
         ))}
       </div>
+
+      {cancelDialog && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setCancelDialog(null)}>
+          <div className="rounded-2xl p-6 max-w-sm w-full" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.15)', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-14 h-14 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                <span className="text-2xl">❌</span>
+              </div>
+              <h3 className="font-black text-lg text-white">Cancelar nota fiscal</h3>
+              <p className="text-[12px] mt-1" style={{ color: '#8a7a6a' }}>NFC-e nº {cancelDialog.nfeNumber} · pedido #{cancelDialog.number}</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="label">Motivo do cancelamento (mínimo 15 caracteres)</label>
+              <textarea className="input w-full text-xs" rows={3} value={cancelMotivo} onChange={(e) => setCancelMotivo(e.target.value)} />
+              {cancelMotivo.trim().length < 15 && (
+                <p className="text-[10px] mt-1" style={{ color: '#f59e0b' }}>Faltam {15 - cancelMotivo.trim().length} caracteres</p>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setCancelDialog(null)} className="flex-1 rounded-xl py-3 text-[12px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Voltar</button>
+              <button
+                onClick={() => { const alvo = cancelDialog; setCancelDialog(null); cancelNota(alvo, cancelMotivo.trim()); }}
+                disabled={cancelMotivo.trim().length < 15}
+                className="flex-1 rounded-xl py-3 text-[12px] font-bold text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: '#ef4444' }}>
+                Cancelar nota
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
