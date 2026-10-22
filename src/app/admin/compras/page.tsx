@@ -133,7 +133,10 @@ export default function Compras() {
         .sort((a, b) => Number(a.done) - Number(b.done) || a.name.localeCompare(b.name, 'pt-BR'));
       if (doCat.length === 0) continue;
       partes.push('');
-      partes.push(dupla(`* ${cat.name.toUpperCase()}`, `${doCat.length} ${doCat.length === 1 ? 'ITEM' : 'ITENS'}`));
+      const contagem = `${doCat.length} ${doCat.length === 1 ? 'ITEM' : 'ITENS'}`;
+      const rotulo = `${cat.name.toUpperCase()} (${contagem})`;
+      partes.push('*'.repeat(LARGURA));
+      partes.push(centro(rotulo.length <= LARGURA ? rotulo : cat.name.toUpperCase().slice(0, LARGURA)));
       partes.push('*'.repeat(LARGURA));
       for (const it of doCat) {
         total++;
