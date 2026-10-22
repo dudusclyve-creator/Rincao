@@ -403,9 +403,16 @@ export function cashReceiptText(o: {
   return out.join('\n');
 }
 
-export function printReceiptText(text: string | string[], width: '58mm' | '80mm' = '80mm') {
+export function printReceiptText(
+  text: string | string[],
+  width: '58mm' | '80mm' = '80mm',
+  // fonte usada na termica (o app le o data-fonte da 1a via). 2x2 = letra grande.
+  opts: { fonte?: '1x1' | '2x1' | '1x2' | '2x2' } = {},
+) {
   try {
     const pages = Array.isArray(text) ? text : [text];
+    const fonte = opts.fonte || '';
+    const alta = fonte.endsWith('2');
     const w = window.open('', '_blank', 'width=420,height=700');
     if (!w) return;
     // a ultima linha do cupom ("PEDIDO #123") sai grande e centralizada tambem
@@ -426,7 +433,7 @@ export function printReceiptText(text: string | string[], width: '58mm' | '80mm'
       .replace(/^[ \t]*\[\[FONTE:1\]\][ \t]*\r?\n/gm, '<span class="miudo">')
       .replace(/^[ \t]*\[\[FONTE:2\]\][ \t]*\r?\n/gm, '</span>');
     const pagesHtml = pages.map((p, i) =>
-      `<div class="pg"${i < pages.length - 1 ? ' style="page-break-after: always;"' : ''}><pre class="receipt">${marcarPedido(trocarFonte(p))}</pre></div>`
+      `<div class="pg"${i < pages.length - 1 ? ' style="page-break-after: always;"' : ''}><pre class="receipt${alta ? ' alta' : ''}"${fonte ? ` data-fonte="${fonte}"` : ''}>${marcarPedido(trocarFonte(p))}</pre></div>`
     ).join('\n');
     w.document.write(`<!doctype html>
 <html><head><meta charset="utf-8"><title>Impressao</title>
@@ -455,6 +462,8 @@ export function printReceiptText(text: string | string[], width: '58mm' | '80mm'
     text-align: center;
     letter-spacing: 1px;
   }
+  /* fonte 2x2 na termica: mesma largura, o dobro de altura */
+  pre.receipt.alta { line-height: 2.15; }
   pre.receipt .miudo {
     font-size: 0.56em;
     line-height: 2.6;

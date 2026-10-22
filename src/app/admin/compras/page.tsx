@@ -91,16 +91,25 @@ export default function Compras() {
     const itens = lista.items.filter((i) => i.name);
     if (itens.length === 0) { showToast('Adicione itens antes de imprimir', 'warning'); return; }
 
+    const centro = (s: string) => {
+      const t = s.slice(0, LARGURA);
+      return ' '.repeat(Math.max(0, Math.floor((LARGURA - t.length) / 2))) + t;
+    };
+    // texto a esquerda + contador a direita, alinhados na mesma coluna
+    const dupla = (esq: string, dir: string) => {
+      const e = esq.slice(0, Math.max(0, LARGURA - dir.length - 1));
+      return (e + ' '.repeat(Math.max(1, LARGURA - e.length - dir.length)) + dir).slice(0, LARGURA);
+    };
     const wrap = (texto: string, prefixo: string, continua: string) => {
       const linhas: string[] = [];
       let t = texto.trim();
       let pre = prefixo;
       while (t.length > 0) {
-        const limite = Math.max(4, LARGURA - pre.length);
-        if (t.length <= limite) { linhas.push((pre + t).slice(0, LARGURA)); break; }
+        const limite = Math.max(6, LARGURA - pre.length);
+        if (t.length <= limite) { linhas.push(pre + t); break; }
         let corte = t.lastIndexOf(' ', limite);
         if (corte <= 0) corte = limite;
-        linhas.push((pre + t.slice(0, corte)).slice(0, LARGURA));
+        linhas.push(pre + t.slice(0, corte).trimEnd());
         t = t.slice(corte).trim();
         pre = continua;
       }
@@ -108,8 +117,8 @@ export default function Compras() {
     };
 
     const partes: string[] = [];
-    partes.push('LISTA DE COMPRAS');
-    partes.push(new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }));
+    partes.push(centro('LISTA DE COMPRAS'));
+    partes.push(centro(new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })));
     partes.push('='.repeat(LARGURA));
     let total = 0;
     let feitos = 0;
@@ -117,8 +126,9 @@ export default function Compras() {
       const doCat = itens.filter((i) => i.categoryId === cat.id)
         .sort((a, b) => Number(a.done) - Number(b.done) || a.name.localeCompare(b.name, 'pt-BR'));
       if (doCat.length === 0) continue;
-      partes.push(cat.name.toUpperCase().slice(0, LARGURA));
-      partes.push('-'.repeat(LARGURA));
+      partes.push('');
+      partes.push(dupla(`* ${cat.name.toUpperCase()}`, `${doCat.length} ${doCat.length === 1 ? 'ITEM' : 'ITENS'}`));
+      partes.push('*'.repeat(LARGURA));
       for (const it of doCat) {
         total++;
         if (it.done) feitos++;
@@ -126,12 +136,13 @@ export default function Compras() {
         partes.push(...wrap(it.name, `${marca} ${it.qty ? it.qty + ' ' : ''}`, '    '));
       }
     }
+    partes.push('');
     partes.push('='.repeat(LARGURA));
-    partes.push(`${total} item(ns) - ${feitos} comprado(s)`);
+    partes.push(dupla(`${total} ${total === 1 ? 'ITEM' : 'ITENS'}`, `${feitos} COMPRADO${feitos === 1 ? '' : 'S'}`));
     const texto = partes.join('\n');
 
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: texto, printer: 'Padrao' }) }).catch(() => {});
-    printReceiptText(texto);
+    printReceiptText(texto, '80mm', { fonte: '2x2' });
   };
 
   if (!lista) {
