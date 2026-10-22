@@ -217,12 +217,13 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
                 : o.nfeStatus === 'error' ? { t: '⚠️ Erro na nota fiscal', c: '#f87171' }
                 : o.nfeStatus === 'cancelled' ? { t: '❌ Nota fiscal cancelada', c: '#9ca3af' }
                 : o.nfeStatus ? { t: o.nfeStatus === 'processing' ? '⏳ Nota processando...' : '🧾 Nota na fila...', c: '#60a5fa' }
-                : { t: '🧾 Sem nota fiscal', c: '#f59e0b' };
+                : o.emitRequested ? { t: '🧾 Nota fiscal pendente — falta emitir', c: '#f59e0b' }
+                : { t: '🧾 Sem nota fiscal', c: '#9ca3af' };
               return (
                 <div className="mt-2 pt-2 border-t border-gray-700 space-y-1">
                   {(o.emitRequested || o.customer?.cpf) && o.nfeStatus !== 'issued' && o.nfeStatus !== 'cancelled' && (
                     <p className="text-[11px] font-bold" style={{ color: o.emitRequested ? '#f59e0b' : '#9ca3af' }}>
-                      {o.emitRequested ? '🔔 Cliente pediu nota fiscal' : 'CPF informado'}{o.customer?.cpf ? ` — CPF: ${o.customer.cpf}` : ''}
+                      {o.emitRequested ? (o.type === 'entrega' ? '🔔 Entrega — emitir nota fiscal' : '🔔 Cliente pediu nota fiscal') : 'CPF informado'}{o.customer?.cpf ? ` — CPF: ${o.customer.cpf}` : ''}
                     </p>
                   )}
                   <p className="text-[10px] font-bold" style={{ color: chip.c }}>{chip.t}</p>
