@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { ShoppingBasket, Plus, Printer, Trash2, Pencil, Check, X, Eraser } from 'lucide-react';
+import { ShoppingBasket, Plus, Printer, Trash2, Pencil, Check, X, Eraser, Type } from 'lucide-react';
 import { printReceiptText, showToast } from '@/lib/utils';
 
 type Item = { id: string; categoryId: string; name: string; qty: string; done: boolean; createdAt: number };
@@ -20,6 +20,12 @@ export default function Compras() {
   const [novaCat, setNovaCat] = useState('');
   const [showNovaCat, setShowNovaCat] = useState(false);
   const [limpar, setLimpar] = useState(false);
+  // fonte grande (2x2) e opcional: fica guardada no aparelho
+  const [fonteGrande, setFonteGrande] = useState(false);
+
+  useEffect(() => {
+    try { setFonteGrande(localStorage.getItem('compras_fonte_grande') === '1'); } catch {}
+  }, []);
 
   const carregar = () =>
     fetch('/api/shopping', { cache: 'no-store' })
@@ -142,7 +148,7 @@ export default function Compras() {
     const texto = partes.join('\n');
 
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: texto, printer: 'Padrao' }) }).catch(() => {});
-    printReceiptText(texto, '80mm', { fonte: '2x2' });
+    printReceiptText(texto, '80mm', fonteGrande ? { fonte: '2x2' } : {});
   };
 
   if (!lista) {
@@ -187,6 +193,18 @@ export default function Compras() {
               <Eraser size={13} /> Limpar comprados
             </button>
           )}
+          <button onClick={() => {
+              const v = !fonteGrande;
+              setFonteGrande(v);
+              try { localStorage.setItem('compras_fonte_grande', v ? '1' : '0'); } catch {}
+            }}
+            title={fonteGrande ? 'A impressão vai sair em fonte grande (2x2)' : 'Impressão normal (2x1)'}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-all duration-200"
+            style={fonteGrande
+              ? { background: 'rgba(245,158,11,0.14)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.35)' }
+              : { background: 'rgba(255,255,255,0.05)', color: '#c0b8c8', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <Type size={13} /> {fonteGrande ? 'Fonte grande' : 'Fonte normal'}
+          </button>
           <button onClick={imprimir}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold text-white transition-all duration-200 hover:shadow-lg active:scale-[0.98]"
             style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 16px rgba(225,29,72,0.3)' }}>
