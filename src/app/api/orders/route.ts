@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
+import { parseAddress } from '@/lib/address';
 
 // "pix:20,dinheiro:30" -> [{method:'pix',amount:20},{method:'dinheiro',amount:30}]
 // forma simples ("pix") -> [{method:'pix',amount:total}]
@@ -234,6 +235,28 @@ export async function POST(req: Request) {
 
   // upsert cliente pelo telefone
   let customerId: string | undefined;
+  // Bairros/taxas de entrega: servem para completar o cadastro e para conferir
+  // a taxa cobrada no cardápio (o cliente não pode pagar a taxa de outro bairro).
+  let zonas: { name: string; city: string; fee: number }[] = [];
+  try {
+    const settingAreas = await prisma.setting.findUnique({ where: { key: 'deliveryAreas' } });
+    const areas = settingAreas ? (JSON.parse(settingAreas.value).areas || []) : [];
+    zonas = (Array.isArray(areas) ? areas : [])
+      .filter((a: any) => a && a.name && a.active !== false)
+      .map((a: any) => ({ name: String(a.name), city: a.city || 'Santana do Livramento', fee: Number(a.fee) || 0 }));
+  } catch {}
+  // O site já manda rua/número/bairro prontos, mas quando o endereço foi digitado
+  // à mão (ou vem de versões antigas do cardápio) só temos o texto completo.
+  // Reaproveita o parser para o cadastro do cliente não ficar incompleto.
+  if (b.addressText && String(b.type || '') === 'entrega' && (!b.street || !b.number)) {
+    try {
+      const parsed = parseAddress(String(b.addressText), zonas);
+      if (!b.street && parsed.street) b.street = parsed.street;
+      if (!b.number && parsed.number) b.number = parsed.number;
+      if (!b.complement && parsed.complement) b.complement = parsed.complement;
+      if (!b.district && parsed.district) b.district = parsed.district + (parsed.city ? `, ${parsed.city}` : '');
+    } catch {}
+  }
   if (b.customerPhone) {
     const phone = String(b.customerPhone).replace(/\D/g, '');
     const cpf = String(b.customerCpf || '').replace(/\D/g, '');
@@ -272,7 +295,20 @@ export async function POST(req: Request) {
   }
   const itemsIn = Array.isArray(b.items) ? b.items : [];
   const subtotal = itemsIn.length > 0 ? itemsIn.reduce((s: number, it: any) => s + lineTotal(it), 0) : Number(b.subtotal || 0);
-  const fee = b.type === 'entrega' ? Number(b.deliveryFee || 0) : 0;
+
+  // o cardapio do site nao manda "source": aqui o pedido vira 'cardapio'.
+  // A checagem do caixa lia o valor cru (undefined) e por isso as vendas
+  // feitas pelo site nao entravam no caixa.
+  const orderSource = b.source || 'cardapio';
+  const orderType = b.type || 'entrega';
+  // taxa de entrega: no cardápio vale SEMPRE a taxa do bairro escolhido
+  // (pagina antiga em cache mandava a taxa padrão do restaurante).
+  let fee = orderType === 'entrega' ? Number(b.deliveryFee || 0) : 0;
+  if (orderType === 'entrega' && orderSource === 'cardapio' && zonas.length) {
+    const p = parseAddress(String(b.addressText || ''), zonas);
+    const zona = zonas.find((z) => z.name === p.district && (!p.city || z.city === p.city)) || zonas.find((z) => z.name === p.district);
+    if (zona) fee = zona.fee;
+  }
   const cardFee = Math.max(0, Number(b.cardFee || 0));
   const total = Math.max(0, subtotal + fee - Number(b.discount || 0) + cardFee);
 
@@ -284,11 +320,6 @@ export async function POST(req: Request) {
   });
   const seq = lastOrder ? lastOrder.number + 1 : 1;
 
-  // o cardapio do site nao manda "source": aqui o pedido vira 'cardapio'.
-  // A checagem do caixa lia o valor cru (undefined) e por isso as vendas
-  // feitas pelo site nao entravam no caixa.
-  const orderSource = b.source || 'cardapio';
-  const orderType = b.type || 'entrega';
   // venda que ja entra no caixa junto com o pedido:
   //  - PDV (balcao/retirada/entrega/mesa): pago na hora, inclusive dividido
   //  - cardapio: pedido pago no site (mesa paga no fechamento da mesa)

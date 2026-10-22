@@ -28,6 +28,7 @@ export async function GET(req: Request) {
     const tier = c.tier || autoTier;
     return {
       id: c.id, name: c.name, phone: c.phone, cpf: c.cpf || '', street: c.street, number: c.number, district: c.district, complement: c.complement,
+      lastAddress: validOrders.find((o) => o.type === 'entrega' && String(o.addressText || '').trim() && !/^(retirada|consumo|balc)/i.test(String(o.addressText).trim()))?.addressText || '',
       createdAt: c.createdAt, orderCount, totalSpent, lastOrder: c.orders[0]?.createdAt || null,
       ticketMedio: orderCount ? totalSpent / orderCount : 0,
       favProducts, last5Orders: last5.map((o) => ({ number: o.number, total: o.total, date: o.createdAt, type: o.type, payment: o.payment })),

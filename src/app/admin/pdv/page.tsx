@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { BRL, receiptText, showToast, printReceiptText, maskCpf, maskPhone } from '@/lib/utils';
+import { parseAddress, flattenZones } from '@/lib/address';
 import { ItemCard } from '@/components/ItemCard';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
 
@@ -191,6 +192,7 @@ export default function PDV() {
   const [deliveryZones, setDeliveryZones] = useState<Record<string, { name: string; fee: number }[]>>(DELIVERY_ZONES_FALLBACK);
   const [customers, setCustomers] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const zonasEndereco = useMemo(() => flattenZones(deliveryZones), [deliveryZones]);
   const catsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -732,30 +734,45 @@ export default function PDV() {
                               setClientPhone(maskPhone(c.phone || ''));
                               setClientCpf(c.cpf || '');
                               const junkAddr = /^\s*(retirada|consumo|balcao|pdv)/i;
-                              if (c.street && !junkAddr.test(c.street)) setDeliveryStreet(c.street);
-                              if (c.number && !junkAddr.test(c.number)) setDeliveryNum(c.number);
-                              if (c.complement && !junkAddr.test(c.complement)) setDeliveryComp(c.complement);
+                              // monta o endereço com os dados do cliente; se rua/número
+                              // estiverem vazios (cadastros antigos), aproveita o texto do
+                              // endereço do último pedido dele
+                              const pedacos: string[] = [];
+                              for (const v of [c.street, c.number, c.complement, c.district]) {
+                                if (v && !junkAddr.test(String(v))) pedacos.push(String(v).trim());
+                              }
+                              const p = parseAddress(pedacos.join(', ') || String(c.lastAddress || ''), zonasEndereco);
+                              if (p.street) setDeliveryStreet(p.street);
+                              if (p.number) setDeliveryNum(p.number);
+                              if (p.complement) setDeliveryComp(p.complement);
+                              let bairro = '';
+                              let cidade = '';
                               if (c.district) {
                                 const raw = String(c.district);
                                 const hasComma = raw.includes(',');
-                                const rawBairro = (hasComma ? raw.slice(0, raw.lastIndexOf(',')) : raw).trim();
-                                const rawCity = (hasComma ? raw.slice(raw.lastIndexOf(',') + 1) : '').trim();
-                                let city: string | undefined;
-                                if (rawCity && (deliveryZones[rawCity] || []).some(z => z.name === rawBairro)) city = rawCity;
-                                else if (deliveryCity && (deliveryZones[deliveryCity] || []).some(z => z.name === rawBairro)) city = deliveryCity;
-                                else city = Object.keys(deliveryZones).find(ci => (deliveryZones[ci] || []).some(z => z.name === rawBairro));
-                                if (city && rawBairro) {
-                                  if (city !== deliveryCity) setDeliveryCity(city);
-                                  setDeliveryBairro(rawBairro);
-                                  setFeeOverride(null);
-                                }
+                                bairro = (hasComma ? raw.slice(0, raw.lastIndexOf(',')) : raw).trim();
+                                cidade = (hasComma ? raw.slice(raw.lastIndexOf(',') + 1) : '').trim();
+                              }
+                              const bairroConhecido = !!bairro && Object.keys(deliveryZones).some((ci) => (deliveryZones[ci] || []).some((z) => z.name === bairro));
+                              if (!bairroConhecido) {
+                                if (p.district) bairro = p.district;
+                                if (p.city) cidade = p.city;
+                              }
+                              let cidadeFinal: string | undefined;
+                              if (cidade && (deliveryZones[cidade] || []).some((z) => z.name === bairro)) cidadeFinal = cidade;
+                              else if (deliveryCity && (deliveryZones[deliveryCity] || []).some((z) => z.name === bairro)) cidadeFinal = deliveryCity;
+                              else cidadeFinal = Object.keys(deliveryZones).find((ci) => (deliveryZones[ci] || []).some((z) => z.name === bairro));
+                              if (cidadeFinal && bairro) {
+                                if (cidadeFinal !== deliveryCity) setDeliveryCity(cidadeFinal);
+                                setDeliveryBairro(bairro);
+                                setFeeOverride(null);
                               }
                               if (type === 'entrega') setShowAddress(true);
                               setShowSuggestions(false);
                             }} className="w-full px-3 py-3.5 text-left text-base hover:bg-white/10 transition-all duration-150 flex items-center justify-between gap-3" style={{ color: '#f0e8e0' }}>
                               <span className="min-w-0">
                                 <span className="font-bold block truncate">{c.name}</span>
-                                {(() => { const parts = [c.street, c.number && `nº ${c.number}`, c.district].filter((v: any) => v && !/^\s*(retirada|consumo|balcao|pdv)/i.test(String(v))); return parts.length ? <span className="text-[11px] text-gray-600 block truncate">{parts.join(', ')}</span> : null; })()}
+                                {(() => { const parts = [c.street, c.number && `nº ${c.number}`, c.district].filter((v: any) => v && !/^\s*(retirada|consumo|balcao|pdv)/i.test(String(v))); const txt = parts.length ? parts.join(', ') : String(c.lastAddress || '').trim(); return txt ? <span className="text-[11px] text-gray-600 block truncate">{txt}</span> : null; })()}
                               </span>
                               <span className="text-sm text-gray-500 shrink-0">{c.phone}</span>
                             </button>

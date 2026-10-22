@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from '@/lib/store';
 import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, waNumber, type CartAddon } from '@/lib/utils';
+import { parseAddress as parseAddressText, flattenZones } from '@/lib/address';
 
 type Product = any;
 
@@ -192,6 +193,14 @@ export default function CardapioPage() {
 
   if (!data) return <div className="min-h-screen flex items-center justify-center" style={{ background: C.bg }}><p className="font-bold animate-pulse" style={{ color: C.textMuted }}>Carregando…</p></div>;
   const R = data.restaurant;
+  // taxa de entrega: vale a taxa do bairro escolhido (o R.deliveryFee é só o
+  // valor padrão para quando o cliente digita um endereço livre)
+  const enderecoZona = parseAddressText(addressText, flattenZones(deliveryZones));
+  const zonaSelecionada =
+    (deliveryZones[enderecoZona.city] || []).find((z) => z.name === enderecoZona.district) ||
+    (deliveryZones[deliveryCity] || []).find((z) => z.name === deliveryBairro) ||
+    null;
+  const taxaEntrega = deliveryType === 'entrega' ? (zonaSelecionada ? zonaSelecionada.fee : R.deliveryFee) : 0;
   const totalItems = cart.items.reduce((s: number, i: any) => s + i.qty, 0);
 
   return (
@@ -372,7 +381,7 @@ export default function CardapioPage() {
                 </div>
                 <div>
                   <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' ? (addressText && !isPickupLabel(addressText) ? addressText : 'Adicionar endereço') : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
-                  {deliveryType === 'entrega' && <p className="text-[10px]" style={{ color: '#b8906a' }}>{addressText && !isPickupLabel(addressText) ? BRL(R.deliveryFee) : 'Defina o endereço'}</p>}
+                  {deliveryType === 'entrega' && <p className="text-[10px]" style={{ color: '#b8906a' }}>{addressText && !isPickupLabel(addressText) ? BRL(taxaEntrega) : 'Defina o endereço'}</p>}
                 </div>
               </div>
               <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
@@ -534,8 +543,8 @@ export default function CardapioPage() {
         </button>
       )}
 
-      {cartOpen && <CartDrawer onClose={() => { setCartOpen(false); setCartStep(0); }} onCheckout={() => { setCartOpen(false); setCheckout(true); }} initialStep={cartStep} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={R.deliveryFee} deliveryZones={deliveryZones} applyMode={applyMode} isPickupLabel={isPickupLabel} />}
-      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={deliveryType === 'entrega' ? R.deliveryFee : 0} addressText={addressText} setAddressText={setAddressText} cart={cart} isPickupLabel={isPickupLabel} onDefineAddress={() => { setCheckout(false); setCartStep(2); setCartOpen(true); }}       onOrderDone={(order: any) => {
+      {cartOpen && <CartDrawer onClose={() => { setCartOpen(false); setCartStep(0); }} onCheckout={() => { setCartOpen(false); setCheckout(true); }} initialStep={cartStep} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={taxaEntrega} deliveryZones={deliveryZones} applyMode={applyMode} isPickupLabel={isPickupLabel} />}
+      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={taxaEntrega} addressText={addressText} setAddressText={setAddressText} cart={cart} isPickupLabel={isPickupLabel} deliveryZones={deliveryZones} onDefineAddress={() => { setCheckout(false); setCartStep(2); setCartOpen(true); }}       onOrderDone={(order: any) => {
         try {
           const lo = { number: order.number, date: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), total: cart.subtotal, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, addons: i.addons })) };
           localStorage.setItem('cardapio_last_order', JSON.stringify(lo));
@@ -795,7 +804,7 @@ function CartDrawer(props: any) {
 }
 
 /* ======================== CHECKOUT ======================== */
-function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, deliveryFee, addressText, setAddressText, onOrderDone, savedAddress, isPickupLabel, onDefineAddress }: any) {
+function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, deliveryFee, addressText, setAddressText, onOrderDone, savedAddress, isPickupLabel, onDefineAddress, deliveryZones }: any) {
   const cart = useCart();
   const [f, setF] = useState({ name: '', phone: '', cpf: '', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
@@ -826,14 +835,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
   const fee = deliveryType === 'entrega' ? deliveryFee : 0;
   const total = Math.max(0, cart.subtotal + fee);
 
-  const parseAddress = (text: string) => {
-    if (!text) return { street: '', number: '', complement: '', district: '' };
-    const match = text.match(/^(.+?),\s*(\S+?)(?:\s*-\s*(.+?))?\s*-\s*(.+)$/);
-    if (match) return { street: match[1].trim(), number: match[2].trim(), complement: match[3]?.trim() || '', district: match[4].trim() };
-    return { street: text, number: '', complement: '', district: '' };
-  };
-
-  const addr = parseAddress(addressText);
+  const addr = useMemo(() => parseAddressText(addressText, flattenZones(deliveryZones)), [addressText, deliveryZones]);
   const addrOk = deliveryType !== 'entrega' || !!(addressText && !isPickupLabel(addressText) && !/RETIRADA|CONSUMO NO LOCAL|BALC[ÃA]O/i.test(addressText));
 
   const finish = async () => {
@@ -851,7 +853,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
     const order = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       customerName: f.name, customerPhone: f.phone, customerCpf: (deliveryType !== 'entrega' && !emitNota) ? '' : f.cpf,
       street: deliveryType === 'entrega' ? addr.street : '', number: deliveryType === 'entrega' ? addr.number : '',
-      complement: deliveryType === 'entrega' ? addr.complement : '', district: deliveryType === 'entrega' ? addr.district : '', reference: '',
+      complement: deliveryType === 'entrega' ? addr.complement : '', district: deliveryType === 'entrega' ? `${addr.district}${addr.city ? `, ${addr.city}` : ''}` : '', reference: '',
       addressText: deliveryType === 'entrega' ? addressText : (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
       type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
       subtotal: cart.subtotal, deliveryFee: fee, discount: 0,
