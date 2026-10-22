@@ -7,10 +7,10 @@ import { parseAddress as parseAddressText, flattenZones } from '@/lib/address';
 type Product = any;
 
 const EMOJI: Record<string, string> = {
-  COMBOS: '🍔', 'CAIXAS E TÁBUAS': '🍱', XIS: '🍔', TORRADAS: '🥪',
+  COMBOS: '🍔', 'CAIXAS E TÁBUAS': '🍱', XIS: '🍔', 'XIS FAMÍLIA': '🍔', TORRADAS: '🥪',
   'CACHORRO QUENTE': '🌭', PASTÉIS: '🥟', PIZZAS: '🍕', PORÇÕES: '🍟',
   ADICIONAIS: '🧀', BEBIDAS: '🥤',
-  Combos: '🍔', 'Caixas e Tábuas': '🍱', Xis: '🍔', Torradas: '🥪',
+  Combos: '🍔', 'Caixas e Tábuas': '🍱', Xis: '🍔', 'Xis Família': '🍔', Torradas: '🥪',
   'Cachorro Quente': '🌭', Pastéis: '🥟', Pizzas: '🍕', Porções: '🍟',
   Adicionais: '🧀', Bebidas: '🥤',
 };
