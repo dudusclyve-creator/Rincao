@@ -24,6 +24,7 @@ const AREA_BY_PATH: [string, string][] = [
   ['/admin/clientes', 'clientes'],
   ['/admin/entregas', 'entregas'],
   ['/admin/estoque', 'estoque'],
+  ['/admin/compras', 'estoque'],
   ['/admin/relatorios', 'relatorios'],
   ['/admin/promocoes', 'promocoes'],
   ['/admin/equipe', 'config'],

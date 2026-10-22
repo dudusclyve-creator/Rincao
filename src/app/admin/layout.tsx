@@ -13,6 +13,7 @@ const MENU: [string, string, string][] = [
   ['Notas','/admin/notas','📄'],
   ['Cardápio','/admin/produtos','🍔'],['Clientes','/admin/clientes','👥'],
   ['Entregas','/admin/entregas','🛵'],['Estoque','/admin/estoque','📦'],
+  ['Compras','/admin/compras','🧺'],
   ['Relatórios','/admin/relatorios','📈'],['Promoções','/admin/promocoes','🔥'],
   ['Equipe','/admin/equipe','👔'],['Configurações','/admin/configuracoes','⚙'],
 ];
