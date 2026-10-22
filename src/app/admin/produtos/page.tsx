@@ -180,18 +180,34 @@ export default function CardapioAdmin() {
     load();
   };
 
-  const swapOrders = async (aId: string, bId: string, apiType: 'categories' | 'products') => {
-    const list = apiType === 'categories' ? cats : products;
-    const a = list.find((x: any) => x.id === aId);
-    const b = list.find((x: any) => x.id === bId);
-    if (!a || !b) return;
-    await fetch(`/api/${apiType === 'categories' ? 'categories' : 'products'}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: a.id, order: b.order ?? 0 }) });
-    await fetch(`/api/${apiType === 'categories' ? 'categories' : 'products'}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.id, order: a.order ?? 0 }) });
+  const saveOrder = async (apiType: 'categories' | 'products', ids: string[]) => {
+    await fetch(`/api/${apiType}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'reorder', ids }) });
     load();
   };
 
+  // Drag & drop: manda a lista inteira na nova ordem. Antes era troca de "order"
+  // entre duas, o que nao fazia nada quando as duas tinham o mesmo numero.
+  const reorderCategories = async (fromId: string, toId: string) => {
+    const ids = cats.map((c: any) => c.id);
+    const from = ids.indexOf(fromId);
+    const to = ids.indexOf(toId);
+    if (from < 0 || to < 0 || from === to) return;
+    ids.splice(to, 0, ...ids.splice(from, 1));
+    setCats((prev) => ids.map((id, i) => ({ ...(prev.find((c: any) => c.id === id) || {}), order: i })));
+    await saveOrder('categories', ids);
+  };
+
+  const reorderProducts = async (fromId: string, toId: string, catId: string) => {
+    const ids = (productsByCat[catId] || []).map((p: any) => p.id);
+    const from = ids.indexOf(fromId);
+    const to = ids.indexOf(toId);
+    if (from < 0 || to < 0 || from === to) return;
+    ids.splice(to, 0, ...ids.splice(from, 1));
+    await saveOrder('products', ids);
+  };
+
   const moveProductToCategory = async (productId: string, newCatId: string) => {
-    await fetch('/api/products', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: productId, categoryId: newCatId }) });
+    await fetch('/api/products', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: productId, categoryId: newCatId, order: (productsByCat[newCatId] || []).length }) });
     load();
   };
 
@@ -220,19 +236,19 @@ export default function CardapioAdmin() {
     setDropTarget(targetId);
   };
 
-  const handleDrop = (e: React.DragEvent, targetId: string, targetType: 'category' | 'product', targetCatId?: string) => {
+  const handleDrop = async (e: React.DragEvent, targetId: string, targetType: 'category' | 'product', targetCatId?: string) => {
     e.preventDefault();
     setDropTarget(null);
     if (!dragId || dragType !== targetType) return;
     playDropSound();
 
     if (targetType === 'category' && dragId !== targetId) {
-      swapOrders(dragId, targetId, 'categories');
+      await reorderCategories(dragId, targetId);
     } else if (targetType === 'product') {
       if (dragCatId && targetCatId && dragCatId !== targetCatId) {
-        moveProductToCategory(dragId, targetCatId);
+        await moveProductToCategory(dragId, targetCatId);
       } else if (dragId !== targetId) {
-        swapOrders(dragId, targetId, 'products');
+        await reorderProducts(dragId, targetId, targetCatId || dragCatId || '');
       }
     }
 

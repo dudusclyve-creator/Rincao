@@ -18,6 +18,13 @@ export async function POST(req: Request) {
 }
 export async function PATCH(req: Request) {
   const b = await req.json();
+  // Nova ordem (drag & drop) dentro da categoria: grava a posicao de todos.
+  if (b.action === 'reorder' && Array.isArray(b.ids)) {
+    await prisma.$transaction(
+      b.ids.map((id: string, i: number) => prisma.product.update({ where: { id }, data: { order: i } }))
+    );
+    return NextResponse.json({ ok: true });
+  }
   const p = await prisma.product.update({ where: { id: b.id }, data: {
     name: b.name, description: b.description, price: b.price !== undefined ? Number(b.price) : undefined,
     promoPrice: b.promoPrice === null ? null : b.promoPrice !== undefined ? Number(b.promoPrice) : undefined,
