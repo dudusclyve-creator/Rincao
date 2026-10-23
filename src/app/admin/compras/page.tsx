@@ -94,17 +94,17 @@ export default function Compras() {
 
   const imprimir = async () => {
     if (!lista) return;
-    const itens = lista.items.filter((i) => i.name);
-    if (itens.length === 0) { showToast('Adicione itens antes de imprimir', 'warning'); return; }
+    // itens marcados (ja comprados) ficam guardados na lista, mas nao saem na via
+    const pendentes = lista.items.filter((i) => i.name && !i.done);
+    const jaComprados = lista.items.filter((i) => i.done).length;
+    if (pendentes.length === 0) {
+      showToast(jaComprados > 0 ? 'Tudo já foi comprado — desmarque um item para imprimir' : 'Adicione itens antes de imprimir', 'warning');
+      return;
+    }
 
     const centro = (s: string) => {
       const t = s.slice(0, LARGURA);
       return ' '.repeat(Math.max(0, Math.floor((LARGURA - t.length) / 2))) + t;
-    };
-    // texto a esquerda + contador a direita, alinhados na mesma coluna
-    const dupla = (esq: string, dir: string) => {
-      const e = esq.slice(0, Math.max(0, LARGURA - dir.length - 1));
-      return (e + ' '.repeat(Math.max(1, LARGURA - e.length - dir.length)) + dir).slice(0, LARGURA);
     };
     const wrap = (texto: string, prefixo: string, continua: string) => {
       const linhas: string[] = [];
@@ -126,11 +126,9 @@ export default function Compras() {
     partes.push(centro('LISTA DE COMPRAS'));
     partes.push(centro(new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })));
     partes.push('='.repeat(LARGURA));
-    let total = 0;
-    let feitos = 0;
     for (const cat of lista.categories) {
-      const doCat = itens.filter((i) => i.categoryId === cat.id)
-        .sort((a, b) => Number(a.done) - Number(b.done) || a.name.localeCompare(b.name, 'pt-BR'));
+      const doCat = pendentes.filter((i) => i.categoryId === cat.id)
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
       if (doCat.length === 0) continue;
       partes.push('');
       const contagem = `${doCat.length} ${doCat.length === 1 ? 'ITEM' : 'ITENS'}`;
@@ -139,15 +137,15 @@ export default function Compras() {
       partes.push(centro(rotulo.length <= LARGURA ? rotulo : cat.name.toUpperCase().slice(0, LARGURA)));
       partes.push('*'.repeat(LARGURA));
       for (const it of doCat) {
-        total++;
-        if (it.done) feitos++;
-        const marca = it.done ? '[x]' : '[ ]';
-        partes.push(...wrap(it.name, `${marca} ${it.qty ? it.qty + ' ' : ''}`, '    '));
+        partes.push(...wrap(it.name, `[ ] ${it.qty ? it.qty + ' ' : ''}`, '    '));
       }
     }
     partes.push('');
     partes.push('='.repeat(LARGURA));
-    partes.push(dupla(`${total} ${total === 1 ? 'ITEM' : 'ITENS'}`, `${feitos} COMPRADO${feitos === 1 ? '' : 'S'}`));
+    partes.push(centro(`${pendentes.length} ${pendentes.length === 1 ? 'ITEM' : 'ITENS'} A COMPRAR`));
+    if (jaComprados > 0) {
+      partes.push(centro(`(${jaComprados} já comprado${jaComprados === 1 ? '' : 's'} - fora)`));
+    }
     const texto = partes.join('\n');
 
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: texto, printer: 'Padrao' }) }).catch(() => {});
@@ -358,7 +356,7 @@ export default function Compras() {
       )}
 
       <p className="text-[9px] mt-4 text-center" style={{ color: '#3f3a45' }}>
-        A lista é compartilhada entre o painel e o aplicativo · clique no nome da categoria para renomear
+        A lista é compartilhada entre o painel e o aplicativo · itens marcados ficam guardados e não saem na impressão
       </p>
     </div>
   );
