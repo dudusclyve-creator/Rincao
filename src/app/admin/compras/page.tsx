@@ -143,9 +143,6 @@ export default function Compras() {
     partes.push('');
     partes.push('='.repeat(LARGURA));
     partes.push(centro(`${pendentes.length} ${pendentes.length === 1 ? 'ITEM' : 'ITENS'} A COMPRAR`));
-    if (jaComprados > 0) {
-      partes.push(centro(`(${jaComprados} já comprado${jaComprados === 1 ? '' : 's'} - fora)`));
-    }
     const texto = partes.join('\n');
 
     await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: texto, printer: 'Padrao' }) }).catch(() => {});
