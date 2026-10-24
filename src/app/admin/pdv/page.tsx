@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { BRL, receiptText, showToast, printReceiptText, maskCpf, maskPhone } from '@/lib/utils';
 import { parseAddress, flattenZones } from '@/lib/address';
 import { ItemCard } from '@/components/ItemCard';
-import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2 } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, AlertTriangle } from 'lucide-react';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
   'Santana do Livramento': [
@@ -179,6 +179,8 @@ export default function PDV() {
   const [splitPayment, setSplitPayment] = useState(false);
   const [cardFeeOn, setCardFeeOn] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  // aviso de caixa fechado: o pedido nao e criado ate abrir o caixa
+  const [cashWarn, setCashWarn] = useState<string | null>(null);
   const [payments, setPayments] = useState<{ method: string; amount: number }[]>([{ method: 'pix', amount: 0 }]);
   const [deliveryCity, setDeliveryCity] = useState(saved?.deliveryCity || '');
   const [deliveryBairro, setDeliveryBairro] = useState(saved?.deliveryBairro || '');
@@ -318,7 +320,7 @@ export default function PDV() {
     const paymentMethod = splitPayment ? activePayments.map(p => `${p.method}:${p.amount}`).join(',') : payment;
     const splitNote = splitPayment ? `Pagamento dividido: ${activePayments.map(p => `${PAYMENT_OPTIONS.find(o => o.id === p.method)?.label || p.method} ${BRL(p.amount)}`).join(' + ')}` : '';
 
-    const o = await fetch('/api/orders', {
+    const resp = await fetch('/api/orders', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         customerName: client || (type === 'mesa' ? (tableObj?.number || 'Mesa') : 'PDV'), customerPhone: clientPhone || '',
@@ -330,9 +332,15 @@ export default function PDV() {
         tableId: type === 'mesa' ? selectedTable : undefined,
         items: cart.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons || [], note: i.note || '' })),
       })
-    }).then((r) => r.json());
-    if (!o?.id) {
-      showToast('Erro ao criar pedido — tente novamente', 'error');
+    });
+    const o = await resp.json().catch(() => ({}));
+    if (!resp.ok || !o?.id) {
+      // caixa fechado: nao cria a venda (o dinheiro nao entraria no caixa)
+      if (o?.code === 'CASH_CLOSED' || /caixa fechado/i.test(String(o?.error || ''))) {
+        setCashWarn(o?.error || 'Caixa fechado — abra o caixa antes de finalizar a venda.');
+      } else {
+        showToast(o?.error || 'Erro ao criar pedido — tente novamente', 'error');
+      }
       return;
     }
     // limpa o carrinho na hora: se algo falhar depois, nao da pra finalizar de novo
@@ -847,6 +855,31 @@ export default function PDV() {
       )}
       {editNoteIdx !== null && cart[editNoteIdx] && (
         <CartItemNoteModal item={cart[editNoteIdx]} onSave={(note) => updateNote(cart[editNoteIdx].id, note)} onClose={() => setEditNoteIdx(null)} />
+      )}
+
+      {/* Caixa fechado: a venda nao foi criada */}
+      {cashWarn && (
+        <div className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setCashWarn(null)}>
+          <div className="w-full max-w-sm rounded-2xl p-5" onClick={(e) => e.stopPropagation()}
+            style={{ background: '#241016', border: '2px solid #ef4444', boxShadow: '0 20px 60px rgba(239,68,68,0.35)' }}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(239,68,68,0.18)' }}>
+                <AlertTriangle size={20} className="text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-white">Caixa fechado</h3>
+                <p className="text-[10px] text-gray-400">A venda <b>não</b> foi finalizada</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-300 mb-4">{cashWarn}</p>
+            <div className="flex gap-2">
+              <button onClick={() => setCashWarn(null)} className="flex-1 py-2.5 rounded-xl text-xs font-bold"
+                style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>Agora não</button>
+              <a href="/admin/caixa" className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white text-center"
+                style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>Abrir caixa</a>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

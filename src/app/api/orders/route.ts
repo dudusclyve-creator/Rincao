@@ -329,41 +329,69 @@ export async function POST(req: Request) {
   const cashReason = orderSource === 'pdv' ? 'PDV' : 'Pedido';
   let cashRegisterOpen = true;
 
+  // PDV (venda manual, paga na hora) nao pode ser lancado com o caixa fechado:
+  // senao a venda existe mas o dinheiro nao entra no caixa. O site (cardapio)
+  // continua aceitando pedido normalmente.
+  if (orderSource === 'pdv') {
+    const aberto = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' }, select: { id: true } });
+    if (!aberto) {
+      return NextResponse.json(
+        { error: 'Caixa fechado — abra o caixa antes de finalizar a venda.', code: 'CASH_CLOSED' },
+        { status: 409 },
+      );
+    }
+  }
+
   // pedido + lancamento no caixa na MESMA requisicao: se o caixa nao receber
   // (dividido, conexao caindo, etc.) o pedido tambem nao e criado — nunca fica
   // venda no sistema sem o dinheiro no caixa.
-  const order = await prisma.$transaction(async (tx) => {
-    const created = await tx.order.create({
-      data: {
-        number: seq,
-        turnoId,
-        customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
-        addressText: b.addressText || '', type: orderType,
-        status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
-        subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
-        total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
-        source: orderSource, emitRequested: !!b.emitRequested,
-        items: { create: (b.items || []).map((it: any) => ({
-          productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
-          unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
-        })) },
-        payments: { create: cashParts.map((p) => ({ method: p.method, amount: p.amount })) },
-      },
-      include: { items: true },
-    });
-    if (cashAtCreation) {
-      const open = await tx.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
-      if (!open) cashRegisterOpen = false;
-      else {
-        for (const p of cashParts) {
-          await tx.cashMovement.create({
-            data: { registerId: open.id, kind: 'venda', method: p.method, amount: p.amount, reason: `${cashReason} #${created.number}`, orderId: created.id },
-          });
+  let order: any;
+  try {
+    order = await prisma.$transaction(async (tx) => {
+      const open = cashAtCreation
+        ? await tx.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } })
+        : null;
+      // corrida: o caixa pode ter sido fechado entre a checagem e a transacao
+      if (cashAtCreation && !open && orderSource === 'pdv') throw new Error('CASH_CLOSED');
+      const created = await tx.order.create({
+        data: {
+          number: seq,
+          turnoId,
+          customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
+          addressText: b.addressText || '', type: orderType,
+          status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
+          subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
+          total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
+          source: orderSource, emitRequested: !!b.emitRequested,
+          items: { create: (b.items || []).map((it: any) => ({
+            productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
+            unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
+          })) },
+          payments: { create: cashParts.map((p) => ({ method: p.method, amount: p.amount })) },
+        },
+        include: { items: true },
+      });
+      if (cashAtCreation) {
+        if (!open) cashRegisterOpen = false;
+        else {
+          for (const p of cashParts) {
+            await tx.cashMovement.create({
+              data: { registerId: open.id, kind: 'venda', method: p.method, amount: p.amount, reason: `${cashReason} #${created.number}`, orderId: created.id },
+            });
+          }
         }
       }
+      return created;
+    });
+  } catch (e: any) {
+    if (String(e?.message || '') === 'CASH_CLOSED') {
+      return NextResponse.json(
+        { error: 'Caixa fechado — abra o caixa antes de finalizar a venda.', code: 'CASH_CLOSED' },
+        { status: 409 },
+      );
     }
-    return created;
-  });
+    throw e;
+  }
   await prisma.notification.create({ data: { kind: 'novo_pedido', text: `Novo pedido #${order.number} — ${order.customerName} — R$ ${total.toFixed(2)}` } });
 
   // Deduzir estoque de bebidas (produtos com inventoryItemId vinculado)
