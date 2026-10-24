@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
@@ -84,4 +85,37 @@ export async function POST(req: Request) {
     if (e?.code === 'P2002') return NextResponse.json({ error: 'Ja existe um membro com esse e-mail' }, { status: 400 });
     return NextResponse.json({ error: 'Nao foi possivel criar o membro' }, { status: 400 });
   }
+}
+
+// Excluir membro da equipe (definitivo). Quem estava como entregador sai tambem
+// da lista de despacho, senao continuaria aparecendo para o motoboy.
+export async function DELETE(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  if (!id) return NextResponse.json({ error: 'Informe o membro' }, { status: 400 });
+
+  const alvo = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true, role: true, active: true } });
+  if (!alvo) return NextResponse.json({ error: 'Membro nao encontrado' }, { status: 404 });
+
+  const sessao = await getSession();
+  if (sessao?.id === id) return NextResponse.json({ error: 'Voce nao pode excluir o seu proprio usuario' }, { status: 400 });
+  if (alvo.role === 'admin') {
+    const admins = await prisma.user.count({ where: { role: 'admin', active: true } });
+    if (admins <= 1) return NextResponse.json({ error: 'A equipe precisa ter pelo menos um admin ativo' }, { status: 400 });
+  }
+
+  if (alvo.role === 'entregador') {
+    try {
+      const drv = await prisma.driver.findFirst({ where: { name: { equals: alvo.name.trim(), mode: 'insensitive' } } });
+      if (drv) {
+        // se ja tem pedidos ligados ao entregador, so tira da lista (nao apaga o historico)
+        await prisma.driver.delete({ where: { id: drv.id } }).catch(async () => {
+          await prisma.driver.update({ where: { id: drv.id }, data: { status: 'offline' } });
+        });
+      }
+    } catch {}
+  }
+
+  await prisma.user.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

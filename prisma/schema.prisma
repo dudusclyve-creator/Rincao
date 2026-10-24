@@ -215,11 +215,12 @@ model TableMap {
 }
 
 model Driver {
-  id     String @id @default(cuid())
-  name   String
-  phone  String @default("")
-  status String @default("disponivel") // disponivel | em_entrega | offline
-  orders Order[]
+  id        String  @id @default(cuid())
+  name      String
+  phone     String  @default("")
+  status    String  @default("disponivel") // disponivel | em_entrega | offline
+  sortOrder Int     @default(0) // ordem que aparece na lista / no despacho
+  orders    Order[]
 }
 
 model Promotion {

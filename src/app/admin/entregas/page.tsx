@@ -149,6 +149,12 @@ export default function Entregas() {
     load();
   };
 
+  // ordem da lista (a mesma ordem aparece no despachar pedido)
+  const moveDriver = async (id: string, dir: 'up' | 'down') => {
+    await fetch('/api/drivers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'move', id, dir }) });
+    load();
+  };
+
   const addArea = async () => {
     if (!newAreaName.trim()) return;
     await fetch('/api/delivery-areas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', city: newAreaCity, name: newAreaName.trim(), fee: Number(newAreaFee || 0) }) });
@@ -378,6 +384,8 @@ export default function Entregas() {
                             </>
                           ) : (
                             <>
+                              <button title="Subir na lista" onClick={() => moveDriver(d.id, 'up')} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-emerald-400"><ChevronUp size={12} /></button>
+                              <button title="Descer na lista" onClick={() => moveDriver(d.id, 'down')} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-emerald-400"><ChevronDown size={12} /></button>
                               <button title="Editar entregador" onClick={() => { setEditingDriver(d.id); setEditDriverName(d.name); setEditDriverPhone(d.phone || ''); }} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-blue-400"><Pencil size={12} /></button>
                               <button title="Excluir entregador" onClick={() => setConfirmDeleteDriver(d.id)} className="p-1.5 rounded-lg pdv-hover text-gray-500 hover:text-red-400"><Trash2 size={12} /></button>
                             </>

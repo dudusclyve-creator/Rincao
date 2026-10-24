@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Users, Plus, UserCheck, UserX, X, Check, Pencil, Mail, KeyRound } from 'lucide-react';
+import { Users, Plus, UserCheck, UserX, X, Check, Pencil, Mail, KeyRound, Trash2 } from 'lucide-react';
+import { showToast } from '@/lib/utils';
 
 const ROLES: Record<string, { label: string; color: string; bg: string; desc: string }> = {
   admin: { label: 'Admin', color: '#ef4444', bg: 'rgba(239,68,68,0.08)', desc: 'Acesso total' },
@@ -19,6 +20,8 @@ export default function Equipe() {
   const [f, setF] = useState({ ...VAZIO });
   const [err, setErr] = useState('');
   const [saving, setSaving] = useState(false);
+  // exclusao com confirmacao na propria tela (nada de confirm() do sistema)
+  const [confirmDelete, setConfirmDelete] = useState<any | null>(null);
 
   const load = async () => setList(await fetch('/api/users').then((r) => r.json()));
   useEffect(() => { load(); }, []);
@@ -66,6 +69,16 @@ export default function Equipe() {
   const toggle = async (u: any) => {
     await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id, active: !u.active }) });
     load();
+  };
+
+  const excluir = async (u: any) => {
+    setConfirmDelete(null);
+    const r = await fetch(`/api/users?id=${u.id}`, { method: 'DELETE' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { showToast(data.error || 'Nao foi possivel excluir', 'error'); return; }
+    if (editing?.id === u.id) fechar();
+    showToast(`${u.name} excluido da equipe`, 'success');
+    await load();
   };
 
   const activeCount = list.filter(u => u.active).length;
@@ -168,19 +181,42 @@ export default function Equipe() {
                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-2">
-                  <button onClick={() => abrirEdicao(u)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
-                    style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
-                    <Pencil size={12} /> Editar
-                  </button>
-                  <button onClick={() => toggle(u)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
-                    style={{
-                      background: u.active ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
-                      color: u.active ? '#ef4444' : '#22c55e',
-                    }}>
-                    {u.active ? <><UserX size={12} /> Desativar</> : <><UserCheck size={12} /> Ativar</>}
-                  </button>
+                  {confirmDelete?.id === u.id ? (
+                    <>
+                      <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>Excluir {u.name}?</span>
+                      <button onClick={() => excluir(u)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold"
+                        style={{ background: 'rgba(239,68,68,0.18)', color: '#ef4444' }}>
+                        <Check size={12} /> Excluir
+                      </button>
+                      <button onClick={() => setConfirmDelete(null)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                        <X size={12} /> Cancelar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => abrirEdicao(u)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
+                        style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                        <Pencil size={12} /> Editar
+                      </button>
+                      <button onClick={() => toggle(u)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200"
+                        style={{
+                          background: u.active ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+                          color: u.active ? '#ef4444' : '#22c55e',
+                        }}>
+                        {u.active ? <><UserX size={12} /> Desativar</> : <><UserCheck size={12} /> Ativar</>}
+                      </button>
+                      <button onClick={() => setConfirmDelete(u)} title="Excluir membro"
+                        className="p-2 rounded-lg transition-all duration-200"
+                        style={{ background: 'rgba(255,255,255,0.04)', color: '#6b7280' }}>
+                        <Trash2 size={12} />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
