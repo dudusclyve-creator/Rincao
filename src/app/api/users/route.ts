@@ -6,6 +6,29 @@ export const dynamic = 'force-dynamic';
 
 const CAMPOS = { id: true, name: true, email: true, role: true, active: true, createdAt: true } as const;
 
+// Entregador da equipe tambem tem que existir na lista de entregadores usada no
+// despacho do pedido (/api/drivers). Sem isso, cadastrar o motoboy em "Equipe"
+// nao fazia ele aparecer na hora de despachar.
+async function syncDriverFromUser(user: { name: string; role: string; active: boolean }, eraEntregador = false, nomeAntigo?: string) {
+  try {
+    const nome = String(user.name || '').trim();
+    if (!nome) return;
+    const acha = (n: string) => prisma.driver.findFirst({ where: { name: { equals: n.trim(), mode: 'insensitive' } } });
+    const atual = await acha(nome);
+    if (user.role === 'entregador' && user.active) {
+      if (atual) return;
+      const antigo = nomeAntigo && nomeAntigo.trim().toLowerCase() !== nome.toLowerCase() ? await acha(nomeAntigo) : null;
+      if (antigo) await prisma.driver.update({ where: { id: antigo.id }, data: { name: nome } });
+      else await prisma.driver.create({ data: { name: nome, phone: '' } });
+      return;
+    }
+    // saiu da equipe de entregadores (ou foi desativado): para de aparecer no despacho
+    if (atual && (eraEntregador || user.active === false)) {
+      await prisma.driver.update({ where: { id: atual.id }, data: { status: 'offline' } });
+    }
+  } catch {}
+}
+
 export async function GET() { return NextResponse.json(await prisma.user.findMany({ select: CAMPOS })); }
 
 export async function POST(req: Request) {
@@ -34,7 +57,9 @@ export async function POST(req: Request) {
       data.passwordHash = await bcrypt.hash(senha, 10);
     }
     try {
+      const antes = await prisma.user.findUnique({ where: { id: b.id }, select: { name: true, role: true, active: true } }).catch(() => null);
       const user = await prisma.user.update({ where: { id: b.id }, data, select: CAMPOS });
+      await syncDriverFromUser(user, antes?.role === 'entregador', antes?.name);
       return NextResponse.json(user);
     } catch (e: any) {
       if (e?.code === 'P2002') return NextResponse.json({ error: 'Ja existe outro membro com esse e-mail' }, { status: 400 });
@@ -53,6 +78,7 @@ export async function POST(req: Request) {
       data: { name: nome, email, passwordHash: await bcrypt.hash(senha, 10), role: b.role || 'caixa' },
       select: CAMPOS,
     });
+    await syncDriverFromUser(user, false, undefined);
     return NextResponse.json(user);
   } catch (e: any) {
     if (e?.code === 'P2002') return NextResponse.json({ error: 'Ja existe um membro com esse e-mail' }, { status: 400 });

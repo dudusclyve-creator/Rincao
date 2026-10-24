@@ -375,8 +375,10 @@ export default function Pedidos() {
     setOrders(turnoOrders);
   };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
-  useEffect(() => { fetch('/api/drivers').then((r) => r.json()).then(setDrivers); }, []);
-  useEffect(() => { setDriverNote(''); }, [dispatchOrder]);
+  // recarrega os entregadores sempre que abre o despacho (motoboy cadastrado
+  // agora na equipe aparece na hora, sem precisar recarregar a pagina)
+  const loadDrivers = () => fetch('/api/drivers').then((r) => r.json()).then(setDrivers).catch(() => {});
+  useEffect(() => { loadDrivers(); setDriverNote(''); }, [dispatchOrder]);
 
   const setStatus = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
@@ -1031,12 +1033,13 @@ export default function Pedidos() {
               </button>
             </div>
             <div className="space-y-2 mb-5">
-              {(drivers as any[]).map((d: any) => (
+              {(drivers as any[]).filter((d: any) => d.status !== 'offline').map((d: any) => (
                 <button key={d.id} onClick={() => setSelectedDriver(d.id)} className="w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left" style={selectedDriver === d.id ? { borderColor: '#22c55e', background: 'rgba(74,222,128,0.1)' } : { borderColor: 'rgba(255,255,255,0.12)', background: 'transparent' }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold" style={{ background: 'rgba(255,255,255,0.08)', color: '#f0e8e0' }}>{d.name.charAt(0)}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-bold text-white">{d.name}</p>
                     {d.phone && <p className="text-[10px] text-gray-400">{d.phone}</p>}
+                    {d.status === 'em_entrega' && <p className="text-[10px] font-bold" style={{ color: '#fbbf24' }}>em entrega</p>}
                   </div>
                   {selectedDriver === d.id && (
                     <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#22c55e' }}>
@@ -1045,7 +1048,7 @@ export default function Pedidos() {
                   )}
                 </button>
               ))}
-              {(drivers as any[]).length === 0 && (
+              {(drivers as any[]).filter((d: any) => d.status !== 'offline').length === 0 && (
                 <p className="text-center text-[11px] py-4 text-gray-500">Nenhum entregador cadastrado</p>
               )}
             </div>
