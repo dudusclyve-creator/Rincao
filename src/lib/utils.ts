@@ -58,7 +58,7 @@ export function buildWhatsMessage(o: {
   number: number; customerName: string; customerPhone: string;
   items: { qty: number; name: string; addons: CartAddon[] }[];
   note: string; addressText: string; payment: string;
-  subtotal: number; deliveryFee: number; discount: number; total: number;
+  subtotal: number; deliveryFee: number; discount: number; total: number; cardFee?: number;
 }) {
   const L: string[] = [];
   L.push(`*NOVO PEDIDO #${o.number}*`);
@@ -81,6 +81,7 @@ export function buildWhatsMessage(o: {
   L.push(`Subtotal: ${BRL(o.subtotal)}`);
   L.push(`Entrega: ${BRL(o.deliveryFee)}`);
   if (o.discount) L.push(`Desconto: -${BRL(o.discount)}`);
+  if (o.cardFee) L.push(`Taxa do cartão: ${BRL(o.cardFee)}`);
   L.push(`*TOTAL: ${BRL(o.total)}*`);
   return L.join('\n');
 }

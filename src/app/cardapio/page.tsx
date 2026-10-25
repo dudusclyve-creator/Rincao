@@ -833,7 +833,10 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
     return d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
   };
   const fee = deliveryType === 'entrega' ? deliveryFee : 0;
-  const total = Math.max(0, cart.subtotal + fee);
+  // taxa da maquininha no pedido do site: credito 3,9% / debito 1,9%
+  const cardFeePct = f.payment === 'credito' ? 3.9 : f.payment === 'debito' ? 1.9 : 0;
+  const cardFee = cardFeePct > 0 ? Math.round((cart.subtotal + fee) * cardFeePct) / 100 : 0;
+  const total = Math.max(0, cart.subtotal + fee + cardFee);
 
   const addr = useMemo(() => parseAddressText(addressText, flattenZones(deliveryZones)), [addressText, deliveryZones]);
   const addrOk = deliveryType !== 'entrega' || !!(addressText && !isPickupLabel(addressText) && !/RETIRADA|CONSUMO NO LOCAL|BALC[ÃA]O/i.test(addressText));
@@ -856,7 +859,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
       complement: deliveryType === 'entrega' ? addr.complement : '', district: deliveryType === 'entrega' ? `${addr.district}${addr.city ? `, ${addr.city}` : ''}` : '', reference: '',
       addressText: deliveryType === 'entrega' ? addressText : (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
       type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
-      subtotal: cart.subtotal, deliveryFee: fee, discount: 0,
+      subtotal: cart.subtotal, deliveryFee: fee, discount: 0, cardFee,
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
       emitRequested: deliveryType === 'entrega' || emitNota,
     })}).then((r) => r.json());
@@ -870,7 +873,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
       number: done.number, customerName: done.customerName, customerPhone: done.customerPhone,
       items: done.items.map((it: any) => ({ qty: it.qty, name: it.name, addons: JSON.parse(it.addonsJson || '[]') })),
       note: done.note, addressText: done.addressText, payment: done.payment,
-      subtotal: done.subtotal, deliveryFee: done.deliveryFee, discount: done.discount, total: done.total,
+      subtotal: done.subtotal, deliveryFee: done.deliveryFee, discount: done.discount, total: done.total, cardFee: done.cardFee,
     });
     const wa = `https://wa.me/${waNumber(restaurant.whatsapp)}?text=${encodeURIComponent(msg)}`;
     return (
@@ -936,10 +939,11 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
           <div className="mt-5">
             <p className="text-[10px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Pagamento</p>
             <div className="grid grid-cols-4 gap-2">
-              {[{ id: 'pix', icon: '📱', label: 'Pix' }, { id: 'dinheiro', icon: '💵', label: 'Dinheiro' }, { id: 'debito', icon: '💳', label: 'Débito' }, { id: 'credito', icon: '💳', label: 'Crédito' }].map((p) => (
+              {[{ id: 'pix', icon: '📱', label: 'Pix', taxa: 0 }, { id: 'dinheiro', icon: '💵', label: 'Dinheiro', taxa: 0 }, { id: 'debito', icon: '💳', label: 'Débito', taxa: 1.9 }, { id: 'credito', icon: '💳', label: 'Crédito', taxa: 3.9 }].map((p) => (
                 <button key={p.id} onClick={() => setF({ ...f, payment: p.id })} className="flex flex-col items-center gap-1.5 rounded-xl py-3 text-[10px] font-semibold transition-all duration-200 border" style={f.payment === p.id ? { borderColor: '#6b3a1f', background: '#6b3a1f', color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } : { borderColor: '#f0f0f0', background: '#f9f9f9', color: '#888' }}>
                   <span className="text-base">{p.icon}</span>
                   <span>{p.label}</span>
+                  {p.taxa > 0 && <span className="text-[8px] leading-none opacity-70">+{String(p.taxa).replace('.', ',')}%</span>}
                 </button>
               ))}
             </div>
@@ -985,6 +989,12 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
             )}
             <div className="flex justify-between text-xs mb-1.5 text-gray-400"><span>Subtotal</span><span className="text-gray-700">{BRL(cart.subtotal)}</span></div>
             {fee > 0 && <div className="flex justify-between text-xs mb-1.5 text-gray-400"><span>Entrega</span><span className="text-gray-700">{BRL(fee)}</span></div>}
+            {cardFee > 0 && (
+              <div className="flex justify-between text-xs mb-1.5 text-gray-400">
+                <span>Taxa do cartão ({String(cardFeePct).replace('.', ',')}%)</span>
+                <span className="text-gray-700">{BRL(cardFee)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center text-base font-bold text-gray-900 mt-2.5 pt-2.5 border-t border-gray-200">
               <span>Total</span>
               <span className="text-xl">{BRL(total)}</span>

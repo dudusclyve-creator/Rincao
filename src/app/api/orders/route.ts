@@ -309,7 +309,15 @@ export async function POST(req: Request) {
     const zona = zonas.find((z) => z.name === p.district && (!p.city || z.city === p.city)) || zonas.find((z) => z.name === p.district);
     if (zona) fee = zona.fee;
   }
-  const cardFee = Math.max(0, Number(b.cardFee || 0));
+  // taxa da maquininha: no cardápio o próprio servidor aplica (crédito 3,9% /
+  // débito 1,9%) para não depender do que a página manda; no PDV vale o que o
+  // operador marcou. Mesa do site paga no fechamento, então não entra aqui.
+  const siteFeePct = orderSource === 'cardapio' && orderType !== 'mesa'
+    ? (b.payment === 'credito' ? 3.9 : b.payment === 'debito' ? 1.9 : 0)
+    : 0;
+  const cardFee = siteFeePct > 0
+    ? Math.round(Math.max(0, subtotal + fee - Number(b.discount || 0)) * siteFeePct) / 100
+    : Math.max(0, Number(b.cardFee || 0));
   const total = Math.max(0, subtotal + fee - Number(b.discount || 0) + cardFee);
 
   const turnoSetting = await prisma.setting.findUnique({ where: { key: 'turno_number' } });
