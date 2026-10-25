@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, waNumber, formatPhone } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { ItemCard } from '@/components/ItemCard';
-import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2, MessageCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 
 const COLUMNS = [
@@ -113,6 +113,8 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
   const isExpanded = true;
   const overdue = isEnded ? false : isOverdue(o);
   const wasOverdue = o.status === 'concluido' && o.endedAt ? elapsed > 45 : false;
+  // telefone do cliente: usa o do pedido e, se faltar, o do cadastro
+  const waPhone = String(o.customerPhone || o.customer?.phone || '').replace(/\D/g, '');
 
   const troco = (() => {
     if (!o.changeFor || o.changeFor <= 0) return 0;
@@ -164,7 +166,20 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
               {overdue && <span className="font-bold text-red-400">⚠ atrasado</span>}
               {o.status === 'concluido' && wasOverdue && <span className="font-bold text-red-400">entregue atrasado</span>}
             </p>
+            {waPhone && <p className="text-[10px] font-bold mt-0.5" style={{ color: '#9ca3af' }}>📞 {formatPhone(o.customerPhone || o.customer?.phone || '')}</p>}
           </div>
+          {waPhone && (
+            <a
+              href={`https://wa.me/${waNumber(o.customerPhone || o.customer?.phone || '')}`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`Abrir o WhatsApp de ${o.customerName || 'cliente'}`}
+              className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200 hover:brightness-110"
+              style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.35)' }}>
+              <MessageCircle size={11} /> WhatsApp
+            </a>
+          )}
         </div>
 
         {(() => {
