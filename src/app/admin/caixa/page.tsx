@@ -381,6 +381,7 @@ export default function Caixa() {
       time: string;
       amount: number;
       orderTotal: number;
+      withFee: number;
       split: boolean;
     };
     const movs = data?.open?.movements || [];
@@ -406,6 +407,7 @@ export default function Caixa() {
           time: m.createdAt,
           amount: p.amount,
           orderTotal: ord ? Math.max(0, Number(ord.total || 0) - Number(ord.cardFee || 0)) : Number(m.amount || 0),
+          withFee: ord ? Number(ord.total || 0) : Number(m.amount || 0),
           split,
         });
       }
@@ -422,6 +424,32 @@ export default function Caixa() {
     }
     Object.keys(out).forEach((k) => out[k].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()));
     return out;
+  }, [data, orders]);
+
+  // Taxa da maquininha por forma de pagamento (só crédito/débito têm taxa).
+  // O caixa registra a venda sem a taxa; aqui somamos a taxa de cada pedido para
+  // mostrar também o valor que o cliente pagou de fato (com taxa).
+  const methodFees = useMemo(() => {
+    const fees: Record<string, number> = {};
+    const movs = data?.open?.movements || [];
+    const seen: Record<string, boolean> = {};
+    for (const m of movs) {
+      if (m.kind !== 'venda' || !m.orderId || seen[m.orderId]) continue;
+      seen[m.orderId] = true;
+      const ord = orders.find((o: any) => o.id === m.orderId);
+      const fee = Number(ord?.cardFee || 0);
+      if (!ord || fee <= 0) continue;
+      const cashTotal = Math.max(0, Number(ord.total || 0) - fee);
+      const parts = methodParts({ method: ord.payment, amount: cashTotal });
+      const cardParts = parts.filter((p) => p.method === 'credito' || p.method === 'debito');
+      const cardSum = cardParts.reduce((s, p) => s + p.amount, 0);
+      if (cardSum <= 0) continue;
+      for (const p of cardParts) {
+        const share = Math.round(fee * (p.amount / cardSum) * 100) / 100;
+        fees[p.method] = Math.round(((fees[p.method] || 0) + share) * 100) / 100;
+      }
+    }
+    return fees;
   }, [data, orders]);
 
   if (!data) return (
@@ -443,6 +471,7 @@ export default function Caixa() {
     ? PAYMENT_METHODS.find((p) => p.id === payMethod) || { id: payMethod, label: payMethod, icon: Wallet, color: '#9ca3af' }
     : null;
   const paySales = payMethod ? (methodSales[payMethod] || []) : [];
+  const payFee = payMethod ? (methodFees[payMethod] || 0) : 0;
   const PayIcon = payInfo?.icon || Wallet;
 
   const totals = (() => {
@@ -699,15 +728,23 @@ export default function Caixa() {
                 {PAYMENT_METHODS.map((p) => {
                   const Icon = p.icon;
                   const val = byMethod[p.id] || 0;
+                  const fee = methodFees[p.id] || 0;
                   const count = (methodSales[p.id] || []).length;
                   return (
                     <button key={p.id} type="button" onClick={() => setPayMethod(p.id)}
-                      title={`Ver os pedidos pagos em ${p.label}`}
+                      title={`Ver os pedidos pagos em ${p.label} — ${BRL(val)} sem taxa${fee > 0 ? ` / ${BRL(val + fee)} com taxa` : ''}`}
                       className="rounded-xl p-3 text-center pdv-hover transition-all duration-200 hover:brightness-125 active:scale-[0.97]"
                       style={{ background: `${p.color}08`, border: `1px solid ${p.color}20`, cursor: 'pointer' }}>
                       <Icon size={18} className="mx-auto mb-1.5" style={{ color: p.color }} />
                       <p className="text-[10px] font-bold text-gray-400">{p.label}</p>
                       <p className="text-sm font-black" style={{ color: p.color }}>{BRL(val)}</p>
+                      {fee > 0.005 ? (
+                        <p className="text-[9px] font-bold leading-tight" style={{ color: '#d1d5db' }}>
+                          com taxa <span className="font-black">{BRL(val + fee)}</span>
+                        </p>
+                      ) : (
+                        <p className="text-[9px] font-bold leading-tight" style={{ color: '#4b5563' }}>sem taxa</p>
+                      )}
                       <p className="text-[9px] font-bold mt-0.5" style={{ color: '#6b7280' }}>
                         {count === 0 ? 'sem vendas' : `${count} pedido${count > 1 ? 's' : ''}`}
                       </p>
@@ -715,15 +752,23 @@ export default function Caixa() {
                   );
                 })}
                 {extraMethods(byMethod).map(([k, v]) => {
+                  const fee = methodFees[k] || 0;
                   const count = (methodSales[k] || []).length;
                   return (
                     <button key={k} type="button" onClick={() => setPayMethod(k)}
-                      title={`Ver os pedidos pagos em ${k}`}
+                      title={`Ver os pedidos pagos em ${k} — ${BRL(v)} sem taxa${fee > 0 ? ` / ${BRL(v + fee)} com taxa` : ''}`}
                       className="rounded-xl p-3 text-center pdv-hover transition-all duration-200 hover:brightness-125 active:scale-[0.97]"
                       style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
                       <Wallet size={18} className="mx-auto mb-1.5 text-gray-400" />
                       <p className="text-[10px] font-bold text-gray-400">{k}</p>
                       <p className="text-sm font-black text-gray-200">{BRL(v)}</p>
+                      {fee > 0.005 ? (
+                        <p className="text-[9px] font-bold leading-tight" style={{ color: '#d1d5db' }}>
+                          com taxa <span className="font-black">{BRL(v + fee)}</span>
+                        </p>
+                      ) : (
+                        <p className="text-[9px] font-bold leading-tight" style={{ color: '#4b5563' }}>sem taxa</p>
+                      )}
                       <p className="text-[9px] font-bold mt-0.5" style={{ color: '#6b7280' }}>
                         {count === 0 ? 'sem vendas' : `${count} pedido${count > 1 ? 's' : ''}`}
                       </p>
@@ -926,7 +971,8 @@ export default function Caixa() {
               <div className="min-w-0 flex-1">
                 <h3 className="font-black text-base" style={{ color: '#f0e8e0' }}>Pedidos em {payInfo.label}</h3>
                 <p className="text-[11px] mt-0.5" style={{ color: '#8a7a6a' }}>
-                  {paySales.length === 0 ? 'Nenhum pedido' : `${paySales.length} pedido${paySales.length > 1 ? 's' : ''}`} • Total {BRL(byMethod[payMethod] || 0)}
+                  {paySales.length === 0 ? 'Nenhum pedido' : `${paySales.length} pedido${paySales.length > 1 ? 's' : ''}`} • {BRL(byMethod[payMethod] || 0)} sem taxa
+                  {payFee > 0.005 && <span style={{ color: '#d1d5db' }}> • {BRL((byMethod[payMethod] || 0) + payFee)} com taxa</span>}
                 </p>
               </div>
               <button onClick={() => setPayMethod(null)} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
@@ -962,7 +1008,11 @@ export default function Caixa() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs font-black" style={{ color: payInfo.color }}>{BRL(s.amount)}</p>
-                      {s.split && <p className="text-[9px] font-bold" style={{ color: '#6b7280' }}>de {BRL(s.orderTotal)}</p>}
+                      {s.split ? (
+                        <p className="text-[9px] font-bold" style={{ color: '#6b7280' }}>de {BRL(s.orderTotal)}</p>
+                      ) : s.withFee > s.amount + 0.005 ? (
+                        <p className="text-[9px] font-bold" style={{ color: '#6b7280' }}>com taxa {BRL(s.withFee)}</p>
+                      ) : null}
                     </div>
                   </div>
                 );
