@@ -153,20 +153,24 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
           <span className="text-xs font-bold text-white whitespace-nowrap shrink-0">{BRL(o.total)}</span>
         </div>
 
-          <div className="flex items-center gap-2 mb-2">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: '#4a3a5a' }}>
+        <div className="flex items-start gap-2 mb-2">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: '#4a3a5a' }}>
             {o.customerName?.charAt(0)?.toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[13px] font-bold text-white truncate">{orderType === 'mesa' && (!o.customerName || o.customerName === 'PDV') ? (o.addressText || 'Mesa') : o.customerName}</p>
-            <p className="text-[10px] flex items-center gap-1 flex-wrap" style={{ color: overdue ? '#f87171' : '#9ca3af' }}>
+            <p className="text-[13px] font-bold text-white truncate leading-tight">{orderType === 'mesa' && (!o.customerName || o.customerName === 'PDV') ? (o.addressText || 'Mesa') : o.customerName}</p>
+            <p className="text-[10px] flex items-center gap-1 flex-wrap leading-tight mt-0.5" style={{ color: overdue ? '#f87171' : '#9ca3af' }}>
               <Clock size={9} /> {new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-              {isEnded && o.endedAt && <span> → {new Date(o.endedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
-              {elapsed > 0 && <span> • {elapsed}min</span>}
+              {isEnded && o.endedAt && <span>→ {new Date(o.endedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
+              {elapsed > 0 && <span>• {elapsed}min</span>}
               {overdue && <span className="font-bold text-red-400">⚠ atrasado</span>}
               {o.status === 'concluido' && wasOverdue && <span className="font-bold text-red-400">entregue atrasado</span>}
             </p>
-            {waPhone && <p className="text-[10px] font-bold mt-0.5" style={{ color: '#9ca3af' }}>📞 {formatPhone(o.customerPhone || o.customer?.phone || '')}</p>}
+            {waPhone && (
+              <p className="text-[10px] leading-tight truncate mt-0.5" style={{ color: '#9ca3af' }} title={formatPhone(o.customerPhone || o.customer?.phone || '')}>
+                📞 {formatPhone(o.customerPhone || o.customer?.phone || '').replace(/^\+55\s+/, '')}
+              </p>
+            )}
           </div>
           {waPhone && (
             <a
@@ -175,9 +179,9 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
               title={`Abrir o WhatsApp de ${o.customerName || 'cliente'}`}
-              className="shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all duration-200 hover:brightness-110"
-              style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.35)' }}>
-              <MessageCircle size={11} /> WhatsApp
+              className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 hover:brightness-125"
+              style={{ background: 'rgba(34,197,94,0.16)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.35)' }}>
+              <MessageCircle size={13} />
             </a>
           )}
         </div>
