@@ -5,7 +5,7 @@ import {
   DollarSign, Lock, Unlock, ArrowDownCircle, ArrowUpCircle, History,
   Smartphone, Banknote, CreditCard, AlertTriangle, CheckCircle2, X,
   TrendingUp, TrendingDown, Wallet, Receipt, ChevronDown, ChevronUp,
-  Minus, Plus, Calculator, XCircle
+  Minus, Plus, Calculator, XCircle, Clock
 } from 'lucide-react';
 
 const PAYMENT_METHODS = [
@@ -20,44 +20,55 @@ const MOVEMENT_TYPES = [
   { id: 'suprimento', label: 'Suprimento', icon: Plus, color: '#22c55e', desc: 'Adição de dinheiro ao caixa' },
 ];
 
-function accumulateByMethod(acc: Record<string, number>, m: any) {
+// Separa o pagamento de uma movimentacao em partes por forma de pagamento.
+// "pix:20,dinheiro:30" -> [{ method:'pix', amount:20 }, { method:'dinheiro', amount:30 }]
+// "pix" (sem valor) -> [{ method:'pix', amount: <valor da movimentacao> }]
+function methodParts(m: any): { method: string; amount: number }[] {
   const amount = Number(m.amount || 0);
   const raw = String(m.method || 'outro');
   const parts = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
-  const parsed: { k: string; v: number }[] = [];
+  const parsed: { method: string; amount: number }[] = [];
   for (const p of parts) {
     const i = p.lastIndexOf(':');
     if (i > 0) {
       const v = Number(p.slice(i + 1));
-      if (Number.isFinite(v) && v > 0) { parsed.push({ k: p.slice(0, i), v: Math.round(v * 100) / 100 }); continue; }
+      if (Number.isFinite(v) && v > 0) { parsed.push({ method: p.slice(0, i), amount: Math.round(v * 100) / 100 }); continue; }
     }
-    parsed.push({ k: p, v: 0 });
+    parsed.push({ method: p, amount: 0 });
   }
-  if (!parsed.length) {
-    acc['outro'] = (acc['outro'] || 0) + amount;
-    return;
-  }
-  if (parsed.length === 1 && parsed[0].v === 0) {
-    const k = parsed[0].k || 'outro';
-    acc[k] = (acc[k] || 0) + amount;
-    return;
-  }
-  const sum = parsed.reduce((s, x) => s + x.v, 0);
+  if (!parsed.length) return [{ method: 'outro', amount }];
+  if (parsed.length === 1 && parsed[0].amount === 0) return [{ method: parsed[0].method || 'outro', amount }];
+  const sum = parsed.reduce((s, x) => s + x.amount, 0);
   let diff = Math.round((amount - sum) * 100) / 100;
   if (diff < 0) {
     for (let i = parsed.length - 1; i >= 0 && diff < -0.005; i--) {
-      const take = Math.min(parsed[i].v, Math.round(-diff * 100) / 100);
-      parsed[i].v = Math.round((parsed[i].v - take) * 100) / 100;
+      const take = Math.min(parsed[i].amount, Math.round(-diff * 100) / 100);
+      parsed[i].amount = Math.round((parsed[i].amount - take) * 100) / 100;
       diff = Math.round((diff + take) * 100) / 100;
     }
   } else if (diff > 0.005 && parsed.length) {
-    parsed[parsed.length - 1].v = Math.round((parsed[parsed.length - 1].v + diff) * 100) / 100;
+    parsed[parsed.length - 1].amount = Math.round((parsed[parsed.length - 1].amount + diff) * 100) / 100;
   }
-  parsed.forEach((x) => { if (x.v > 0) acc[x.k] = (acc[x.k] || 0) + x.v; });
+  return parsed.filter((x) => x.amount > 0);
+}
+
+function accumulateByMethod(acc: Record<string, number>, m: any) {
+  methodParts(m).forEach((x) => { acc[x.method] = (acc[x.method] || 0) + x.amount; });
 }
 
 function extraMethods(byMethod: Record<string, number>) {
   return Object.entries(byMethod).filter(([k]) => !PAYMENT_METHODS.some((p) => p.id === k));
+}
+
+function statusMeta(status: string) {
+  if (!status) return null;
+  if (status === 'concluido') return { label: 'concluído', color: '#22c55e' };
+  if (status === 'cancelado') return { label: 'cancelado', color: '#ef4444' };
+  if (status === 'pronto') return { label: 'pronto', color: '#3b82f6' };
+  if (status === 'em_preparo') return { label: 'em preparo', color: '#f59e0b' };
+  if (status === 'saiu_entrega') return { label: 'saiu p/ entrega', color: '#a855f7' };
+  if (status === 'pendente') return { label: 'pendente', color: '#f59e0b' };
+  return { label: status, color: '#9ca3af' };
 }
 
 function StatCard({ icon: Icon, label, value, color, sub }: { icon: any; label: string; value: string; color: string; sub?: string }) {
@@ -288,6 +299,7 @@ function SuccessModal({ expected, informed, diff, driverPending, closedTables, o
 
 export default function Caixa() {
   const [data, setData] = useState<any>(null);
+  const [orders, setOrders] = useState<any[]>([]);
   const [op, setOp] = useState('');
   const [initial, setInitial] = useState(100);
   const [movType, setMovType] = useState('sangria');
@@ -304,6 +316,7 @@ export default function Caixa() {
   const [turnoOrderNumbers, setTurnoOrderNumbers] = useState<number[]>([]);
   const [dayDelivery, setDayDelivery] = useState<{ count: number; drivers: { label: string; count: number; fee: number }[] }>({ count: 0, drivers: [] });
   const [openTables, setOpenTables] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  const [payMethod, setPayMethod] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [d, orders, drivers, tables] = await Promise.all([
@@ -313,6 +326,7 @@ export default function Caixa() {
       fetch('/api/tables').then((r) => r.json()),
     ]);
     setData(d);
+    setOrders(Array.isArray(orders) ? orders : []);
     const activeTableOrders = orders.filter((o: any) => o.tableId && !['concluido', 'cancelado'].includes(o.status));
     const tableIds = new Set(activeTableOrders.map((o: any) => o.tableId));
     tables.forEach((t: any) => { if (t.status !== 'livre') tableIds.add(t.id); });
@@ -355,6 +369,61 @@ export default function Caixa() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Vendas do caixa agrupadas por forma de pagamento (para o historico dos cards).
+  // Usa as mesmas movimentacoes que formam o total, entao card e lista sempre batem.
+  const methodSales = useMemo(() => {
+    type Sale = {
+      orderNumber: number | null;
+      orderId: string;
+      method: string;
+      customer: string;
+      status: string;
+      time: string;
+      amount: number;
+      orderTotal: number;
+      split: boolean;
+    };
+    const movs = data?.open?.movements || [];
+    const vendaCount: Record<string, number> = {};
+    movs.forEach((m: any) => { if (m.kind === 'venda' && m.orderId) vendaCount[m.orderId] = (vendaCount[m.orderId] || 0) + 1; });
+
+    const flat: Sale[] = [];
+    for (const m of movs) {
+      if (m.kind !== 'venda') continue;
+      const parts = methodParts(m);
+      const numFromReason = Number((String(m.reason || '').match(/#(\d+)/) || [])[1] || 0) || null;
+      const ord = m.orderId ? orders.find((o: any) => o.id === m.orderId) : null;
+      const orderNumber = numFromReason || (ord?.number ?? null);
+      const split = (m.orderId && vendaCount[m.orderId] > 1) || parts.length > 1;
+      for (const p of parts) {
+        if (p.amount <= 0) continue;
+        flat.push({
+          orderNumber,
+          orderId: m.orderId || '',
+          method: p.method,
+          customer: ord?.customerName || ord?.customer?.name || '',
+          status: ord?.status || '',
+          time: m.createdAt,
+          amount: p.amount,
+          orderTotal: ord ? Math.max(0, Number(ord.total || 0) - Number(ord.cardFee || 0)) : Number(m.amount || 0),
+          split,
+        });
+      }
+    }
+
+    // um pedido dividido gera varias movimentacoes: junta por pedido + forma
+    const out: Record<string, Sale[]> = {};
+    const index: Record<string, number> = {};
+    for (const s of flat) {
+      const key = `${s.orderId || s.time}|${s.method}`;
+      const list = (out[s.method] = out[s.method] || []);
+      if (index[key] !== undefined) list[index[key]].amount = Math.round((list[index[key]].amount + s.amount) * 100) / 100;
+      else { index[key] = list.length; list.push(s); }
+    }
+    Object.keys(out).forEach((k) => out[k].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()));
+    return out;
+  }, [data, orders]);
+
   if (!data) return (
     <div className="min-h-[calc(100vh-48px)] rounded-2xl p-4 md:p-5 flex items-center justify-center" style={{ background: '#1a1520' }}>
       <div className="text-center">
@@ -369,6 +438,12 @@ export default function Caixa() {
     data.open.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => accumulateByMethod(byMethod, x));
   }
   const driverPending = driverBreakdown.reduce((s, d) => s + Number(d.remaining || 0), 0);
+
+  const payInfo = payMethod
+    ? PAYMENT_METHODS.find((p) => p.id === payMethod) || { id: payMethod, label: payMethod, icon: Wallet, color: '#9ca3af' }
+    : null;
+  const paySales = payMethod ? (methodSales[payMethod] || []) : [];
+  const PayIcon = payInfo?.icon || Wallet;
 
   const totals = (() => {
     if (!data.open) return { vendas: 0, entradas: 0, saidas: 0, expected: 0 };
@@ -624,21 +699,37 @@ export default function Caixa() {
                 {PAYMENT_METHODS.map((p) => {
                   const Icon = p.icon;
                   const val = byMethod[p.id] || 0;
+                  const count = (methodSales[p.id] || []).length;
                   return (
-                    <div key={p.id} className="rounded-xl p-3 text-center" style={{ background: `${p.color}08`, border: `1px solid ${p.color}20` }}>
+                    <button key={p.id} type="button" onClick={() => setPayMethod(p.id)}
+                      title={`Ver os pedidos pagos em ${p.label}`}
+                      className="rounded-xl p-3 text-center pdv-hover transition-all duration-200 hover:brightness-125 active:scale-[0.97]"
+                      style={{ background: `${p.color}08`, border: `1px solid ${p.color}20`, cursor: 'pointer' }}>
                       <Icon size={18} className="mx-auto mb-1.5" style={{ color: p.color }} />
                       <p className="text-[10px] font-bold text-gray-400">{p.label}</p>
                       <p className="text-sm font-black" style={{ color: p.color }}>{BRL(val)}</p>
-                    </div>
+                      <p className="text-[9px] font-bold mt-0.5" style={{ color: '#6b7280' }}>
+                        {count === 0 ? 'sem vendas' : `${count} pedido${count > 1 ? 's' : ''}`}
+                      </p>
+                    </button>
                   );
                 })}
-                {extraMethods(byMethod).map(([k, v]) => (
-                  <div key={k} className="rounded-xl p-3 text-center" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <Wallet size={18} className="mx-auto mb-1.5 text-gray-400" />
-                    <p className="text-[10px] font-bold text-gray-400">{k}</p>
-                    <p className="text-sm font-black text-gray-200">{BRL(v)}</p>
-                  </div>
-                ))}
+                {extraMethods(byMethod).map(([k, v]) => {
+                  const count = (methodSales[k] || []).length;
+                  return (
+                    <button key={k} type="button" onClick={() => setPayMethod(k)}
+                      title={`Ver os pedidos pagos em ${k}`}
+                      className="rounded-xl p-3 text-center pdv-hover transition-all duration-200 hover:brightness-125 active:scale-[0.97]"
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}>
+                      <Wallet size={18} className="mx-auto mb-1.5 text-gray-400" />
+                      <p className="text-[10px] font-bold text-gray-400">{k}</p>
+                      <p className="text-sm font-black text-gray-200">{BRL(v)}</p>
+                      <p className="text-[9px] font-bold mt-0.5" style={{ color: '#6b7280' }}>
+                        {count === 0 ? 'sem vendas' : `${count} pedido${count > 1 ? 's' : ''}`}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -819,6 +910,67 @@ export default function Caixa() {
               }} className="flex-1 rounded-xl py-3 text-[12px] font-bold text-white transition-all hover:brightness-110 active:scale-95" style={{ background: '#ef4444' }}>
                 ✅ Confirmar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Histórico de vendas por forma de pagamento */}
+      {payMethod && payInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }} onClick={() => setPayMethod(null)}>
+          <div className="rounded-2xl w-full max-w-lg flex flex-col max-h-[85vh]" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.55)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 p-5 pb-4">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${payInfo.color}15`, border: `1px solid ${payInfo.color}30` }}>
+                <PayIcon size={20} style={{ color: payInfo.color }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-black text-base" style={{ color: '#f0e8e0' }}>Pedidos em {payInfo.label}</h3>
+                <p className="text-[11px] mt-0.5" style={{ color: '#8a7a6a' }}>
+                  {paySales.length === 0 ? 'Nenhum pedido' : `${paySales.length} pedido${paySales.length > 1 ? 's' : ''}`} • Total {BRL(byMethod[payMethod] || 0)}
+                </p>
+              </div>
+              <button onClick={() => setPayMethod(null)} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="px-3 pb-3 overflow-y-auto space-y-1.5 scrollbar-hide">
+              {paySales.length === 0 && (
+                <div className="text-center py-10">
+                  <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: `${payInfo.color}10`, border: `1px solid ${payInfo.color}20` }}>
+                    <PayIcon size={20} style={{ color: payInfo.color, opacity: 0.7 }} />
+                  </div>
+                  <p className="text-[12px] font-bold" style={{ color: '#8a7a6a' }}>Nenhuma venda em {payInfo.label} neste caixa</p>
+                  <p className="text-[10px] mt-1" style={{ color: '#6b7280' }}>As vendas aparecem aqui assim que forem lançadas.</p>
+                </div>
+              )}
+              {paySales.map((s, i) => {
+                const st = statusMeta(s.status);
+                return (
+                  <div key={`${s.orderId || s.time}-${i}`} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div className="w-14 shrink-0 text-center">
+                      <p className="text-[8px] uppercase tracking-wider font-bold" style={{ color: '#6b7280' }}>Pedido</p>
+                      <p className="text-sm font-black leading-tight" style={{ color: payInfo.color }}>#{s.orderNumber ?? '—'}</p>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[12px] font-bold text-white truncate">{s.customer || 'Sem nome'}</p>
+                      <p className="text-[10px] flex items-center gap-1.5 flex-wrap leading-tight mt-0.5" style={{ color: '#6b7280' }}>
+                        <Clock size={9} /> {new Date(s.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        {s.split && <span>• dividido</span>}
+                        {st && <span className="font-bold" style={{ color: st.color }}>• {st.label}</span>}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs font-black" style={{ color: payInfo.color }}>{BRL(s.amount)}</p>
+                      {s.split && <p className="text-[9px] font-bold" style={{ color: '#6b7280' }}>de {BRL(s.orderTotal)}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="p-3 pt-0">
+              <button onClick={() => setPayMethod(null)} className="w-full rounded-xl py-2.5 text-[11px] font-bold transition-all hover:scale-[1.01]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Fechar</button>
             </div>
           </div>
         </div>
