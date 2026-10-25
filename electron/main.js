@@ -1,6 +1,6 @@
 // Processo principal do Electron: sobe o servidor Next.js (standalone) e abre o painel /admin
-const { app, BrowserWindow, shell, dialog, screen } = require("electron");
-const { spawn } = require("child_process");
+const { app, BrowserWindow, shell, dialog, screen, ipcMain } = require("electron");
+const { spawn, execFileSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const net = require("net");
@@ -378,8 +378,68 @@ async function imprimirEfechar(wc) {
   fechar();
 }
 
+// ---------- WhatsApp ----------
+
+let _whatsappInstalled = null;
+
+// O WhatsApp Desktop registra o protocolo "whatsapp:" no Windows. Se estiver
+// instalado, a conversa abre direto no app (sem passar pelo navegador).
+function whatsappDesktopInstalled() {
+  if (_whatsappInstalled !== null) return _whatsappInstalled;
+  _whatsappInstalled = false;
+  if (process.platform === "win32") {
+    try {
+      const saida = execFileSync("reg", ["query", "HKCU\\Software\\Classes\\whatsapp\\shell\\open\\command"], {
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      }).toString();
+      if (/whatsapp/i.test(saida)) _whatsappInstalled = true;
+    } catch {}
+    if (!_whatsappInstalled) {
+      try {
+        const base = path.join(process.env.LOCALAPPDATA || "", "WhatsApp");
+        if (base && fs.existsSync(base)) {
+          if (fs.existsSync(path.join(base, "WhatsApp.exe"))) _whatsappInstalled = true;
+          else if (fs.readdirSync(base).some((d) => /^app-\d/i.test(d))) _whatsappInstalled = true;
+        }
+      } catch {}
+    }
+    if (!_whatsappInstalled) {
+      // versao da Microsoft Store (MSIX)
+      try {
+        const pacotes = path.join(process.env.LOCALAPPDATA || "", "Packages");
+        if (fs.existsSync(pacotes) && fs.readdirSync(pacotes).some((d) => /WhatsAppDesktop/i.test(d))) _whatsappInstalled = true;
+      } catch {}
+    }
+  }
+  return _whatsappInstalled;
+}
+
+async function abrirWhatsApp(phone, text) {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return { ok: false, app: false };
+  if (whatsappDesktopInstalled()) {
+    try {
+      const q = `phone=${digits}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+      await shell.openExternal(`whatsapp://send?${q}`);
+      return { ok: true, app: true };
+    } catch {}
+  }
+  const url = `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+  await shell.openExternal(url);
+  return { ok: true, app: false };
+}
+
+ipcMain.handle("open-whatsapp", (_e, dados) => abrirWhatsApp(dados && dados.phone, dados && dados.text));
+ipcMain.handle("whatsapp-desktop", () => whatsappDesktopInstalled());
+
 function setupWindowOpenHandler(contents) {
   contents.setWindowOpenHandler(({ url }) => {
+    // whatsapp:// (link direto para o app) tambem abre por fora
+    if (/^whatsapp:/i.test(url)) {
+      shell.openExternal(url).catch(() => {});
+      return { action: "deny" };
+    }
     // recibo / DANFE: abre escondido e imprime sozinho
     if (isReceiptWindow(url)) {
       return {
@@ -405,6 +465,14 @@ function setupWindowOpenHandler(contents) {
 
   contents.on("did-create-window", (child, details) => {
     if (details && isReceiptWindow(details.url)) gerenciarJanelaDeRecibo(child);
+  });
+
+  // link whatsapp:// clicado direto na pagina tambem abre no app
+  contents.on("will-navigate", (event, url) => {
+    if (/^whatsapp:/i.test(url)) {
+      event.preventDefault();
+      shell.openExternal(url).catch(() => {});
+    }
   });
 }
 
@@ -460,7 +528,11 @@ function createWindow(port) {
     backgroundColor: "#111114",
     title: "Rincao Lanches - Painel",
     icon: iconPath(),
-    webPreferences: { contextIsolation: true, nodeIntegration: false },
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, "preload.js"),
+    },
   });
 
   // abre ocupando a tela toda (mas ainda da pra restaurar/minimizar)

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, waNumber, formatPhone } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, openWhatsApp, formatPhone } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { ItemCard } from '@/components/ItemCard';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2, MessageCircle } from 'lucide-react';
@@ -173,16 +173,14 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
             )}
           </div>
           {waPhone && (
-            <a
-              href={`https://wa.me/${waNumber(o.customerPhone || o.customer?.phone || '')}`}
-              target="_blank"
-              rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); openWhatsApp(o.customerPhone || o.customer?.phone || ''); }}
               title={`Abrir o WhatsApp de ${o.customerName || 'cliente'}`}
               className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 hover:brightness-125"
               style={{ background: 'rgba(34,197,94,0.16)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.35)' }}>
               <MessageCircle size={13} />
-            </a>
+            </button>
           )}
         </div>
 

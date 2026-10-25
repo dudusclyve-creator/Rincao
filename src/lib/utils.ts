@@ -566,6 +566,22 @@ export function playStoreCloseSound() {
   } catch {}
 }
 
+// Abre a conversa no WhatsApp.
+// - No app portátil (Electron) abre direto no WhatsApp Desktop, pelo processo
+//   principal; se o app não estiver instalado, cai no wa.me (navegador).
+// - No site (navegador) mantém o wa.me, que já oferece abrir o app instalado.
+export function openWhatsApp(phone: string, text?: string) {
+  const digits = waNumber(phone);
+  if (!digits) return;
+  const api = typeof window !== 'undefined' ? (window as any).rincao : null;
+  if (api && typeof api.openWhatsApp === 'function') {
+    api.openWhatsApp(digits, text);
+    return;
+  }
+  const url = `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
+  window.open(url, '_blank', 'noopener');
+}
+
 // Toast system
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 let _toastTimeout: ReturnType<typeof setTimeout> | null = null;
