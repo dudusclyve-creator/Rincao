@@ -55,6 +55,19 @@ export default function Config() {
     setSaving(false);
   };
 
+  // switches de liga/desliga salvam na hora (não dependem do botão Salvar)
+  const saveFlag = async (k: string, v: boolean) => {
+    set(k, v);
+    try {
+      const res = await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [k]: v }) });
+      if (!res.ok) throw new Error();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch {
+      set(k, !v);
+    }
+  };
+
   if (!r) return (
     <div className="min-h-[calc(100vh-48px)] rounded-2xl p-4 md:p-5" style={{ background: '#1a1520' }}>
       <div className="flex items-center gap-3 mb-5">
@@ -166,7 +179,7 @@ export default function Config() {
               background: r.autoAccept ? 'rgba(59,130,246,0.10)' : 'rgba(255,255,255,0.03)',
               border: r.autoAccept ? '1px solid rgba(59,130,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
             }}>
-            <input type="checkbox" checked={!!r.autoAccept} onChange={(e) => set('autoAccept', e.target.checked)}
+            <input type="checkbox" checked={!!r.autoAccept} onChange={(e) => saveFlag('autoAccept', e.target.checked)}
               className="w-4 h-4 rounded mt-0.5" style={{ accentColor: '#3b82f6' }} />
             <span className="min-w-0">
               <span className="block text-[11px] font-bold text-gray-200">Aceitar pedidos automaticamente</span>
@@ -231,7 +244,7 @@ export default function Config() {
             </div>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={!!r.printerAuto} onChange={(e) => set('printerAuto', e.target.checked)}
+            <input type="checkbox" checked={!!r.printerAuto} onChange={(e) => saveFlag('printerAuto', e.target.checked)}
               className="w-4 h-4 rounded" style={{ accentColor: '#e11d48' }} />
             <span className="text-[11px] text-gray-400">Impressão automática ao receber pedido</span>
           </label>
