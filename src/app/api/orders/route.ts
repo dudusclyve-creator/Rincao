@@ -301,6 +301,12 @@ export async function POST(req: Request) {
   // feitas pelo site nao entravam no caixa.
   const orderSource = b.source || 'cardapio';
   const orderType = b.type || 'entrega';
+  // aceite automático: pedidos do cardápio já entram como confirmados, sem
+  // precisar clicar em "Aceitar" no painel (PDV continua no fluxo do operador).
+  const restPrefs = await prisma.restaurant
+    .findUnique({ where: { id: 'single' }, select: { autoAccept: true } })
+    .catch(() => null);
+  const initialStatus = orderSource === 'cardapio' && restPrefs?.autoAccept ? 'confirmado' : 'novo';
   // taxa de entrega: no cardápio vale SEMPRE a taxa do bairro escolhido
   // (pagina antiga em cache mandava a taxa padrão do restaurante).
   let fee = orderType === 'entrega' ? Number(b.deliveryFee || 0) : 0;
@@ -367,7 +373,7 @@ export async function POST(req: Request) {
           turnoId,
           customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
           addressText: b.addressText || '', type: orderType,
-          status: 'novo', payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
+          status: initialStatus, payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
           subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
           total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
           source: orderSource, emitRequested: !!b.emitRequested,

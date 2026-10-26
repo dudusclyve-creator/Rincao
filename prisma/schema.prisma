@@ -41,6 +41,8 @@ model Restaurant {
   printerWidth  String @default("80mm")
   printerAuto   Boolean @default(true)
   printerName   String @default("Padrao")
+  // pedidos do cardápio entram já como confirmados (pulam a etapa "Aceitar")
+  autoAccept    Boolean @default(false)
 }
 
 model Category {

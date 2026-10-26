@@ -161,6 +161,20 @@ export default function Config() {
               ))}
             </div>
           </div>
+          <label className="flex items-start gap-2.5 cursor-pointer rounded-lg p-2.5 transition-all"
+            style={{
+              background: r.autoAccept ? 'rgba(59,130,246,0.10)' : 'rgba(255,255,255,0.03)',
+              border: r.autoAccept ? '1px solid rgba(59,130,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
+            }}>
+            <input type="checkbox" checked={!!r.autoAccept} onChange={(e) => set('autoAccept', e.target.checked)}
+              className="w-4 h-4 rounded mt-0.5" style={{ accentColor: '#3b82f6' }} />
+            <span className="min-w-0">
+              <span className="block text-[11px] font-bold text-gray-200">Aceitar pedidos automaticamente</span>
+              <span className="block text-[9px] leading-snug text-gray-500 mt-0.5">
+                Pedidos do cardápio entram já como <b>confirmados</b> e vão direto pra cozinha, sem passar pela etapa “Aceitar”.
+              </span>
+            </span>
+          </label>
         </div>
 
         {/* Horário de Funcionamento */}
@@ -221,6 +235,10 @@ export default function Config() {
               className="w-4 h-4 rounded" style={{ accentColor: '#e11d48' }} />
             <span className="text-[11px] text-gray-400">Impressão automática ao receber pedido</span>
           </label>
+          <p className="text-[9px] leading-snug text-gray-600">
+            Imprime 2 vias assim que o pedido do cardápio chega. Funciona no app instalado (impressão silenciosa);
+            no navegador use o botão Imprimir do pedido.
+          </p>
         </div>
       </div>
 

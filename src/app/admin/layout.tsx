@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { playMenuClick, preloadSounds } from '@/lib/utils';
+import { playMenuClick, preloadSounds, receiptText, printReceiptText } from '@/lib/utils';
 import { can, areaForPath } from '@/lib/roles';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -24,10 +24,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [notif, setNotif] = useState<any>(null);
   const [nfeAlert, setNfeAlert] = useState<string | null>(null);
   const [role, setRole] = useState<string>('');
-  const prevCount = useRef<number | null>(null);
   const timerRef = useRef<any>(null);
   const nfeTimerRef = useRef<any>(null);
   const seenNotifs = useRef<Set<string>>(new Set());
+  // controle de pedidos novos (notificação + impressão automática)
+  const seenOrders = useRef<Set<string>>(new Set());
+  const ordersReady = useRef(false);
+  const printingOrders = useRef<Set<string>>(new Set());
+  const settingsRef = useRef<any>(null);
+  const mountedAt = useRef(Date.now());
 
   useEffect(() => {
     fetch('/api/auth/me').then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.role) setRole(d.role); }).catch(() => {});
@@ -54,6 +59,48 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, []);
 
+  // Impressão automática da comanda quando o pedido cai no sistema.
+  // Só no app instalado: lá o Electron imprime em silêncio (2 vias). No
+  // navegador isso abriria a janela de impressão, então deixamos pro botão.
+  const autoPrintOrder = useCallback(async (order: any) => {
+    if (!settingsRef.current?.printerAuto) return;
+    if (!order || order.source === 'pdv') return;
+    if (order.status === 'cancelado') return;
+    if (Number(order.printCount || 0) > 0) return;
+    if (printingOrders.current.has(order.id)) return;
+    if (typeof window === 'undefined' || !(window as any).rincao) return;
+
+    printingOrders.current.add(order.id);
+    try {
+      const met = String(order.payment || '').split(',')[0].split(':')[0];
+      const cardFeeLabel = `Taxa cartao ${met === 'credito' ? '3,9%' : met === 'debito' ? '1,9%' : ''}`.trim();
+      const base = {
+        store: 'Rincão Lanches', number: order.number, date: new Date(order.createdAt).toLocaleString('pt-BR'),
+        customerName: order.customerName, customerPhone: order.customerPhone,
+        items: (order.items || []).map((it: any) => {
+          let addons: any[] = [];
+          try { addons = JSON.parse(it.addonsJson || '[]'); } catch {}
+          return { qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons, note: it.note };
+        }),
+        payment: order.payment, subtotal: order.subtotal, fee: order.deliveryFee, discount: order.discount, total: order.total,
+        cardFee: order.cardFee, cardFeeLabel,
+        addressText: order.addressText, type: order.type, driverName: order.driver?.name,
+        motoboy: (order.note || '').match(/Motoboy:\s*([^|]+)/)?.[1]?.trim(), changeFor: order.changeFor,
+        note: order.note || '', width: '80mm' as const,
+      };
+      const comanda = receiptText(base);
+      const pages = [comanda, comanda];
+      // marca antes de imprimir: se o próximo poll chegar antes do banco
+      // atualizar, não imprime de novo
+      order.printCount = (Number(order.printCount) || 0) + 1;
+      await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: order.id, printed: true }) }).catch(() => {});
+      for (const p of pages) {
+        await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});
+      }
+      printReceiptText(pages);
+    } catch {}
+  }, []);
+
   useEffect(() => {
     preloadSounds();
     if ('Notification' in window && Notification.permission === 'default') {
@@ -61,20 +108,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     const check = async () => {
       try {
-        const [orders, notifs] = await Promise.all([
+        const [ordersRaw, notifs, settings] = await Promise.all([
           fetch('/api/orders?limit=10').then(r => r.json()),
           fetch('/api/notifications').then(r => r.json()).catch(() => []),
+          fetch('/api/settings').then(r => r.json()).catch(() => null),
         ]);
-        const active = orders.filter((o: any) => o.status === 'novo');
-        if (prevCount.current !== null && active.length > prevCount.current) {
-          const newest = active[0];
+        if (settings && !settings.error) settingsRef.current = settings;
+
+        const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
+        const fresh = orders.filter((o: any) => !seenOrders.current.has(o.id));
+        orders.forEach((o: any) => seenOrders.current.add(o.id));
+
+        if (!ordersReady.current) {
+          ordersReady.current = true;
+        } else if (fresh.length) {
+          const newest = fresh[0];
           playNotifSound();
           showBrowserNotif(newest);
           setNotif(newest);
           if (timerRef.current) clearTimeout(timerRef.current);
           timerRef.current = setTimeout(() => setNotif(null), 6000);
         }
-        prevCount.current = active.length;
+
+        // impressão automática: qualquer pedido recente que ainda não foi impresso
+        // (inclui os que chegaram segundos antes do painel abrir)
+        orders
+          .filter((o: any) => new Date(o.createdAt).getTime() >= mountedAt.current - 20000)
+          .forEach(autoPrintOrder);
         // alerta vermelho de erro de NFC-e (novo e ainda não lido)
         const erros = (Array.isArray(notifs) ? notifs : []).filter((n: any) => n.kind === 'nfe_erro' && !n.read && !seenNotifs.current.has(n.id));
         if (erros.length) {
@@ -94,7 +154,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     check();
     const t = setInterval(check, 5000);
     return () => { clearInterval(t); if (timerRef.current) clearTimeout(timerRef.current); if (nfeTimerRef.current) clearTimeout(nfeTimerRef.current); };
-  }, [playNotifSound, showBrowserNotif]);
+  }, [playNotifSound, showBrowserNotif, autoPrintOrder]);
 
   const isActive = (href: string) => {
     if (href === '/admin') return pathname === '/admin';

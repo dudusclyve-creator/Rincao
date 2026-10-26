@@ -17,6 +17,7 @@ export async function PATCH(req: Request) {
     isOpenManual: b.isOpenManual, payments: b.payments ? JSON.stringify(b.payments) : undefined,
     hoursJson: b.hoursJson ? JSON.stringify(b.hoursJson) : undefined,
     printerWidth: b.printerWidth, printerAuto: b.printerAuto, printerName: b.printerName,
+    autoAccept: b.autoAccept,
   }});
   return NextResponse.json(r);
 }
