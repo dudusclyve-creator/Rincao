@@ -239,20 +239,9 @@ export default function PDV() {
     setFeeInput((prev) => (prev !== '' && parseFee(prev) === deliveryFee) ? prev : String(deliveryFee));
   }, [deliveryFee]);
 
-  if (!menu) {
-    return (
-      <div className="min-h-[calc(100vh-48px)] rounded-2xl p-5 flex items-center justify-center" style={{ background: '#1a1520' }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#e11d48' }} />
-          <p className="text-xs text-gray-500">Carregando cardápio...</p>
-        </div>
-      </div>
-    );
-  }
-
   const products = useMemo(() => {
     const term = norm(search);
-    const list = menu.products.filter((p: any) => {
+    const list = (menu?.products || []).filter((p: any) => {
       const matchCat = cat === 'all' || p.categoryId === cat;
       // busca ignora acentos ("xin" acha "Xis", "pao" acha "Pão")
       const matchSearch = !term
@@ -267,7 +256,19 @@ export default function PDV() {
     return [...list].sort((a: any, b: any) =>
       (Number(b.sold || 0) - Number(a.sold || 0)) ||
       norm(a.name).localeCompare(norm(b.name), 'pt-BR'));
-  }, [menu.products, cat, search]);
+  }, [menu, cat, search]);
+
+  if (!menu) {
+    return (
+      <div className="min-h-[calc(100vh-48px)] rounded-2xl p-5 flex items-center justify-center" style={{ background: '#1a1520' }}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full animate-spin" style={{ border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#e11d48' }} />
+          <p className="text-xs text-gray-500">Carregando cardápio...</p>
+        </div>
+      </div>
+    );
+  }
+
 
   const sub = cart.reduce((s: number, i: any) => s + i.qty * (i.unitPrice + (i.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0)), 0);
   // taxa da maquininha: credito 3,9% / debito 1,9% (opcional, marcada no pagamento)
