@@ -311,6 +311,8 @@ export default function Caixa() {
   const [historyOpen, setHistoryOpen] = useState<string | null>(null);
   const [driverTotal, setDriverTotal] = useState(0);
   const [driverBreakdown, setDriverBreakdown] = useState<{ id: string; name: string; total: number; paid: number; remaining: number; phone?: string }[]>([]);
+  const [driverDeliveries, setDriverDeliveries] = useState<any[]>([]);
+  const [driverDetail, setDriverDetail] = useState<{ id: string; name: string; total: number; paid: number; remaining: number; phone?: string } | null>(null);
   const [showDriverModal, setShowDriverModal] = useState(false);
   const [payingDriver, setPayingDriver] = useState<{ id: string; name: string; total: number } | null>(null);
   const [turnoOrderNumbers, setTurnoOrderNumbers] = useState<number[]>([]);
@@ -335,6 +337,10 @@ export default function Caixa() {
     const turnoOrders = orders.filter((o: any) => (o.turnoId || '1') === turnoId);
     setTurnoOrderNumbers(turnoOrders.map((o: any) => o.number).sort((a: number, b: number) => a - b));
     const delivered = turnoOrders.filter((o: any) => o.type === 'entrega' && o.status === 'concluido' && o.driverId);
+    setDriverDeliveries(delivered.map((o: any) => ({
+      id: o.id, driverId: o.driverId, number: o.number, customerName: o.customerName,
+      createdAt: o.createdAt, fee: Number(o.deliveryFee || 0), total: Number(o.total || 0),
+    })));
     const total = delivered.reduce((s: number, o: any) => s + (o.deliveryFee || 0), 0);
     setDriverTotal(total);
     const byDriver: Record<string, number> = {};
@@ -473,6 +479,10 @@ export default function Caixa() {
   const paySales = payMethod ? (methodSales[payMethod] || []) : [];
   const payFee = payMethod ? (methodFees[payMethod] || 0) : 0;
   const PayIcon = payInfo?.icon || Wallet;
+  const detailDriver = driverDetail ? (driverBreakdown.find((d) => d.id === driverDetail.id) || driverDetail) : null;
+  const detailDeliveries = detailDriver
+    ? driverDeliveries.filter((o) => o.driverId === detailDriver.id).sort((a, b) => a.number - b.number)
+    : [];
 
   const totals = (() => {
     if (!data.open) return { vendas: 0, entradas: 0, saidas: 0, expected: 0 };
@@ -875,14 +885,14 @@ export default function Caixa() {
 
       {/* Modal Motoboys */}
       {showDriverModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => setShowDriverModal(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setShowDriverModal(false); setDriverDetail(null); }}>
           <div className="rounded-2xl p-6 max-w-sm w-full" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="font-black text-base" style={{ color: '#f0e8e0' }}>🛵 Motoboys</h3>
                 <p className="text-[11px] mt-0.5" style={{ color: '#8a7a6a' }}>Total a pagar: {BRL(driverTotal)}</p>
               </div>
-              <button onClick={() => setShowDriverModal(false)} className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
+              <button onClick={() => { setShowDriverModal(false); setDriverDetail(null); }} className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
                 <X size={14} />
               </button>
             </div>
@@ -891,7 +901,13 @@ export default function Caixa() {
                 <p className="text-center text-[11px] py-4 text-gray-500">Nenhum motoboy com entregas</p>
               )}
               {driverBreakdown.map((d) => (
-                <div key={d.id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div key={d.id}
+                  role="button" tabIndex={0}
+                  onClick={() => setDriverDetail(d)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDriverDetail(d); } }}
+                  title={`Ver as corridas de ${d.name}`}
+                  className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 hover:brightness-110"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold" style={{ background: '#f59e0b15', color: '#f59e0b' }}>{d.name.charAt(0)}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[12px] font-bold text-white">{d.name}</p>
@@ -905,9 +921,10 @@ export default function Caixa() {
                         <span className="text-[10px] font-bold" style={{ color: '#ef4444' }}>· falta {BRL(d.remaining)}</span>
                       )}
                     </div>
+                    <p className="text-[9px] font-bold mt-0.5" style={{ color: '#6b7280' }}>toque para ver as corridas ›</p>
                   </div>
                   {d.remaining > 0 ? (
-                    <button onClick={() => setPayingDriver({ id: d.id, name: d.name, total: d.remaining })} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white transition-all hover:brightness-110 active:scale-95" style={{ background: '#ef4444' }}>
+                    <button onClick={(e) => { e.stopPropagation(); setPayingDriver({ id: d.id, name: d.name, total: d.remaining }); }} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white transition-all hover:brightness-110 active:scale-95" style={{ background: '#ef4444' }}>
                       Pagar
                     </button>
                   ) : (
@@ -918,7 +935,71 @@ export default function Caixa() {
                 </div>
               ))}
             </div>
-            <button onClick={() => setShowDriverModal(false)} className="w-full rounded-xl py-2.5 text-[11px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Fechar</button>
+            <button onClick={() => { setShowDriverModal(false); setDriverDetail(null); }} className="w-full rounded-xl py-2.5 text-[11px] font-bold transition-all hover:scale-[1.02]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Fechar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Detalhe das corridas do motoboy */}
+      {detailDriver && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setDriverDetail(null)}>
+          <div className="rounded-2xl w-full max-w-md flex flex-col max-h-[85vh]" style={{ background: '#1a1520', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 p-5 pb-4">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-base font-bold shrink-0" style={{ background: '#f59e0b15', color: '#f59e0b' }}>
+                {detailDriver.name.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-black text-base" style={{ color: '#f0e8e0' }}>{detailDriver.name}</h3>
+                <p className="text-[11px] mt-0.5" style={{ color: '#8a7a6a' }}>
+                  {detailDeliveries.length === 0 ? 'Nenhuma corrida' : `${detailDeliveries.length} corrida${detailDeliveries.length > 1 ? 's' : ''}`} • {BRL(detailDriver.total)} em taxas
+                </p>
+              </div>
+              <button onClick={() => setDriverDetail(null)} className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="px-3 pb-3 overflow-y-auto space-y-1.5 scrollbar-hide">
+              {detailDeliveries.length === 0 && (
+                <p className="text-center text-[11px] py-8 text-gray-500">Nenhuma entrega concluída neste turno</p>
+              )}
+              {detailDeliveries.map((o) => (
+                <div key={o.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="w-14 shrink-0 text-center">
+                    <p className="text-[8px] uppercase tracking-wider font-bold" style={{ color: '#6b7280' }}>Pedido</p>
+                    <p className="text-sm font-black leading-tight" style={{ color: '#f59e0b' }}>#{o.number}</p>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] font-bold text-white truncate">{o.customerName || 'Sem nome'}</p>
+                    <p className="text-[10px] mt-0.5 flex items-center gap-1.5" style={{ color: '#6b7280' }}>
+                      <Clock size={9} /> {new Date(o.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                      <span>•</span>
+                      <span>pedido {BRL(o.total)}</span>
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-black" style={{ color: '#f59e0b' }}>{BRL(o.fee)}</p>
+                    <p className="text-[9px] font-bold" style={{ color: '#6b7280' }}>taxa</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-3 pt-0 space-y-2">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <span className="text-[11px] font-bold" style={{ color: '#8a7a6a' }}>Total das corridas</span>
+                <span className="text-sm font-black" style={{ color: '#f59e0b' }}>{BRL(detailDriver.total)}</span>
+              </div>
+              {(detailDriver.paid > 0 || detailDriver.remaining > 0) && (
+                <div className="flex items-center justify-between px-3 text-[10px] font-bold">
+                  <span style={{ color: '#22c55e' }}>Pago {BRL(detailDriver.paid)}</span>
+                  <span style={{ color: detailDriver.remaining > 0 ? '#ef4444' : '#22c55e' }}>
+                    {detailDriver.remaining > 0 ? `Falta ${BRL(detailDriver.remaining)}` : 'Tudo pago'}
+                  </span>
+                </div>
+              )}
+              <button onClick={() => setDriverDetail(null)} className="w-full rounded-xl py-2.5 text-[11px] font-bold transition-all hover:scale-[1.01]" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>Fechar</button>
+            </div>
           </div>
         </div>
       )}
