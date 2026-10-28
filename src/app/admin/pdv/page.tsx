@@ -250,16 +250,24 @@ export default function PDV() {
     );
   }
 
-  const products = menu.products.filter((p: any) => {
-    const matchCat = cat === 'all' || p.categoryId === cat;
-    // busca ignora acentos ("xin" acha "Xis", "pao" acha "Pão")
+  const products = useMemo(() => {
     const term = norm(search);
-    const matchSearch = !term
-      || norm(p.name).includes(term)
-      || norm(p.description).includes(term)
-      || norm(p.category?.name).includes(term);
-    return matchCat && matchSearch;
-  });
+    const list = menu.products.filter((p: any) => {
+      const matchCat = cat === 'all' || p.categoryId === cat;
+      // busca ignora acentos ("xin" acha "Xis", "pao" acha "Pão")
+      const matchSearch = !term
+        || norm(p.name).includes(term)
+        || norm(p.description).includes(term)
+        || norm(p.category?.name).includes(term);
+      return matchCat && matchSearch;
+    });
+    // aba "Todas": mais vendidos primeiro; empate resolve em ordem alfabética.
+    // nas categorias fica a ordem definida no cadastro.
+    if (cat !== 'all') return list;
+    return [...list].sort((a: any, b: any) =>
+      (Number(b.sold || 0) - Number(a.sold || 0)) ||
+      norm(a.name).localeCompare(norm(b.name), 'pt-BR'));
+  }, [menu.products, cat, search]);
 
   const sub = cart.reduce((s: number, i: any) => s + i.qty * (i.unitPrice + (i.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0)), 0);
   // taxa da maquininha: credito 3,9% / debito 1,9% (opcional, marcada no pagamento)

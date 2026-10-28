@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { BRL, playDropSound, showToast, norm } from '@/lib/utils';
 import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
@@ -121,16 +121,23 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
   const [cat, setCat] = useState('all');
   const [search, setSearch] = useState('');
   const cats = useScrollRail<HTMLDivElement>();
-  const products = menu.products.filter((p: any) => {
-    const matchCat = cat === 'all' || p.categoryId === cat;
-    // busca ignora acentos
+  const products = useMemo(() => {
     const term = norm(search);
-    const matchSearch = !term
-      || norm(p.name).includes(term)
-      || norm(p.description).includes(term)
-      || norm(p.category?.name).includes(term);
-    return matchCat && matchSearch && p.available;
-  });
+    const list = menu.products.filter((p: any) => {
+      const matchCat = cat === 'all' || p.categoryId === cat;
+      // busca ignora acentos
+      const matchSearch = !term
+        || norm(p.name).includes(term)
+        || norm(p.description).includes(term)
+        || norm(p.category?.name).includes(term);
+      return matchCat && matchSearch && p.available;
+    });
+    // aba "Todas": mais vendidos primeiro, empate em ordem alfabética
+    if (cat !== 'all') return list;
+    return [...list].sort((a: any, b: any) =>
+      (Number(b.sold || 0) - Number(a.sold || 0)) ||
+      norm(a.name).localeCompare(norm(b.name), 'pt-BR'));
+  }, [menu.products, cat, search]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
