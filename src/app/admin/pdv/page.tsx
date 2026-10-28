@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { BRL, receiptText, showToast, printReceiptText, maskCpf, maskPhone } from '@/lib/utils';
 import { parseAddress, flattenZones } from '@/lib/address';
+import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, AlertTriangle } from 'lucide-react';
 
@@ -195,7 +196,9 @@ export default function PDV() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const zonasEndereco = useMemo(() => flattenZones(deliveryZones), [deliveryZones]);
-  const catsRef = useRef<HTMLDivElement>(null);
+  // trilho de categorias: rola com a roda do mouse, arrastando com o mouse e
+  // pelas setas (antes só dava pra usar a barra fininha embaixo).
+  const cats = useScrollRail<HTMLDivElement>();
 
   useEffect(() => {
     const state = { cart, type, payment, client, clientPhone, clientCpf, orderNote, selectedTable, deliveryCity, deliveryBairro, deliveryStreet, deliveryNum, deliveryComp, feeOverride };
@@ -381,9 +384,7 @@ export default function PDV() {
     }
   };
 
-  const scrollCats = (dir: number) => {
-    catsRef.current?.scrollBy({ left: dir * 200, behavior: 'smooth' });
-  };
+  const scrollCats = (dir: number) => cats.scrollPage(dir);
 
   const availableTables = tables.filter((t: any) => t.status === 'livre');
   const cities = Object.keys(deliveryZones);
@@ -423,10 +424,15 @@ export default function PDV() {
 
           {/* Categories - scrollable with arrows */}
           <div className="relative mb-5">
-            <button onClick={() => scrollCats(-1)} className="absolute left-0 top-0 bottom-0 z-10 w-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(26,21,32,0.9)' }}>
+            <button onClick={() => scrollCats(-1)} aria-label="Categorias anteriores"
+              className="absolute left-0 top-0 bottom-0 z-10 w-9 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-white/10"
+              style={{ background: 'rgba(26,21,32,0.92)', opacity: cats.edges.left ? 1 : 0, pointerEvents: cats.edges.left ? 'auto' : 'none' }}>
               <ChevronLeft size={20} className="text-gray-400" />
             </button>
-            <div ref={catsRef} className="flex gap-2 overflow-x-auto scrollbar-hide px-10 pb-1">
+            <div ref={cats.ref}
+              {...cats.railHandlers}
+              className="flex gap-2 overflow-x-auto scrollbar-hide px-10 pb-1 cursor-grab active:cursor-grabbing select-none"
+              style={{ touchAction: 'pan-x' }}>
               <button onClick={() => setCat('all')}
                 className="flex-shrink-0 px-6 py-3 rounded-full text-base font-bold pdv-btn-hover whitespace-nowrap"
                 style={cat === 'all'
@@ -447,7 +453,9 @@ export default function PDV() {
                 );
               })}
             </div>
-            <button onClick={() => scrollCats(1)} className="absolute right-0 top-0 bottom-0 z-10 w-9 flex items-center justify-center rounded-lg hover:bg-white/10 transition-all duration-200" style={{ background: 'rgba(26,21,32,0.9)' }}>
+            <button onClick={() => scrollCats(1)} aria-label="Próximas categorias"
+              className="absolute right-0 top-0 bottom-0 z-10 w-9 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-white/10"
+              style={{ background: 'rgba(26,21,32,0.92)', opacity: cats.edges.right ? 1 : 0, pointerEvents: cats.edges.right ? 'auto' : 'none' }}>
               <ChevronRight size={20} className="text-gray-400" />
             </button>
           </div>

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { BRL, playDropSound, showToast } from '@/lib/utils';
+import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
 import {
   Users, Plus, Minus, X, Search, ArrowRightLeft, Receipt,
@@ -119,7 +120,7 @@ function ProductModal({ product, onClose, onAdd }: { product: any; onClose: () =
 function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; onAdd: (item: any) => void; onSelectProduct: (p: any) => void; onClose: () => void }) {
   const [cat, setCat] = useState('all');
   const [search, setSearch] = useState('');
-  const catsRef = useRef<HTMLDivElement>(null);
+  const cats = useScrollRail<HTMLDivElement>();
   const products = menu.products.filter((p: any) => {
     const matchCat = cat === 'all' || p.categoryId === cat;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
@@ -141,12 +142,14 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
           </div>
           <div className="relative mb-3">
-            <button onClick={() => catsRef.current?.scrollBy({ left: -180, behavior: 'smooth' })}
+            <button onClick={() => cats.scrollPage(-1)} aria-label="Categorias anteriores"
               className="absolute left-0 top-0 bottom-1 z-10 w-8 flex items-center justify-center rounded-lg transition-all hover:bg-white/10"
-              style={{ background: 'rgba(30,24,40,0.92)' }}>
+              style={{ background: 'rgba(30,24,40,0.92)', opacity: cats.edges.left ? 1 : 0, pointerEvents: cats.edges.left ? 'auto' : 'none' }}>
               <ChevronLeft size={16} className="text-gray-400" />
             </button>
-            <div ref={catsRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide px-8 pb-1">
+            <div ref={cats.ref} {...cats.railHandlers}
+              className="flex gap-1.5 overflow-x-auto scrollbar-hide px-8 pb-1 cursor-grab active:cursor-grabbing select-none"
+              style={{ touchAction: 'pan-x' }}>
               <button onClick={() => setCat('all')} className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
                 style={cat === 'all' ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>Todas</button>
               {menu.categories.map((c: any) => (
@@ -154,9 +157,9 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
                   style={cat === c.id ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>{c.name}</button>
               ))}
             </div>
-            <button onClick={() => catsRef.current?.scrollBy({ left: 180, behavior: 'smooth' })}
+            <button onClick={() => cats.scrollPage(1)} aria-label="Próximas categorias"
               className="absolute right-0 top-0 bottom-1 z-10 w-8 flex items-center justify-center rounded-lg transition-all hover:bg-white/10"
-              style={{ background: 'rgba(30,24,40,0.92)' }}>
+              style={{ background: 'rgba(30,24,40,0.92)', opacity: cats.edges.right ? 1 : 0, pointerEvents: cats.edges.right ? 'auto' : 'none' }}>
               <ChevronRight size={16} className="text-gray-400" />
             </button>
           </div>
