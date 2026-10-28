@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { BRL, playDropSound, showToast } from '@/lib/utils';
+import { BRL, playDropSound, showToast, norm } from '@/lib/utils';
 import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
 import {
@@ -123,7 +123,12 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
   const cats = useScrollRail<HTMLDivElement>();
   const products = menu.products.filter((p: any) => {
     const matchCat = cat === 'all' || p.categoryId === cat;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+    // busca ignora acentos
+    const term = norm(search);
+    const matchSearch = !term
+      || norm(p.name).includes(term)
+      || norm(p.description).includes(term)
+      || norm(p.category?.name).includes(term);
     return matchCat && matchSearch && p.available;
   });
 
@@ -150,10 +155,10 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
             <div ref={cats.ref} {...cats.railHandlers}
               className="flex gap-1.5 overflow-x-auto scrollbar-hide px-8 pb-1 cursor-grab active:cursor-grabbing select-none"
               style={{ touchAction: 'pan-x' }}>
-              <button onClick={() => setCat('all')} className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
+              <button onClick={() => setCat('all')} className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold chip-hover whitespace-nowrap"
                 style={cat === 'all' ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>Todas</button>
               {menu.categories.map((c: any) => (
-                <button key={c.id} onClick={() => setCat(c.id)} className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold pdv-btn-hover whitespace-nowrap"
+                <button key={c.id} onClick={() => setCat(c.id)} className="flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold chip-hover whitespace-nowrap"
                   style={cat === c.id ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff' } : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>{c.name}</button>
               ))}
             </div>

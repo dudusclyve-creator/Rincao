@@ -1,6 +1,11 @@
 export const BRL = (v: number) =>
   (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+// Busca sem frescura: ignora acento e maiúscula/minúscula.
+// "xin" acha "Xis", "calabresa" acha "Calabrêsa", "pao" acha "Pão".
+export const norm = (s: any) =>
+  String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 export const ORDER_STATUS: Record<string, string> = {
   novo: 'NOVOS',
   confirmado: 'CONFIRMADOS',

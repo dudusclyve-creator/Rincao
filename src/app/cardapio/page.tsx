@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from '@/lib/store';
-import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, waNumber, openWhatsApp, type CartAddon } from '@/lib/utils';
+import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, waNumber, openWhatsApp, norm, type CartAddon } from '@/lib/utils';
 import { parseAddress as parseAddressText, flattenZones } from '@/lib/address';
 
 type Product = any;
@@ -163,7 +163,7 @@ export default function CardapioPage() {
     if (cat === 'best') p = p.filter((x: any) => x.bestSeller);
     else if (cat === 'fav') p = p.filter((x: any) => favorites.includes(x.id));
     else if (cat !== 'all') p = p.filter((x: any) => x.categoryId === cat);
-    if (search) p = p.filter((x: any) => (x.name + ' ' + x.description).toLowerCase().includes(search.toLowerCase()));
+    if (search) p = p.filter((x: any) => norm(x.name + ' ' + x.description).includes(norm(search)));
     return p;
   }, [data, cat, search, favorites]);
 

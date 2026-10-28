@@ -164,7 +164,7 @@ export default function Clientes() {
       <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
         {[{ key: 'all', label: 'Todos', count: raw.length }, ...Object.entries(TIER_CONFIG).map(([k, v]) => ({ key: k, label: v.label, count: raw.filter((c) => c.tier === k).length }))].map((t) => (
           <button key={t.key} onClick={() => setTierFilter(t.key)}
-            className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all pdv-btn-hover"
+            className="px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap chip-hover"
             style={tierFilter === t.key
               ? { background: t.key === 'all' ? 'rgba(225,29,72,0.15)' : (TIER_CONFIG[t.key]?.bg || 'rgba(255,255,255,0.06)'), color: t.key === 'all' ? '#e11d48' : (TIER_CONFIG[t.key]?.color || '#fff'), border: `1px solid ${t.key === 'all' ? 'rgba(225,29,72,0.3)' : (TIER_CONFIG[t.key]?.color || '#666') + '33'}` }
               : { background: 'rgba(255,255,255,0.04)', color: '#6b7280', border: '1px solid transparent' }

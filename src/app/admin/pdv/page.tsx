@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { BRL, receiptText, showToast, printReceiptText, maskCpf, maskPhone } from '@/lib/utils';
+import { BRL, receiptText, showToast, printReceiptText, maskCpf, maskPhone, norm } from '@/lib/utils';
 import { parseAddress, flattenZones } from '@/lib/address';
 import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
@@ -252,7 +252,12 @@ export default function PDV() {
 
   const products = menu.products.filter((p: any) => {
     const matchCat = cat === 'all' || p.categoryId === cat;
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
+    // busca ignora acentos ("xin" acha "Xis", "pao" acha "Pão")
+    const term = norm(search);
+    const matchSearch = !term
+      || norm(p.name).includes(term)
+      || norm(p.description).includes(term)
+      || norm(p.category?.name).includes(term);
     return matchCat && matchSearch;
   });
 
@@ -434,7 +439,7 @@ export default function PDV() {
               className="flex gap-2 overflow-x-auto scrollbar-hide px-10 pb-1 cursor-grab active:cursor-grabbing select-none"
               style={{ touchAction: 'pan-x' }}>
               <button onClick={() => setCat('all')}
-                className="flex-shrink-0 px-6 py-3 rounded-full text-base font-bold pdv-btn-hover whitespace-nowrap"
+                className="flex-shrink-0 px-6 py-3 rounded-full text-base font-bold chip-hover whitespace-nowrap"
                 style={cat === 'all'
                   ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff', boxShadow: '0 2px 12px rgba(225,29,72,0.3)' }
                   : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -444,7 +449,7 @@ export default function PDV() {
                 const count = menu.products.filter((p: any) => p.categoryId === c.id).length;
                 return (
                   <button key={c.id} onClick={() => setCat(c.id)}
-                    className="flex-shrink-0 px-6 py-3 rounded-full text-base font-bold pdv-btn-hover whitespace-nowrap"
+                    className="flex-shrink-0 px-6 py-3 rounded-full text-base font-bold chip-hover whitespace-nowrap"
                     style={cat === c.id
                       ? { background: 'linear-gradient(135deg, #e11d48, #be123c)', color: '#fff', boxShadow: '0 2px 12px rgba(225,29,72,0.3)' }
                       : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>

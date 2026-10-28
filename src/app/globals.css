@@ -87,6 +87,20 @@ input[type="number"]:hover::-webkit-outer-spin-button { opacity: 0.6; }
   transition-duration: 0.08s;
 }
 
+/* Chips dentro de trilho horizontal (categorias do PDV/mesas): sem transform.
+   O trilho tem overflow e o scale do hover "cortava" o chip nas bordas,
+   dando a impressão de que o layout quebrava ao passar o mouse. */
+.chip-hover {
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+.chip-hover:hover {
+  filter: brightness(1.16);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+.chip-hover:active {
+  filter: brightness(0.94);
+}
+
 /* cardapio: endereco deslizando para a esquerda (o pin do mapa fica parado) */
 @keyframes marqueeEndereco {
   from { transform: translateX(0); }
