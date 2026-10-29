@@ -539,8 +539,8 @@ export default function Pedidos() {
 
   const saveEdit = async () => {
     if (!editOrder) return;
-    if (editOrder.nfeStatus === 'issued') { alert('Nota fiscal emitida — cancele a nota antes de editar o pedido.'); return; }
-    if (editItems.length === 0) { alert('O pedido precisa ter pelo menos 1 item.'); return; }
+    if (editOrder.nfeStatus === 'issued') { showToast('Nota fiscal emitida — cancele a nota antes de editar o pedido.', 'error'); return; }
+    if (editItems.length === 0) { showToast('O pedido precisa ter pelo menos 1 item.', 'error'); return; }
     const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
     const subtotalEdit = editItems.reduce(
       (s: number, it: any) => s + it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)),
@@ -566,12 +566,12 @@ export default function Pedidos() {
     if (editSplit) {
       const partes = editPayments.filter((p) => Number(p.amount || 0) > 0);
       if (partes.length < 2) {
-        alert('Pagamento dividido precisa de pelo menos 2 formas de pagamento.\n\nOu clique em "Cancelar divisão" para usar uma forma só.');
+        showToast('Pagamento dividido precisa de pelo menos 2 formas — ou cancele a divisão para usar uma só.', 'error');
         return;
       }
       const soma = Math.round(partes.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
       if (Math.abs(soma - total) > 0.005) {
-        alert(`As formas de pagamento somam ${BRL(soma)}, mas o total do pedido é ${BRL(total)}.\n\nClique em "ajustar" no pagamento para acertar os valores.`);
+        showToast(`As formas somam ${BRL(soma)}, mas o total é ${BRL(total)} — ajuste os valores.`, 'error');
         return;
       }
       payload.payment = payToString(partes);
@@ -581,12 +581,12 @@ export default function Pedidos() {
     try {
       const r = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) { alert(typeof d.error === 'string' ? d.error : 'Erro ao salvar as alterações'); return; }
+      if (!r.ok) { showToast(typeof d.error === 'string' ? d.error : 'Erro ao salvar as alterações', 'error'); return; }
       showToast(`Pedido #${editOrder.number} salvo`, 'success');
       setEditOrder(null);
       load();
     } catch {
-      alert('Falha de conexão ao salvar — tente de novo');
+      showToast('Falha de conexão ao salvar — tente de novo', 'error');
     }
   };
 
@@ -924,7 +924,9 @@ export default function Pedidos() {
                           onChange={(e) => {
                             const m = e.target.value;
                             setEditForm((f: any) => ({ ...f, payment: m }));
-                            if (m !== 'credito' && m !== 'debito') { setEditCardFeeOn(false); setEditCardFeePct(null); }
+                            // o percentual editado na mão vale só para a forma escolhida
+                            setEditCardFeePct(null);
+                            if (m !== 'credito' && m !== 'debito') setEditCardFeeOn(false);
                           }}
                           className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle}
                         >
@@ -951,7 +953,7 @@ export default function Pedidos() {
                                 title="Percentual da taxa do cartão — pode ajustar na mão"
                                 onClick={(e) => e.stopPropagation()}
                                 onBlur={(e) => {
-                                  const v = Math.max(0, Number(String(e.target.value).replace(',', '.')) || 0);
+                                  const v = Math.min(100, Math.max(0, Number(String(e.target.value).replace(',', '.')) || 0));
                                   setEditCardFeePct(v === cardFeePctBase ? null : v);
                                   if (v > 0) setEditCardFeeOn(true);
                                   e.target.value = String(v).replace('.', ',');

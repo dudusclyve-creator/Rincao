@@ -21,6 +21,10 @@ async function closeOpenTables(registerId: string, payment: string) {
       await prisma.order.update({ where: { id: o.id }, data: { status: 'concluido', endedAt: new Date() } });
       if (o.source !== 'pdv') {
         const valor = Math.round((Number(o.total) - Number(o.cardFee || 0)) * 100) / 100;
+        // a mesa foi paga agora: a forma escolhida no fechamento substitui a do site
+        await prisma.order.update({ where: { id: o.id }, data: { payment } });
+        await prisma.payment.deleteMany({ where: { orderId: o.id } });
+        await prisma.payment.create({ data: { orderId: o.id, method: payment, amount: valor } });
         await prisma.cashMovement.create({ data: { registerId, kind: 'venda', method: payment, amount: valor, orderId: o.id, reason: `${t.number} #${o.number}` } });
         sales += valor;
       }
@@ -63,7 +67,11 @@ export async function POST(req: Request) {
     const open = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (open) {
       await closeOpenTables(open.id, 'dinheiro');
-      await prisma.cashRegister.update({ where: { id: open.id }, data: { status: 'fechado', closedAt: new Date(), informed: 0, expected: 0 } });
+      // guarda o esperado do turno (não zera o histórico do caixa)
+      const reg = await prisma.cashRegister.findUnique({ where: { id: open.id }, include: { movements: true } });
+      const movements = reg?.movements || [];
+      const expected = open.initial + movements.reduce((s, m) => s + (['venda','entrada','suprimento'].includes(m.kind) ? m.amount : -m.amount), 0);
+      await prisma.cashRegister.update({ where: { id: open.id }, data: { status: 'fechado', closedAt: new Date(), informed: expected, expected } });
     }
     const turno = await prisma.setting.findUnique({ where: { key: 'turno_number' } });
     const nextTurno = (Number(turno?.value || 1)) + 1;

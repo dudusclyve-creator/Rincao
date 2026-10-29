@@ -406,7 +406,7 @@ export default function CardapioAdmin() {
                         <div className="flex items-center gap-1">
                           <input
                             autoFocus
-                            value={renamingCat.name}
+                            value={renamingCat?.name ?? ''}
                             onChange={(e) => setRenamingCat({ id: cat.id, name: e.target.value })}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') saveCategoryName(cat.id);

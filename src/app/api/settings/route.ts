@@ -18,8 +18,8 @@ export async function PATCH(req: Request) {
     hoursJson: b.hoursJson ? JSON.stringify(b.hoursJson) : undefined,
     printerWidth: b.printerWidth, printerAuto: b.printerAuto, printerName: b.printerName,
     autoAccept: b.autoAccept,
-    cardFeeCredit: b.cardFeeCredit !== undefined ? Math.max(0, Number(b.cardFeeCredit) || 0) : undefined,
-    cardFeeDebit: b.cardFeeDebit !== undefined ? Math.max(0, Number(b.cardFeeDebit) || 0) : undefined,
+    cardFeeCredit: b.cardFeeCredit !== undefined ? Math.min(100, Math.max(0, Number(b.cardFeeCredit) || 0)) : undefined,
+    cardFeeDebit: b.cardFeeDebit !== undefined ? Math.min(100, Math.max(0, Number(b.cardFeeDebit) || 0)) : undefined,
   }});
   return NextResponse.json(r);
 }

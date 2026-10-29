@@ -176,8 +176,8 @@ export default function CardapioPage() {
 
   const grouped = useMemo(() => {
     if (cat !== 'all' || search) return [{ name: catName, items: products }];
-    const catOrder = (data?.categories || []).reduce<Record<string, number>>((acc, c: any, i) => { acc[c.id] = c.order ?? i; return acc; }, {});
-    const catNameById = (data?.categories || []).reduce<Record<string, string>>((acc, c: any) => { acc[c.id] = c.name; return acc; }, {});
+    const catOrder = ((data?.categories || []) as any[]).reduce<Record<string, number>>((acc, c: any, i) => { acc[c.id] = c.order ?? i; return acc; }, {});
+    const catNameById = ((data?.categories || []) as any[]).reduce<Record<string, string>>((acc, c: any) => { acc[c.id] = c.name; return acc; }, {});
     const groups = new Map<string, { order: number; items: Product[] }>();
     for (const p of products) {
       const cn = p.category?.name || 'Outros';

@@ -41,8 +41,9 @@ function addonsOf(it: any): any[] {
 }
 
 function lineTotal(it: any): number {
-  const extra = addonsOf(it).reduce((s: number, a: any) => s + Number(a.price || 0) * Number(a.qty || 1), 0);
-  return Number(it.qty || 0) * (Number(it.unitPrice || 0) + extra);
+  const qty = Math.max(1, Math.floor(Number(it.qty || 1)));
+  const extra = addonsOf(it).reduce((s: number, a: any) => s + Math.max(0, Number(a.price || 0)) * Math.max(1, Number(a.qty || 1)), 0);
+  return qty * (Math.max(0, Number(it.unitPrice || 0)) + extra);
 }
 
 // Mantem payments, string de pagamento e movimentos do caixa batendo com o total novo
@@ -124,8 +125,8 @@ export async function POST(req: Request) {
     const order = await prisma.order.findUnique({ where: { id: b.orderId }, include: { items: true } });
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     const newItems = (b.items || []).map((it: any) => ({
-      orderId: order.id, productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
-      unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
+      orderId: order.id, productId: it.productId || '', name: it.name, qty: Math.max(1, Math.floor(Number(it.qty || 1))),
+      unitPrice: Math.max(0, Number(it.unitPrice || 0)), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
     }));
     await prisma.orderItem.createMany({ data: newItems });
     const addedTotal = newItems.reduce((s: number, it: any) => s + lineTotal(it), 0);
@@ -269,7 +270,9 @@ export async function POST(req: Request) {
           street: b.street || '', number: b.number || '', complement: b.complement || '',
           district: b.district || '', reference: b.reference || '',
         },
-      });
+      }).catch(() => null);
+      // corrida: outro pedido do mesmo telefone criou o cliente no mesmo instante
+      if (!cust) cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
     } else {
       const updateData: any = { name: b.customerName || cust.name };
       if (cpfOk) updateData.cpf = cpf; // so preenche/atualiza quando informado (nao apaga)
@@ -279,7 +282,7 @@ export async function POST(req: Request) {
       if (b.district) updateData.district = b.district;
       await prisma.customer.update({ where: { id: cust.id }, data: updateData });
     }
-    customerId = cust.id;
+    if (cust) customerId = cust.id;
   } else if (String(b.customerCpf || '').replace(/\D/g, '').length === 11) {
     // sem telefone mas com CPF (PDV): localiza pelo CPF ou cria usando o CPF como chave
     const cpf = String(b.customerCpf).replace(/\D/g, '');
@@ -318,8 +321,8 @@ export async function POST(req: Request) {
   // taxa da maquininha: no cardápio o próprio servidor aplica a taxa configurada
   // em Configurações para não depender do que a página manda; no PDV vale o que
   // o operador marcou. Mesa do site paga no fechamento, então não entra aqui.
-  const cardFeeCredit = Number(restPrefs?.cardFeeCredit ?? 3.9);
-  const cardFeeDebit = Number(restPrefs?.cardFeeDebit ?? 1.9);
+  const cardFeeCredit = Math.min(100, Math.max(0, Number(restPrefs?.cardFeeCredit ?? 3.9)));
+  const cardFeeDebit = Math.min(100, Math.max(0, Number(restPrefs?.cardFeeDebit ?? 1.9)));
   const siteFeePct = orderSource === 'cardapio' && orderType !== 'mesa'
     ? (b.payment === 'credito' ? cardFeeCredit : b.payment === 'debito' ? cardFeeDebit : 0)
     : 0;
@@ -330,11 +333,6 @@ export async function POST(req: Request) {
 
   const turnoSetting = await prisma.setting.findUnique({ where: { key: 'turno_number' } });
   const turnoId = turnoSetting?.value || '1';
-  const lastOrder = await prisma.order.findFirst({
-    orderBy: { number: 'desc' },
-    select: { number: true },
-  });
-  const seq = lastOrder ? lastOrder.number + 1 : 1;
 
   // venda que ja entra no caixa junto com o pedido:
   //  - PDV (balcao/retirada/entrega/mesa): pago na hora, inclusive dividido
@@ -343,7 +341,6 @@ export async function POST(req: Request) {
   const cashTotal = Math.max(0, Math.round((total - cardFee) * 100) / 100);
   const cashParts = parsePayments(b.payment || 'pix', cashTotal);
   const cashReason = orderSource === 'pdv' ? 'PDV' : 'Pedido';
-  let cashRegisterOpen = true;
 
   // PDV (venda manual, paga na hora) nao pode ser lancado com o caixa fechado:
   // senao a venda existe mas o dinheiro nao entra no caixa. O site (cardapio)
@@ -361,52 +358,65 @@ export async function POST(req: Request) {
   // pedido + lancamento no caixa na MESMA requisicao: se o caixa nao receber
   // (dividido, conexao caindo, etc.) o pedido tambem nao e criado — nunca fica
   // venda no sistema sem o dinheiro no caixa.
+  //
+  // O numero do pedido e unico: se dois pedidos do site chegarem no mesmo
+  // instante os dois leriam o mesmo "ultimo numero". Nesse caso o banco recusa
+  // (P2002) e a transacao inteira volta — entao recalculamos o numero e
+  // tentamos de novo, em vez de devolver erro pro cliente.
   let order: any;
-  try {
-    order = await prisma.$transaction(async (tx) => {
-      const open = cashAtCreation
-        ? await tx.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } })
-        : null;
-      // corrida: o caixa pode ter sido fechado entre a checagem e a transacao
-      if (cashAtCreation && !open && orderSource === 'pdv') throw new Error('CASH_CLOSED');
-      const created = await tx.order.create({
-        data: {
-          number: seq,
-          turnoId,
-          customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
-          addressText: b.addressText || '', type: orderType,
-          status: initialStatus, payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
-          subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
-          total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
-          source: orderSource, emitRequested: !!b.emitRequested,
-          items: { create: (b.items || []).map((it: any) => ({
-            productId: it.productId || '', name: it.name, qty: Number(it.qty || 1),
-            unitPrice: Number(it.unitPrice || 0), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
-          })) },
-          payments: { create: cashParts.map((p) => ({ method: p.method, amount: p.amount })) },
-        },
-        include: { items: true },
-      });
-      if (cashAtCreation) {
-        if (!open) cashRegisterOpen = false;
-        else {
-          for (const p of cashParts) {
-            await tx.cashMovement.create({
-              data: { registerId: open.id, kind: 'venda', method: p.method, amount: p.amount, reason: `${cashReason} #${created.number}`, orderId: created.id },
-            });
+  let cashRegisterOpen = true;
+  for (let tentativa = 0; ; tentativa++) {
+    const lastOrder = await prisma.order.findFirst({ orderBy: { number: 'desc' }, select: { number: true } });
+    const seq = lastOrder ? lastOrder.number + 1 : 1;
+    cashRegisterOpen = true;
+    try {
+      order = await prisma.$transaction(async (tx) => {
+        const open = cashAtCreation
+          ? await tx.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } })
+          : null;
+        // corrida: o caixa pode ter sido fechado entre a checagem e a transacao
+        if (cashAtCreation && !open && orderSource === 'pdv') throw new Error('CASH_CLOSED');
+        const created = await tx.order.create({
+          data: {
+            number: seq,
+            turnoId,
+            customerId, customerName: b.customerName || '', customerPhone: b.customerPhone || '',
+            addressText: b.addressText || '', type: orderType,
+            status: initialStatus, payment: b.payment || 'pix', changeFor: b.changeFor ? Number(b.changeFor) : null,
+            subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
+            total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
+            source: orderSource, emitRequested: !!b.emitRequested,
+            items: { create: (b.items || []).map((it: any) => ({
+              productId: it.productId || '', name: it.name, qty: Math.max(1, Math.floor(Number(it.qty || 1))),
+              unitPrice: Math.max(0, Number(it.unitPrice || 0)), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
+            })) },
+            payments: { create: cashParts.map((p) => ({ method: p.method, amount: p.amount })) },
+          },
+          include: { items: true },
+        });
+        if (cashAtCreation) {
+          if (!open) cashRegisterOpen = false;
+          else {
+            for (const p of cashParts) {
+              await tx.cashMovement.create({
+                data: { registerId: open.id, kind: 'venda', method: p.method, amount: p.amount, reason: `${cashReason} #${created.number}`, orderId: created.id },
+              });
+            }
           }
         }
+        return created;
+      });
+      break;
+    } catch (e: any) {
+      if (String(e?.message || '') === 'CASH_CLOSED') {
+        return NextResponse.json(
+          { error: 'Caixa fechado — abra o caixa antes de finalizar a venda.', code: 'CASH_CLOSED' },
+          { status: 409 },
+        );
       }
-      return created;
-    });
-  } catch (e: any) {
-    if (String(e?.message || '') === 'CASH_CLOSED') {
-      return NextResponse.json(
-        { error: 'Caixa fechado — abra o caixa antes de finalizar a venda.', code: 'CASH_CLOSED' },
-        { status: 409 },
-      );
+      if (e?.code === 'P2002' && tentativa < 4) continue;
+      throw e;
     }
-    throw e;
   }
   await prisma.notification.create({ data: { kind: 'novo_pedido', text: `Novo pedido #${order.number} — ${order.customerName} — R$ ${total.toFixed(2)}` } });
 
@@ -448,6 +458,15 @@ export async function PATCH(req: Request) {
     }
   }
   const order = await prisma.order.update({ where: { id: b.id }, data });
+  // quando a forma de pagamento muda (ex.: fechamento de mesa), as parcelas
+  // gravadas no pedido precisam acompanhar — senão o relatório por forma de
+  // pagamento mostra a forma escolhida no site, não a que foi realmente paga.
+  if (b.payment !== undefined) {
+    const cashTotal = Math.max(0, Math.round((Number(order.total || 0) - Number(order.cardFee || 0)) * 100) / 100);
+    const parts = parsePayments(String(order.payment || 'pix'), cashTotal);
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.payment.createMany({ data: parts.map((p) => ({ orderId: order.id, method: p.method, amount: p.amount })) });
+  }
   if (b.status === 'cancelado') {
     await prisma.notification.create({ data: { kind: 'cancelado', text: `Pedido #${order.number} cancelado` } });
     const items = await prisma.orderItem.findMany({ where: { orderId: order.id } });

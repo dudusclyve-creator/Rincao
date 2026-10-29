@@ -386,6 +386,8 @@ export default function PDV() {
     }
     // limpa o carrinho na hora: se algo falhar depois, nao da pra finalizar de novo
     setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]); setCardFeeOn(false);
+    // a taxa editada na mão vale só para esta venda: a próxima começa no padrão
+    setCardFeePctOverride(null);
     setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
     localStorage.removeItem(PDV_STORAGE_KEY);
     // o caixa e lancado pelo servidor na mesma transacao do pedido (inclusive
@@ -863,7 +865,7 @@ export default function PDV() {
                             const raw = e.target.value.replace(',', '.');
                             setCardFeeInput(e.target.value);
                             if (raw === '' || /^\d{0,3}(\.\d{0,2})?$/.test(raw)) {
-                              const v = raw === '' ? 0 : Math.max(0, parseFee(raw));
+                              const v = raw === '' ? 0 : Math.min(100, Math.max(0, parseFee(raw)));
                               setCardFeePctOverride(v);
                               if (v > 0) setCardFeeOn(true);
                             }
@@ -871,7 +873,7 @@ export default function PDV() {
                           onFocus={() => { cardFeeFocused.current = true; }}
                           onBlur={() => {
                             cardFeeFocused.current = false;
-                            const finalPct = cardFeeInput.trim() === '' ? 0 : parseFee(cardFeeInput);
+                            const finalPct = cardFeeInput.trim() === '' ? 0 : Math.min(100, Math.max(0, parseFee(cardFeeInput)));
                             setCardFeePctOverride(finalPct === cardFeePctBase ? null : finalPct);
                             setCardFeeInput(String(finalPct).replace('.', ','));
                             if (finalPct > 0) setCardFeeOn(true);

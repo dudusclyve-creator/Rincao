@@ -164,6 +164,13 @@ model Order {
   createdAt   DateTime @default(now())
   items       OrderItem[]
   payments    Payment[]
+
+  // consultas do painel: fila por status, historico por data, mesa/motoboy/cliente
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@index([tableId])
+  @@index([driverId])
+  @@index([customerId])
 }
 
 model OrderItem {
@@ -176,6 +183,8 @@ model OrderItem {
   unitPrice Float  @default(0)
   addonsJson String @default("[]") // [{name,price,qty}]
   note      String @default("")
+
+  @@index([orderId])
 }
 
 model Payment {
@@ -185,6 +194,8 @@ model Payment {
   method  String
   amount  Float
   createdAt DateTime @default(now())
+
+  @@index([orderId])
 }
 
 model CashRegister {
@@ -210,6 +221,10 @@ model CashMovement {
   reason     String       @default("")
   orderId    String       @default("")
   createdAt  DateTime     @default(now())
+
+  @@index([registerId])
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 model TableMap {
@@ -265,6 +280,8 @@ model Notification {
   text      String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 model Setting {

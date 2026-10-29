@@ -1,10 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { BRL } from '@/lib/utils';
+// Sem confirm() do sistema: a confirmação aparece na própria linha.
 export default function Adicionais() {
   const [groups, setGroups] = useState<any[]>([]);
   const [g, setG] = useState({ name: '', minSel: 0, maxSel: 2, required: false });
   const [a, setA] = useState({ groupId: '', name: '', price: 0 });
+  const [delId, setDelId] = useState<string | null>(null);
   const load = async () => setGroups(await fetch('/api/addon-groups').then((r) => r.json()));
   useEffect(() => { load(); }, []);
   return (
@@ -24,7 +26,15 @@ export default function Adicionais() {
       {groups.map((gr) => (
         <div key={gr.id} className="card p-3 mt-2 text-sm">
           <b>{gr.name}</b> <span className="text-stone-500">min {gr.minSel} • max {gr.maxSel} {gr.required ? '• obrigatório' : ''}</span>
-          <button className="underline text-red-600 text-xs ml-2" onClick={async () => { if (confirm('Excluir grupo?')) { await fetch(`/api/addon-groups?id=${gr.id}`, { method: 'DELETE' }); load(); } }}>excluir grupo</button>
+          {delId === gr.id ? (
+            <span className="ml-2 text-xs">
+              <span className="text-red-500">Excluir grupo?</span>
+              <button className="underline text-red-600 font-bold ml-2" onClick={async () => { setDelId(null); await fetch(`/api/addon-groups?id=${gr.id}`, { method: 'DELETE' }); load(); }}>sim</button>
+              <button className="underline ml-2" onClick={() => setDelId(null)}>não</button>
+            </span>
+          ) : (
+            <button className="underline text-red-600 text-xs ml-2" onClick={() => setDelId(gr.id)}>excluir grupo</button>
+          )}
           {gr.addons.map((ad: any) => <div key={ad.id} className="flex justify-between border-b py-1"><span>{ad.name} • {BRL(ad.price)}</span><button className="text-red-600 text-xs underline" onClick={async () => { await fetch(`/api/addon-groups?addonId=${ad.id}`, { method: 'DELETE' }); load(); }}>excluir</button></div>)}
         </div>
       ))}
