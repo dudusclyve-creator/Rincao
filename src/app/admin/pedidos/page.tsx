@@ -377,6 +377,8 @@ export default function Pedidos() {
   const [editForm, setEditForm] = useState<any>({});
   const [editSplit, setEditSplit] = useState(false);
   const [editCardFeeOn, setEditCardFeeOn] = useState(false);
+  // percentual da taxa do cartão editado na mão (null = usa o de Configurações)
+  const [editCardFeePct, setEditCardFeePct] = useState<number | null>(null);
   const [editPayments, setEditPayments] = useState<{ method: string; amount: number }[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [addProductId, setAddProductId] = useState('');
@@ -522,6 +524,7 @@ export default function Pedidos() {
     const dividido = payStr.includes(',');
     setEditSplit(dividido);
     setEditCardFeeOn(Number(o.cardFee || 0) > 0 && !dividido);
+    setEditCardFeePct(null);
     setEditPayments(dividido ? parsePayParts(payStr) : [{ method: payStr, amount: Number(o.total || 0) }]);
 
     setAddProductId(''); setAddQty(1);
@@ -540,7 +543,9 @@ export default function Pedidos() {
     );
     const discountEdit = Number(editForm.discount || 0);
     // taxa da maquininha: usa as taxas configuradas (crédito/débito), só quando não está dividido
-    const cardFeePctEdit = !editSplit ? (editForm.payment === 'credito' ? cardFees.credit : editForm.payment === 'debito' ? cardFees.debit : 0) : 0;
+    const cardFeePctEdit = !editSplit
+      ? (editCardFeePct ?? (editForm.payment === 'credito' ? cardFees.credit : editForm.payment === 'debito' ? cardFees.debit : 0))
+      : 0;
     const cardFeeEdit = editCardFeeOn && cardFeePctEdit > 0
       ? Math.round(Math.max(0, subtotalEdit + fee - discountEdit) * cardFeePctEdit) / 100
       : 0;
@@ -757,8 +762,9 @@ export default function Pedidos() {
         const subtotal = editItems.reduce((s: number, it: any) => s + it.qty * (it.unitPrice + (it.addons || []).reduce((a: number, x: any) => a + Number(x.price || 0) * Number(x.qty || 1), 0)), 0);
         const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
         const discount = Number(editForm.discount || 0);
-        // taxa da maquininha (credito 3,9% / debito 1,9%) — so no pagamento unico
-        const cardFeePct = !editSplit ? (editForm.payment === 'credito' ? cardFees.credit : editForm.payment === 'debito' ? cardFees.debit : 0) : 0;
+        // taxa da maquininha: percentual de Configurações, editável na mão — só no pagamento único
+        const cardFeePctBase = !editSplit ? (editForm.payment === 'credito' ? cardFees.credit : editForm.payment === 'debito' ? cardFees.debit : 0) : 0;
+        const cardFeePct = editCardFeePct !== null ? editCardFeePct : cardFeePctBase;
         const baseTotal = Math.max(0, subtotal + fee - discount);
         const cardFee = editCardFeeOn && cardFeePct > 0 ? Math.round(baseTotal * cardFeePct) / 100 : 0;
         const total = Math.max(0, baseTotal + cardFee);
@@ -913,29 +919,46 @@ export default function Pedidos() {
                           onChange={(e) => {
                             const m = e.target.value;
                             setEditForm((f: any) => ({ ...f, payment: m }));
-                            if (m !== 'credito' && m !== 'debito') setEditCardFeeOn(false);
+                            if (m !== 'credito' && m !== 'debito') { setEditCardFeeOn(false); setEditCardFeePct(null); }
                           }}
                           className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle}
                         >
                           {PAY_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                         </select>
-                        {cardFeePct > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setEditCardFeeOn(!editCardFeeOn)}
-                            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200"
+                        {cardFeePctBase > 0 && (
+                          <div
+                            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200"
                             style={editCardFeeOn
                               ? { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.35)', color: '#f59e0b' }
                               : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#9ca3af' }}
                           >
-                            <span className="flex items-center gap-2">
-                              <span className="w-4 h-4 rounded flex items-center justify-center" style={{ border: `1px solid ${editCardFeeOn ? '#f59e0b' : '#6b7280'}`, background: editCardFeeOn ? '#f59e0b' : 'transparent', color: '#1a1520' }}>
+                            <button type="button" onClick={() => setEditCardFeeOn(!editCardFeeOn)} className="flex items-center gap-2 flex-1 text-left">
+                              <span className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={{ border: `1px solid ${editCardFeeOn ? '#f59e0b' : '#6b7280'}`, background: editCardFeeOn ? '#f59e0b' : 'transparent', color: '#1a1520' }}>
                                 {editCardFeeOn && <span className="text-[10px] font-black leading-none">✓</span>}
                               </span>
-                              Cobrar taxa do cartão ({String(cardFeePct).replace('.', ',')}%)
-                            </span>
-                            <span className="tabular-nums">+{BRL(Math.round(baseTotal * cardFeePct) / 100)}</span>
-                          </button>
+                              Cobrar taxa do cartão
+                            </button>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <input
+                                key={`pct-${editForm.payment}-${editCardFeePct ?? 'auto'}`}
+                                type="text" inputMode="decimal"
+                                defaultValue={String(cardFeePct).replace('.', ',')}
+                                title="Percentual da taxa do cartão — pode ajustar na mão"
+                                onClick={(e) => e.stopPropagation()}
+                                onBlur={(e) => {
+                                  const v = Math.max(0, Number(String(e.target.value).replace(',', '.')) || 0);
+                                  setEditCardFeePct(v === cardFeePctBase ? null : v);
+                                  if (v > 0) setEditCardFeeOn(true);
+                                  e.target.value = String(v).replace('.', ',');
+                                }}
+                                className="w-14 px-2 py-1 rounded-lg text-right text-xs font-bold outline-none" style={inputStyle} />
+                              <span>%</span>
+                              <span className="tabular-nums">+{BRL(Math.round(baseTotal * cardFeePct) / 100)}</span>
+                              {editCardFeePct !== null && (
+                                <button type="button" onClick={() => setEditCardFeePct(null)} title="Voltar ao percentual padrão" className="text-gray-500 hover:text-white transition-colors">↺</button>
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     ) : (

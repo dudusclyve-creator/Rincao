@@ -193,8 +193,8 @@ export default function PDV() {
   const [feeOverride, setFeeOverride] = useState<number | null>(saved?.feeOverride ?? null);
   const [feeInput, setFeeInput] = useState('');
   const feeFocused = useRef(false);
-  // taxa do cartão editável no resumo (mesmo esquema da taxa de entrega)
-  const [cardFeeOverride, setCardFeeOverride] = useState<number | null>(saved?.cardFeeOverride ?? null);
+  // percentual da taxa do cartão editável no resumo (mesmo esquema da taxa de entrega)
+  const [cardFeePctOverride, setCardFeePctOverride] = useState<number | null>(null);
   const [cardFeeInput, setCardFeeInput] = useState('');
   const cardFeeFocused = useRef(false);
   const [showAddress, setShowAddress] = useState(false);
@@ -253,24 +253,22 @@ export default function PDV() {
   }, [deliveryFee]);
 
   const sub = cart.reduce((s: number, i: any) => s + i.qty * (i.unitPrice + (i.addons || []).reduce((a: number, ad: any) => a + ad.price * (ad.qty || 1), 0)), 0);
-  // taxa da maquininha: usa as taxas configuradas e pode ser editada na mão
-  const cardFeePct = payment === 'credito' ? cardFees.credit : payment === 'debito' ? cardFees.debit : 0;
-  const cardFeeAuto = !splitPayment && cardFeeOn && cardFeePct > 0
+  // taxa da maquininha: percentual configurado em Configurações, editável na mão
+  const cardFeePctBase = payment === 'credito' ? cardFees.credit : payment === 'debito' ? cardFees.debit : 0;
+  const cardFeePct = cardFeePctOverride !== null ? cardFeePctOverride : cardFeePctBase;
+  const cardFee = !splitPayment && cardFeeOn && cardFeePct > 0
     ? Math.round((sub + deliveryFee) * cardFeePct) / 100
-    : 0;
-  const cardFee = !splitPayment && cardFeePct > 0
-    ? (cardFeeOverride !== null ? Math.max(0, cardFeeOverride) : cardFeeAuto)
     : 0;
   const total = Math.max(0, sub + deliveryFee + cardFee);
 
-  // mantém o campo da taxa do cartão em sincronia com o cálculo automático
+  // mantém o campo do percentual em sincronia com a taxa do pagamento escolhido
   useEffect(() => {
     if (cardFeeFocused.current) return;
-    setCardFeeInput((prev) => (prev !== '' && parseFee(prev) === cardFee) ? prev : (cardFee ? String(cardFee) : ''));
-  }, [cardFee]);
+    setCardFeeInput((prev) => (prev !== '' && parseFee(prev) === cardFeePct) ? prev : String(cardFeePct).replace('.', ','));
+  }, [cardFeePct]);
 
-  // trocar a forma de pagamento zera a taxa editada na mão
-  useEffect(() => { setCardFeeOverride(null); }, [payment, splitPayment]);
+  // trocar a forma de pagamento zera o percentual editado na mão
+  useEffect(() => { setCardFeePctOverride(null); }, [payment, splitPayment]);
 
   const products = useMemo(() => {
     const term = norm(search);
@@ -405,7 +403,7 @@ export default function PDV() {
       customerName: client || 'PDV', customerPhone: clientPhone || '',
       items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
       payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, cardFee,
-      cardFeeLabel: cardFeeOverride !== null && cardFeeOverride !== cardFeeAuto ? 'Taxa cartao' : `Taxa cartao ${String(cardFeePct).replace('.', ',')}%`,
+      cardFeeLabel: `Taxa cartao ${String(cardFeePct).replace('.', ',')}%`,
       total: o.total,
       addressText, type, changeFor: ((payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0) ? changeFor : undefined,
       note: [orderNote, splitNote].filter(Boolean).join(' | '),
@@ -851,36 +849,38 @@ export default function PDV() {
               <div className="shrink-0 p-4 rounded-b-2xl" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.15)' }}>
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-base text-gray-400"><span>Subtotal</span><span>{BRL(sub)}</span></div>
-                  {!splitPayment && cardFeePct > 0 && (
+                  {!splitPayment && cardFeePctBase > 0 && (
                     <div className="flex items-center justify-between text-base font-bold" style={{ color: '#f59e0b' }}>
                       <span>
-                        Taxa cartão ({String(cardFeePct).replace('.', ',')}%)
-                        {cardFeeOverride !== null && cardFeeOverride !== cardFeeAuto && (
+                        Taxa cartão
+                        {cardFeePctOverride !== null && cardFeePctOverride !== cardFeePctBase && (
                           <span className="ml-1 text-[11px] font-bold" style={{ color: '#f59e0b' }}>editada</span>
                         )}
                       </span>
                       <div className="flex items-center gap-1.5">
-                        <input type="text" inputMode="decimal" value={cardFeeInput} title="Taxa do cartão em R$ — pode ajustar na mão"
+                        <input type="text" inputMode="decimal" value={cardFeeInput} title="Taxa do cartão em % — pode ajustar na mão"
                           onChange={(e) => {
                             const raw = e.target.value.replace(',', '.');
                             setCardFeeInput(e.target.value);
-                            if (raw === '' || /^\d{0,5}(\.\d{0,2})?$/.test(raw)) {
+                            if (raw === '' || /^\d{0,3}(\.\d{0,2})?$/.test(raw)) {
                               const v = raw === '' ? 0 : Math.max(0, parseFee(raw));
-                              setCardFeeOverride(v);
+                              setCardFeePctOverride(v);
                               if (v > 0) setCardFeeOn(true);
                             }
                           }}
                           onFocus={() => { cardFeeFocused.current = true; }}
                           onBlur={() => {
                             cardFeeFocused.current = false;
-                            const finalFee = cardFeeInput.trim() === '' ? 0 : parseFee(cardFeeInput);
-                            setCardFeeOverride(finalFee === cardFeeAuto ? null : finalFee);
-                            setCardFeeInput(finalFee ? String(finalFee) : '');
-                            if (finalFee > 0) setCardFeeOn(true);
+                            const finalPct = cardFeeInput.trim() === '' ? 0 : parseFee(cardFeeInput);
+                            setCardFeePctOverride(finalPct === cardFeePctBase ? null : finalPct);
+                            setCardFeeInput(String(finalPct).replace('.', ','));
+                            if (finalPct > 0) setCardFeeOn(true);
                           }}
-                          className="w-24 px-2.5 py-1.5 rounded-lg text-right text-base font-bold outline-none focus:border-amber-400/50 transition-colors" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
-                        {cardFeeOverride !== null && (
-                          <button onClick={() => setCardFeeOverride(null)} title="Voltar ao cálculo automático" className="text-sm text-gray-500 hover:text-white transition-colors">↺</button>
+                          className="w-16 px-2.5 py-1.5 rounded-lg text-right text-base font-bold outline-none focus:border-amber-400/50 transition-colors" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
+                        <span className="text-sm">%</span>
+                        <span className="tabular-nums w-20 text-right">{BRL(cardFee)}</span>
+                        {cardFeePctOverride !== null && (
+                          <button onClick={() => setCardFeePctOverride(null)} title="Voltar ao percentual padrão" className="text-sm text-gray-500 hover:text-white transition-colors">↺</button>
                         )}
                       </div>
                     </div>
