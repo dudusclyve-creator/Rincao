@@ -185,12 +185,14 @@ export async function printDanfe(o: any) {
     </body></html>`;
 
     const w = window.open('', '_blank', 'width=420,height=720');
-    if (!w) { alert('Permita pop-ups para imprimir o DANFE'); return; }
+    // sem alert(): no app portatil a janela do sistema travava o teclado
+    if (!w) return { ok: false, error: 'Permita pop-ups para imprimir o DANFE' };
     w.document.write(html);
     w.document.close();
     w.focus();
     setTimeout(() => w.print(), 400);
+    return { ok: true };
   } catch (e: any) {
-    alert('Falha ao gerar o DANFE: ' + (e?.message || e));
+    return { ok: false, error: 'Falha ao gerar o DANFE: ' + (e?.message || e) };
   }
 }

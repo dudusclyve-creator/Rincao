@@ -503,8 +503,14 @@ export default function Pedidos() {
       setNfeDialog({ order: o, mode: 'cancel' });
       return;
     }
-    if (mode === 'danfe') { printDanfe(o); return; }
-    if (o.nfeStatus === 'issued') { printDanfe(o); return; }
+    if (mode === 'danfe') {
+      printDanfe(o).then((r: any) => { if (!r?.ok) showToast(r?.error || 'Não foi possível imprimir o DANFE', 'error'); });
+      return;
+    }
+    if (o.nfeStatus === 'issued') {
+      printDanfe(o).then((r: any) => { if (!r?.ok) showToast(r?.error || 'Não foi possível imprimir o DANFE', 'error'); });
+      return;
+    }
     if (o.nfeStatus === 'cancelled') { showToast('Nota fiscal já cancelada.', 'error'); return; }
     if (o.nfeStatus === 'error') { setNfeDialog({ order: o, mode: 'emit' }); return; }
     if (o.nfeStatus) { pollNfe(o.id); return; }

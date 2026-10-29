@@ -198,7 +198,7 @@ export default function NotasPage() {
                     )}
                     {o.nfeStatus === 'issued' && (
                       <>
-                        <button onClick={() => printDanfe(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }} title="Imprimir 2ª via do DANFE">
+                        <button onClick={() => { printDanfe(o).then((r: any) => { if (!r?.ok) showToast(r?.error || 'Não foi possível imprimir o DANFE', 'error'); }); }} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }} title="Imprimir 2ª via do DANFE">
                           <Printer size={10} /> Imprimir
                         </button>
                         <button onClick={() => { setCancelMotivo(`Cancelamento do pedido #${o.number} solicitado pelo cliente`); setCancelDialog(o); }} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(239,68,68,0.12)', color: '#f87171' }} title="Cancelar nota (até 30 min após a emissão)">
