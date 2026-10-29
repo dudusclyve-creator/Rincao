@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, openWhatsApp, formatPhone } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, openWhatsApp, formatPhone, cardFeePctFromOrder } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { ItemCard } from '@/components/ItemCard';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2, MessageCircle } from 'lucide-react';
@@ -429,7 +429,12 @@ export default function Pedidos() {
 
   const print = async (o: any) => {
     const met = String(o.payment || '').split(',')[0].split(':')[0];
-    const feePct = met === 'credito' ? cardFees.credit : met === 'debito' ? cardFees.debit : 0;
+    // usa o percentual que realmente foi cobrado no pedido (pode ter sido
+    // editado na mão); cai no padrão das configurações só se não houver taxa
+    const pctCobrado = cardFeePctFromOrder(o);
+    const feePct = pctCobrado > 0
+      ? pctCobrado
+      : (met === 'credito' ? cardFees.credit : met === 'debito' ? cardFees.debit : 0);
     const cardFeeLabel = feePct > 0 ? `Taxa cartao ${String(feePct).replace('.', ',')}%` : 'Taxa cartao';
     const base = {
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),

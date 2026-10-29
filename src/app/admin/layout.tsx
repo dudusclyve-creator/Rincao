@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { playMenuClick, preloadSounds, receiptText, printReceiptText } from '@/lib/utils';
+import { playMenuClick, preloadSounds, receiptText, printReceiptText, cardFeePctFromOrder } from '@/lib/utils';
 import { can, areaForPath } from '@/lib/roles';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -73,9 +73,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     printingOrders.current.add(order.id);
     try {
       const met = String(order.payment || '').split(',')[0].split(':')[0];
-      const feePct = met === 'credito'
-        ? Number(settingsRef.current?.cardFeeCredit ?? 3.9)
-        : met === 'debito' ? Number(settingsRef.current?.cardFeeDebit ?? 1.9) : 0;
+      // percentual que realmente foi cobrado (a taxa pode ter sido editada na mão)
+      const pctCobrado = cardFeePctFromOrder(order);
+      const feePct = pctCobrado > 0
+        ? pctCobrado
+        : met === 'credito'
+          ? Number(settingsRef.current?.cardFeeCredit ?? 3.9)
+          : met === 'debito' ? Number(settingsRef.current?.cardFeeDebit ?? 1.9) : 0;
       const cardFeeLabel = feePct > 0 ? `Taxa cartao ${String(feePct).replace('.', ',')}%` : 'Taxa cartao';
       const base = {
         store: 'Rincão Lanches', number: order.number, date: new Date(order.createdAt).toLocaleString('pt-BR'),

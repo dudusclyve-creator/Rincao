@@ -6,6 +6,17 @@ export const BRL = (v: number) =>
 export const norm = (s: any) =>
   String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
+// Percentual da taxa do cartão que foi realmente cobrado no pedido.
+// Usado no cupom: se o operador editou a taxa na mão, o cupom mostra o
+// percentual certo em vez do padrão das configurações.
+export const cardFeePctFromOrder = (o: any): number => {
+  const fee = Number(o?.cardFee || 0);
+  if (!(fee > 0)) return 0;
+  const base = Number(o?.total || 0) - fee;
+  if (!(base > 0)) return 0;
+  return Math.round((fee / base) * 100 * 100) / 100;
+};
+
 export const ORDER_STATUS: Record<string, string> = {
   novo: 'NOVOS',
   confirmado: 'CONFIRMADOS',
