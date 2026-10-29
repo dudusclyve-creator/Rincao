@@ -259,7 +259,15 @@ function CloseModal({ table, orders, onClose, onConfirm }: { table: any; orders:
   const [payment, setPayment] = useState('pix');
   const [received, setReceived] = useState('');
   const [feeOn, setFeeOn] = useState(false);
-  const cardFeePct = payment === 'credito' ? 3.9 : payment === 'debito' ? 1.9 : 0;
+  // taxas de crédito/débito configuradas no painel
+  const [fees, setFees] = useState({ credit: 3.9, debit: 1.9 });
+  useEffect(() => {
+    fetch('/api/settings').then((r) => r.json()).then((s) => {
+      if (!s || s.error) return;
+      setFees({ credit: Number(s.cardFeeCredit ?? 3.9), debit: Number(s.cardFeeDebit ?? 1.9) });
+    }).catch(() => {});
+  }, []);
+  const cardFeePct = payment === 'credito' ? fees.credit : payment === 'debito' ? fees.debit : 0;
   const cardFee = feeOn && cardFeePct > 0 ? Math.round(total * cardFeePct) / 100 : 0;
   const totalComTaxa = total + cardFee;
   const receivedNum = parseFloat(received.replace(',', '.')) || 0;

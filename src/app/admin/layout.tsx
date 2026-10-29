@@ -73,7 +73,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     printingOrders.current.add(order.id);
     try {
       const met = String(order.payment || '').split(',')[0].split(':')[0];
-      const cardFeeLabel = `Taxa cartao ${met === 'credito' ? '3,9%' : met === 'debito' ? '1,9%' : ''}`.trim();
+      const feePct = met === 'credito'
+        ? Number(settingsRef.current?.cardFeeCredit ?? 3.9)
+        : met === 'debito' ? Number(settingsRef.current?.cardFeeDebit ?? 1.9) : 0;
+      const cardFeeLabel = feePct > 0 ? `Taxa cartao ${String(feePct).replace('.', ',')}%` : 'Taxa cartao';
       const base = {
         store: 'Rincão Lanches', number: order.number, date: new Date(order.createdAt).toLocaleString('pt-BR'),
         customerName: order.customerName, customerPhone: order.customerPhone,

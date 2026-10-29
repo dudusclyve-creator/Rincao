@@ -381,6 +381,8 @@ export default function Pedidos() {
   const [products, setProducts] = useState<any[]>([]);
   const [addProductId, setAddProductId] = useState('');
   const [addQty, setAddQty] = useState(1);
+  // taxas da maquininha configuradas no painel (crédito/débito)
+  const [cardFees, setCardFees] = useState({ credit: 3.9, debit: 1.9 });
 
   const load = async () => {
     const o = await fetch('/api/orders?limit=120').then((r) => r.json());
@@ -392,6 +394,12 @@ export default function Pedidos() {
     setOrders(turnoOrders);
   };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    fetch('/api/settings').then((r) => r.json()).then((s) => {
+      if (!s || s.error) return;
+      setCardFees({ credit: Number(s.cardFeeCredit ?? 3.9), debit: Number(s.cardFeeDebit ?? 1.9) });
+    }).catch(() => {});
+  }, []);
   // recarrega os entregadores sempre que abre o despacho (motoboy cadastrado
   // agora na equipe aparece na hora, sem precisar recarregar a pagina)
   const loadDrivers = () => fetch('/api/drivers').then((r) => r.json()).then(setDrivers).catch(() => {});
@@ -419,7 +427,8 @@ export default function Pedidos() {
 
   const print = async (o: any) => {
     const met = String(o.payment || '').split(',')[0].split(':')[0];
-    const cardFeeLabel = `Taxa cartao ${met === 'credito' ? '3,9%' : met === 'debito' ? '1,9%' : ''}`.trim();
+    const feePct = met === 'credito' ? cardFees.credit : met === 'debito' ? cardFees.debit : 0;
+    const cardFeeLabel = feePct > 0 ? `Taxa cartao ${String(feePct).replace('.', ',')}%` : 'Taxa cartao';
     const base = {
       store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
       customerName: o.customerName, customerPhone: o.customerPhone,
@@ -530,8 +539,8 @@ export default function Pedidos() {
       0
     );
     const discountEdit = Number(editForm.discount || 0);
-    // taxa da maquininha: credito 3,9% / debito 1,9% (so quando nao esta dividido)
-    const cardFeePctEdit = !editSplit ? (editForm.payment === 'credito' ? 3.9 : editForm.payment === 'debito' ? 1.9 : 0) : 0;
+    // taxa da maquininha: usa as taxas configuradas (crédito/débito), só quando não está dividido
+    const cardFeePctEdit = !editSplit ? (editForm.payment === 'credito' ? cardFees.credit : editForm.payment === 'debito' ? cardFees.debit : 0) : 0;
     const cardFeeEdit = editCardFeeOn && cardFeePctEdit > 0
       ? Math.round(Math.max(0, subtotalEdit + fee - discountEdit) * cardFeePctEdit) / 100
       : 0;
@@ -749,7 +758,7 @@ export default function Pedidos() {
         const fee = editForm.type === 'entrega' ? Number(editForm.deliveryFee || 0) : 0;
         const discount = Number(editForm.discount || 0);
         // taxa da maquininha (credito 3,9% / debito 1,9%) — so no pagamento unico
-        const cardFeePct = !editSplit ? (editForm.payment === 'credito' ? 3.9 : editForm.payment === 'debito' ? 1.9 : 0) : 0;
+        const cardFeePct = !editSplit ? (editForm.payment === 'credito' ? cardFees.credit : editForm.payment === 'debito' ? cardFees.debit : 0) : 0;
         const baseTotal = Math.max(0, subtotal + fee - discount);
         const cardFee = editCardFeeOn && cardFeePct > 0 ? Math.round(baseTotal * cardFeePct) / 100 : 0;
         const total = Math.max(0, baseTotal + cardFee);

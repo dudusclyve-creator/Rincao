@@ -43,6 +43,9 @@ model Restaurant {
   printerName   String @default("Padrao")
   // pedidos do cardápio entram já como confirmados (pulam a etapa "Aceitar")
   autoAccept    Boolean @default(false)
+  // taxa da maquininha repassada ao cliente (%)
+  cardFeeCredit Float   @default(3.9)
+  cardFeeDebit  Float   @default(1.9)
 }
 
 model Category {

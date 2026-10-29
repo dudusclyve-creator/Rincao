@@ -833,8 +833,10 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
     return d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
   };
   const fee = deliveryType === 'entrega' ? deliveryFee : 0;
-  // taxa da maquininha no pedido do site: credito 3,9% / debito 1,9%
-  const cardFeePct = f.payment === 'credito' ? 3.9 : f.payment === 'debito' ? 1.9 : 0;
+  // taxa da maquininha no pedido do site: usa as taxas configuradas no painel
+  const cardFeeCredit = Number(restaurant?.cardFeeCredit ?? 3.9);
+  const cardFeeDebit = Number(restaurant?.cardFeeDebit ?? 1.9);
+  const cardFeePct = f.payment === 'credito' ? cardFeeCredit : f.payment === 'debito' ? cardFeeDebit : 0;
   const cardFee = cardFeePct > 0 ? Math.round((cart.subtotal + fee) * cardFeePct) / 100 : 0;
   const total = Math.max(0, cart.subtotal + fee + cardFee);
 
@@ -938,7 +940,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
           <div className="mt-5">
             <p className="text-[10px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Pagamento</p>
             <div className="grid grid-cols-4 gap-2">
-              {[{ id: 'pix', icon: '📱', label: 'Pix', taxa: 0 }, { id: 'dinheiro', icon: '💵', label: 'Dinheiro', taxa: 0 }, { id: 'debito', icon: '💳', label: 'Débito', taxa: 1.9 }, { id: 'credito', icon: '💳', label: 'Crédito', taxa: 3.9 }].map((p) => (
+              {[{ id: 'pix', icon: '📱', label: 'Pix', taxa: 0 }, { id: 'dinheiro', icon: '💵', label: 'Dinheiro', taxa: 0 }, { id: 'debito', icon: '💳', label: 'Débito', taxa: cardFeeDebit }, { id: 'credito', icon: '💳', label: 'Crédito', taxa: cardFeeCredit }].map((p) => (
                 <button key={p.id} onClick={() => setF({ ...f, payment: p.id })} className="flex flex-col items-center gap-1.5 rounded-xl py-3 text-[10px] font-semibold transition-all duration-200 border" style={f.payment === p.id ? { borderColor: '#6b3a1f', background: '#6b3a1f', color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } : { borderColor: '#f0f0f0', background: '#f9f9f9', color: '#888' }}>
                   <span className="text-base">{p.icon}</span>
                   <span>{p.label}</span>

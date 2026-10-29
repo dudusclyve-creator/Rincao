@@ -304,7 +304,7 @@ export async function POST(req: Request) {
   // aceite automático: pedidos do cardápio já entram como confirmados, sem
   // precisar clicar em "Aceitar" no painel (PDV continua no fluxo do operador).
   const restPrefs = await prisma.restaurant
-    .findUnique({ where: { id: 'single' }, select: { autoAccept: true } })
+    .findUnique({ where: { id: 'single' }, select: { autoAccept: true, cardFeeCredit: true, cardFeeDebit: true } })
     .catch(() => null);
   const initialStatus = orderSource === 'cardapio' && restPrefs?.autoAccept ? 'confirmado' : 'novo';
   // taxa de entrega: no cardápio vale SEMPRE a taxa do bairro escolhido
@@ -315,11 +315,13 @@ export async function POST(req: Request) {
     const zona = zonas.find((z) => z.name === p.district && (!p.city || z.city === p.city)) || zonas.find((z) => z.name === p.district);
     if (zona) fee = zona.fee;
   }
-  // taxa da maquininha: no cardápio o próprio servidor aplica (crédito 3,9% /
-  // débito 1,9%) para não depender do que a página manda; no PDV vale o que o
-  // operador marcou. Mesa do site paga no fechamento, então não entra aqui.
+  // taxa da maquininha: no cardápio o próprio servidor aplica a taxa configurada
+  // em Configurações para não depender do que a página manda; no PDV vale o que
+  // o operador marcou. Mesa do site paga no fechamento, então não entra aqui.
+  const cardFeeCredit = Number(restPrefs?.cardFeeCredit ?? 3.9);
+  const cardFeeDebit = Number(restPrefs?.cardFeeDebit ?? 1.9);
   const siteFeePct = orderSource === 'cardapio' && orderType !== 'mesa'
-    ? (b.payment === 'credito' ? 3.9 : b.payment === 'debito' ? 1.9 : 0)
+    ? (b.payment === 'credito' ? cardFeeCredit : b.payment === 'debito' ? cardFeeDebit : 0)
     : 0;
   const cardFee = siteFeePct > 0
     ? Math.round(Math.max(0, subtotal + fee - Number(b.discount || 0)) * siteFeePct) / 100

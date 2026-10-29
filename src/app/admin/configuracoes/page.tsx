@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Settings, Save, Clock, MapPin, Phone, Printer, QrCode, Truck, Store, Globe, Power } from 'lucide-react';
+import { Settings, Save, Clock, MapPin, Phone, Printer, QrCode, Truck, Store, Globe, Power, CreditCard } from 'lucide-react';
 
 const DAYS = [
   { key: 'dom', label: 'Dom' }, { key: 'seg', label: 'Seg' }, { key: 'ter', label: 'Ter' },
@@ -66,6 +66,18 @@ export default function Config() {
     } catch {
       set(k, !v);
     }
+  };
+
+  // taxas do cartão: salva ao sair do campo
+  const saveFee = async (k: 'cardFeeCredit' | 'cardFeeDebit', raw: any) => {
+    const v = Math.max(0, Number(String(raw ?? '').replace(',', '.')) || 0);
+    set(k, v);
+    try {
+      const res = await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [k]: v }) });
+      if (!res.ok) throw new Error();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch {}
   };
 
   if (!r) return (
@@ -251,6 +263,32 @@ export default function Config() {
           <p className="text-[9px] leading-snug text-gray-600">
             Imprime 2 vias assim que o pedido do cardápio chega. Funciona no app instalado (impressão silenciosa);
             no navegador use o botão Imprimir do pedido.
+          </p>
+        </div>
+
+        {/* Taxas do cartão */}
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex items-center gap-2 mb-3">
+            <CreditCard size={14} className="text-amber-400" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400/60">Taxas do Cartão</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Crédito (%)</label>
+              <input className="input w-full" inputMode="decimal" value={r.cardFeeCredit ?? ''}
+                onChange={(e) => set('cardFeeCredit', e.target.value)}
+                onBlur={(e) => saveFee('cardFeeCredit', e.target.value)} />
+            </div>
+            <div>
+              <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Débito (%)</label>
+              <input className="input w-full" inputMode="decimal" value={r.cardFeeDebit ?? ''}
+                onChange={(e) => set('cardFeeDebit', e.target.value)}
+                onBlur={(e) => saveFee('cardFeeDebit', e.target.value)} />
+            </div>
+          </div>
+          <p className="text-[9px] leading-snug text-gray-600">
+            Percentual repassado ao cliente quando ele paga no cartão. Vale no PDV, nas mesas, no cardápio e na edição de pedido.
+            Coloque <b>0</b> pra não cobrar. Salva sozinho ao sair do campo.
           </p>
         </div>
       </div>
