@@ -360,6 +360,14 @@ export default function Pedidos() {
   const [orders, setOrders] = useState<any[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const prevCount = useRef(0);
+  // busca incremental: guarda os pedidos já carregados e a data do último
+  // "updatedAt" recebido. A cada 5s só desce o que mudou; a cada 60s recarrega
+  // tudo (garante que pedido apagado suma da tela).
+  const ordersRef = useRef<Map<string, any>>(new Map());
+  const sinceRef = useRef('');
+  const turnoRef = useRef('1');
+  const lastTurnoAt = useRef(0);
+  const lastFullAt = useRef(0);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [dispatchOrder, setDispatchOrder] = useState<any | null>(null);
   const [selectedDriver, setSelectedDriver] = useState<string>('');
@@ -386,11 +394,36 @@ export default function Pedidos() {
   // taxas da maquininha configuradas no painel (crédito/débito)
   const [cardFees, setCardFees] = useState({ credit: 3.9, debit: 1.9 });
 
-  const load = async () => {
-    const o = await fetch('/api/orders?limit=120').then((r) => r.json());
-    const turnoRes = await fetch('/api/cash').then((r) => r.json());
-    const turnoId = String(turnoRes.turno || '1');
-    const turnoOrders = o.filter((order: any) => (order.turnoId || '1') === turnoId);
+  const load = async (full = false) => {
+    const agora = Date.now();
+    // o turno quase nunca muda: consulta o caixa no máximo 1x por minuto
+    if (agora - lastTurnoAt.current > 60000) {
+      const turnoRes = await fetch('/api/cash').then((r) => r.json()).catch(() => null);
+      if (turnoRes?.turno) turnoRef.current = String(turnoRes.turno);
+      lastTurnoAt.current = agora;
+    }
+
+    const recarregarTudo = full || !sinceRef.current || agora - lastFullAt.current > 60000;
+    const query = recarregarTudo ? 'limit=120' : `limit=120&since=${encodeURIComponent(sinceRef.current)}`;
+    const o = await fetch(`/api/orders?${query}`).then((r) => r.json()).catch(() => null);
+    if (!Array.isArray(o)) return;
+
+    if (recarregarTudo) {
+      ordersRef.current = new Map(o.map((x: any) => [x.id, x]));
+      lastFullAt.current = agora;
+    } else {
+      for (const x of o) ordersRef.current.set(x.id, x);
+      // veio o lote cheio: pode ter ficado pedido para trás, recarrega tudo já
+      if (o.length >= 120) lastFullAt.current = 0;
+    }
+
+    // marcador do próximo "since" (2s de folga para não perder pedido no mesmo ms)
+    const maior = o.reduce((m: number, x: any) => Math.max(m, new Date(x.updatedAt || x.createdAt).getTime()), 0);
+    if (maior) sinceRef.current = new Date(maior - 2000).toISOString();
+
+    const turnoOrders = Array.from(ordersRef.current.values())
+      .filter((order: any) => (order.turnoId || '1') === turnoRef.current)
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     if (prevCount.current && turnoOrders.length > prevCount.current) playNewOrderSound();
     prevCount.current = turnoOrders.length;
     setOrders(turnoOrders);
@@ -409,7 +442,8 @@ export default function Pedidos() {
 
   const setStatus = async (id: string, status: string) => {
     await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
-    load();
+    // recarrega tudo: mudança de status pode remover o pedido da coluna/turno
+    load(true);
   };
 
   const dispatchWithDriver = async (orderId: string, driverId: string, motoboy?: string) => {
@@ -421,7 +455,7 @@ export default function Pedidos() {
       setConfirmPopup(null);
       setSelectedDriver('');
       setDriverNote('');
-      load();
+      load(true);
     } catch (e) {
       console.error('Erro ao despachar:', e);
     }
@@ -453,7 +487,7 @@ export default function Pedidos() {
     if (isFirst) {
       await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, printed: true }) }).catch(() => {});
       o.printCount = (Number(o.printCount) || 0) + 1;
-      load();
+      load(true);
     }
     for (const p of pages) {
       await fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});
@@ -483,9 +517,9 @@ export default function Pedidos() {
     document.body.style.cursor = 'wait';
     const { ok, d } = await nfeApi({ action: 'emit', orderId: o.id });
     document.body.style.cursor = '';
-    if (!ok) { showToast(typeof d.error === 'string' ? d.error : 'Falha ao emitir a nota', 'error', 7000); load(); return; }
+    if (!ok) { showToast(typeof d.error === 'string' ? d.error : 'Falha ao emitir a nota', 'error', 7000); load(true); return; }
     showToast(`Nota fiscal #${d.numero} emitida com sucesso!`, 'success', 5000);
-    load();
+    load(true);
   };
 
   const cancelNfe = async (o: any, motivo: string) => {
@@ -494,7 +528,7 @@ export default function Pedidos() {
     document.body.style.cursor = '';
     if (!ok) { showToast(typeof d.error === 'string' ? d.error : 'Falha ao cancelar a nota', 'error', 8000); return; }
     showToast('Nota fiscal cancelada', 'success');
-    load();
+    load(true);
   };
 
   const onNfe = (o: any, mode?: string) => {
@@ -590,7 +624,8 @@ export default function Pedidos() {
       if (!r.ok) { showToast(typeof d.error === 'string' ? d.error : 'Erro ao salvar as alterações', 'error'); return; }
       showToast(`Pedido #${editOrder.number} salvo`, 'success');
       setEditOrder(null);
-      load();
+      // edição pode remover item e apagar o pedido: recarrega tudo
+      load(true);
     } catch {
       showToast('Falha de conexão ao salvar — tente de novo', 'error');
     }
@@ -602,7 +637,7 @@ export default function Pedidos() {
       subtotal: o.subtotal, deliveryFee: o.deliveryFee, source: 'pdv', note: o.note,
       items: o.items.map((it: any) => ({ productId: it.productId, name: it.name, qty: it.qty, unitPrice: it.unitPrice, addons: JSON.parse(it.addonsJson || '[]'), note: it.note })),
     })});
-    load();
+    load(true);
   };
 
   const handleDrop = async (colId: string) => {

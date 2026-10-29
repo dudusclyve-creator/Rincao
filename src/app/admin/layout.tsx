@@ -116,7 +116,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const check = async () => {
       try {
         const [ordersRaw, notifs, settings] = await Promise.all([
-          fetch('/api/orders?limit=10').then(r => r.json()),
+          // lista leve: o XML da nota e os itens só são buscados na hora de imprimir
+          fetch('/api/orders?limit=10&light=1').then(r => r.json()),
           fetch('/api/notifications').then(r => r.json()).catch(() => []),
           fetch('/api/settings').then(r => r.json()).catch(() => null),
         ]);
@@ -138,10 +139,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
 
         // impressão automática: qualquer pedido recente que ainda não foi impresso
-        // (inclui os que chegaram segundos antes do painel abrir)
+        // (inclui os que chegaram segundos antes do painel abrir). A lista vem
+        // leve, então busca o pedido completo só quando realmente vai imprimir.
         orders
+          .filter(() => !!settingsRef.current?.printerAuto)
           .filter((o: any) => new Date(o.createdAt).getTime() >= mountedAt.current - 20000)
-          .forEach(autoPrintOrder);
+          .filter((o: any) => o.source !== 'pdv' && o.status !== 'cancelado' && !(Number(o.printCount || 0) > 0))
+          .filter((o: any) => !printingOrders.current.has(o.id))
+          .forEach((o: any) => {
+            fetch(`/api/orders?id=${encodeURIComponent(o.id)}`)
+              .then((r) => r.json())
+              .then((full) => { if (full && full.id) autoPrintOrder(full); })
+              .catch(() => {});
+          });
         // alerta vermelho de erro de NFC-e (novo e ainda não lido)
         const erros = (Array.isArray(notifs) ? notifs : []).filter((n: any) => n.kind === 'nfe_erro' && !n.read && !seenNotifs.current.has(n.id));
         if (erros.length) {

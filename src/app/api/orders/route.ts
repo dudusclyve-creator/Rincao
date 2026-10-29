@@ -1,8 +1,86 @@
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+import * as jose from 'jose';
 import { prisma } from '@/lib/db';
 import { parseAddress } from '@/lib/address';
+
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-secret-trocar');
+
+// O cardápio é público, então o pedido pode vir de qualquer navegador. Aqui a
+// gente confere se veio uma sessão válida do painel (PDV/mesas) ou se é um
+// cliente do site — o site nunca tem permissão de escolher preço, desconto etc.
+async function isAuthed(req: Request): Promise<boolean> {
+  const cookie = req.headers.get('cookie') || '';
+  const m = cookie.match(/(?:^|;\s*)session=([^;]+)/);
+  if (!m) return false;
+  try {
+    await jose.jwtVerify(decodeURIComponent(m[1]), JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Limite simples de pedidos por IP (em memória). Segura spam de pedidos falsos;
+// em pico normal (alguns pedidos por minuto) ninguém é afetado.
+const RL = new Map<string, number[]>();
+function rateLimited(ip: string, max = 8, windowMs = 60_000): boolean {
+  const now = Date.now();
+  const arr = (RL.get(ip) || []).filter((t) => now - t < windowMs);
+  arr.push(now);
+  RL.set(ip, arr);
+  if (RL.size > 2000) {
+    for (const [k, v] of RL) if (!v.some((t) => now - t < windowMs)) RL.delete(k);
+  }
+  return arr.length > max;
+}
+
+// Recalcula o pedido do site com os preços do banco. O navegador manda o preço,
+// mas quem manda no valor é o cadastro do produto (e do adicional).
+async function validateSiteItems(raw: any): Promise<{ ok: true; items: any[] } | { ok: false; error: string }> {
+  const list = Array.isArray(raw) ? raw : [];
+  if (list.length === 0) return { ok: false, error: 'Pedido sem itens' };
+  if (list.length > 60) return { ok: false, error: 'Pedido com itens demais' };
+
+  const ids = Array.from(new Set(list.map((i: any) => String(i?.productId || '')).filter(Boolean)));
+  const products = await prisma.product.findMany({
+    where: { id: { in: ids } },
+    include: { groups: { include: { group: { include: { addons: true } } } } },
+  });
+  const byId = new Map(products.map((p) => [p.id, p]));
+
+  const items: any[] = [];
+  for (const it of list) {
+    const p = byId.get(String(it?.productId || ''));
+    if (!p) return { ok: false, error: 'Um dos produtos não está mais disponível. Atualize a página e monte o pedido de novo.' };
+    if (p.available === false) return { ok: false, error: `${p.name} está indisponível no momento.` };
+
+    const allowed = new Map<string, any>();
+    for (const g of p.groups) for (const a of g.group.addons) allowed.set(a.id, a);
+    const addons = (Array.isArray(it?.addons) ? it.addons : []).slice(0, 20).map((a: any) => {
+      const found = a?.id
+        ? allowed.get(String(a.id))
+        : Array.from(allowed.values()).find((x) => x.name === String(a?.name || ''));
+      return {
+        id: found?.id || String(a?.id || ''),
+        name: found?.name || String(a?.name || 'Adicional'),
+        price: Math.max(0, Number(found?.price ?? 0)),
+        qty: Math.max(1, Math.min(20, Math.floor(Number(a?.qty || 1)))),
+      };
+    });
+
+    items.push({
+      productId: p.id,
+      name: p.name,
+      qty: Math.max(1, Math.min(99, Math.floor(Number(it?.qty || 1)))),
+      unitPrice: Math.max(0, Number(p.promoPrice ?? p.price) || 0),
+      addons,
+      note: String(it?.note || '').slice(0, 200),
+    });
+  }
+  return { ok: true, items };
+}
 
 // "pix:20,dinheiro:30" -> [{method:'pix',amount:20},{method:'dinheiro',amount:30}]
 // forma simples ("pix") -> [{method:'pix',amount:total}]
@@ -77,22 +155,95 @@ async function syncOrderMoney(orderId: string, number: number, total: number): P
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
+
+    // pedido único (usado na hora de imprimir/abrir um pedido específico)
+    const id = searchParams.get('id');
+    if (id) {
+      const one = await prisma.order.findUnique({ where: { id }, include: { items: true, customer: true, table: true, driver: true } });
+      if (!one) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+      return NextResponse.json(one);
+    }
+
     const status = searchParams.get('status');
-    const limit = Number(searchParams.get('limit') || 100);
+    const light = searchParams.get('light') === '1';
+    const since = searchParams.get('since');
+    const limit = Math.min(500, Math.max(1, Math.floor(Number(searchParams.get('limit') || 100)) || 100));
+
+    const where: any = status && status !== 'all' ? { status } : {};
+    if (since) {
+      const d = new Date(since);
+      if (!Number.isNaN(d.getTime())) where.updatedAt = { gt: d };
+    }
+
+    // O XML da nota é pesado e não é usado nas listas (o download busca em
+    // /api/nfe). `light` devolve só o necessário para o painel avisar/imprimir.
+    if (light) {
+      const rows = await prisma.order.findMany({
+        where,
+        select: {
+          id: true, number: true, status: true, source: true, type: true, customerName: true,
+          createdAt: true, updatedAt: true, printCount: true, total: true, cardFee: true, payment: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+      return NextResponse.json(rows);
+    }
+
     const orders = await prisma.order.findMany({
-      where: status && status !== 'all' ? { status } : {},
+      where,
       include: { items: true, customer: true, table: true, driver: true },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    return NextResponse.json(orders);
+    // não manda o XML da nota na lista (é pesado; o download busca em /api/nfe)
+    const enxuto = orders.map((o: any) => {
+      const { nfeXml, nfePdfUrl, ...rest } = o;
+      return rest;
+    });
+    return NextResponse.json(enxuto);
   } catch (e: any) {
     return NextResponse.json([], { status: 200 });
   }
 }
 
 export async function POST(req: Request) {
-  const b = await req.json();
+  let b: any;
+  try {
+    b = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
+  }
+  const authed = await isAuthed(req);
+
+  // removeItem / addItems / edit são ações do painel: exigem sessão válida.
+  if (b.action && !authed) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Sem sessão = pedido do cardápio. O servidor decide a origem, aplica limite
+  // por IP e recalcula os preços — o navegador não escolhe valor nem desconto.
+  const orderSource = authed ? (b.source || 'cardapio') : 'cardapio';
+  // o site só trabalha com entrega, retirada ou consumo no local; qualquer
+  // outro tipo vindo de fora (ex.: "mesa") é ignorado para não furar taxa/caixa
+  const orderType = authed
+    ? (b.type || 'entrega')
+    : (['entrega', 'retirada', 'local'].includes(String(b.type)) ? String(b.type) : 'entrega');
+  if (!authed) {
+    const ip = String(req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'local';
+    if (rateLimited(ip)) {
+      return NextResponse.json({ error: 'Muitos pedidos em sequência. Aguarde um minuto e tente de novo.' }, { status: 429 });
+    }
+    const val = await validateSiteItems(b.items);
+    if (!val.ok) return NextResponse.json({ error: val.error }, { status: 400 });
+    b.items = val.items;
+    b.discount = 0;
+    // mesa e motoboy só podem ser definidos pelo painel (o site não escolhe mesa)
+    b.tableId = null;
+    b.driverId = null;
+    const met = String(b.payment || 'pix');
+    b.payment = ['pix', 'dinheiro', 'debito', 'credito'].includes(met) ? met : 'pix';
+  }
 
   if (b.action === 'removeItem') {
     const order = await prisma.order.findUnique({ where: { id: b.orderId }, include: { items: true } });
@@ -236,6 +387,30 @@ export async function POST(req: Request) {
 
   // upsert cliente pelo telefone
   let customerId: string | undefined;
+
+  // Preferências do restaurante: usadas no aceite automático, na taxa do cartão,
+  // na taxa de entrega padrão e no pedido mínimo.
+  const restPrefs = await prisma.restaurant
+    .findUnique({
+      where: { id: 'single' },
+      select: { autoAccept: true, cardFeeCredit: true, cardFeeDebit: true, deliveryFee: true, minOrder: true },
+    })
+    .catch(() => null);
+
+  const itemsIn = Array.isArray(b.items) ? b.items : [];
+  const subtotal = itemsIn.length > 0 ? itemsIn.reduce((s: number, it: any) => s + lineTotal(it), 0) : Number(b.subtotal || 0);
+
+  // pedido mínimo (só para o site; o PDV é o operador que decide)
+  if (!authed && orderType === 'entrega') {
+    const minOrder = Number(restPrefs?.minOrder || 0);
+    if (minOrder > 0 && subtotal < minOrder) {
+      return NextResponse.json(
+        { error: `Pedido mínimo de R$ ${minOrder.toFixed(2).replace('.', ',')}` },
+        { status: 400 },
+      );
+    }
+  }
+
   // Bairros/taxas de entrega: servem para completar o cadastro e para conferir
   // a taxa cobrada no cardápio (o cliente não pode pagar a taxa de outro bairro).
   let zonas: { name: string; city: string; fee: number }[] = [];
@@ -296,27 +471,22 @@ export async function POST(req: Request) {
       customerId = cust.id;
     }
   }
-  const itemsIn = Array.isArray(b.items) ? b.items : [];
-  const subtotal = itemsIn.length > 0 ? itemsIn.reduce((s: number, it: any) => s + lineTotal(it), 0) : Number(b.subtotal || 0);
-
-  // o cardapio do site nao manda "source": aqui o pedido vira 'cardapio'.
-  // A checagem do caixa lia o valor cru (undefined) e por isso as vendas
-  // feitas pelo site nao entravam no caixa.
-  const orderSource = b.source || 'cardapio';
-  const orderType = b.type || 'entrega';
   // aceite automático: pedidos do cardápio já entram como confirmados, sem
   // precisar clicar em "Aceitar" no painel (PDV continua no fluxo do operador).
-  const restPrefs = await prisma.restaurant
-    .findUnique({ where: { id: 'single' }, select: { autoAccept: true, cardFeeCredit: true, cardFeeDebit: true } })
-    .catch(() => null);
   const initialStatus = orderSource === 'cardapio' && restPrefs?.autoAccept ? 'confirmado' : 'novo';
   // taxa de entrega: no cardápio vale SEMPRE a taxa do bairro escolhido
-  // (pagina antiga em cache mandava a taxa padrão do restaurante).
+  // (pagina antiga em cache mandava a taxa padrão do restaurante). Se o bairro
+  // não estiver cadastrado, usa a taxa padrão do restaurante — nunca a que o
+  // navegador mandou.
   let fee = orderType === 'entrega' ? Number(b.deliveryFee || 0) : 0;
-  if (orderType === 'entrega' && orderSource === 'cardapio' && zonas.length) {
-    const p = parseAddress(String(b.addressText || ''), zonas);
-    const zona = zonas.find((z) => z.name === p.district && (!p.city || z.city === p.city)) || zonas.find((z) => z.name === p.district);
-    if (zona) fee = zona.fee;
+  if (orderType === 'entrega' && orderSource === 'cardapio') {
+    let zonaFee: number | null = null;
+    if (zonas.length) {
+      const p = parseAddress(String(b.addressText || ''), zonas);
+      const zona = zonas.find((z) => z.name === p.district && (!p.city || z.city === p.city)) || zonas.find((z) => z.name === p.district);
+      if (zona) zonaFee = zona.fee;
+    }
+    fee = zonaFee ?? (authed ? fee : Number(restPrefs?.deliveryFee ?? 0));
   }
   // taxa da maquininha: no cardápio o próprio servidor aplica a taxa configurada
   // em Configurações para não depender do que a página manda; no PDV vale o que
@@ -326,8 +496,8 @@ export async function POST(req: Request) {
   const siteFeePct = orderSource === 'cardapio' && orderType !== 'mesa'
     ? (b.payment === 'credito' ? cardFeeCredit : b.payment === 'debito' ? cardFeeDebit : 0)
     : 0;
-  const cardFee = siteFeePct > 0
-    ? Math.round(Math.max(0, subtotal + fee - Number(b.discount || 0)) * siteFeePct) / 100
+  const cardFee = orderSource === 'cardapio'
+    ? (siteFeePct > 0 ? Math.round(Math.max(0, subtotal + fee - Number(b.discount || 0)) * siteFeePct) / 100 : 0)
     : Math.max(0, Number(b.cardFee || 0));
   const total = Math.max(0, subtotal + fee - Number(b.discount || 0) + cardFee);
 

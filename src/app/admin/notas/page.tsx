@@ -83,9 +83,8 @@ export default function NotasPage() {
     setTimeout(() => setCopied(''), 1500);
   };
   const openXml = (o: any) => {
-    if (!o.nfeXml) return;
-    const url = URL.createObjectURL(new Blob([o.nfeXml], { type: 'application/xml' }));
-    window.open(url, '_blank');
+    // o XML é grande: a lista não traz mais o conteúdo, busca na hora do download
+    window.open(`/api/nfe?orderId=${encodeURIComponent(o.id)}`, '_blank');
   };
   const cancelNota = async (o: any, motivo: string) => {
     const r = await fetch('/api/nfe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel', orderId: o.id, motivo }) });
@@ -191,8 +190,8 @@ export default function NotasPage() {
                         {copied === key ? <><Check size={10} /> copiada</> : <><Copy size={10} /> {key.slice(0, 10)}…{key.slice(-6)}</>}
                       </button>
                     )}
-                    {o.nfeXml && (
-                      <button onClick={() => openXml(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa' }} title="Ver XML da nota">
+                    {o.nfeStatus === 'issued' && (
+                      <button onClick={() => openXml(o)} className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-1 rounded" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa' }} title="Baixar XML da nota">
                         <ExternalLink size={10} /> XML
                       </button>
                     )}
