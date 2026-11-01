@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { ChefHat, AlertTriangle, Flame, Timer, MessageSquare, PlusCircle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STATUS_NEXT: Record<string, string> = { confirmado: 'preparo', preparo: 'pronto' };
@@ -83,14 +83,36 @@ export default function Cozinha() {
   const [showReady, setShowReady] = useState(true);
   const [showDone, setShowDone] = useState(false);
   const [showCancelled, setShowCancelled] = useState(false);
+  // turno atual: a cozinha só mostra o que é do turno aberto. Quando o turno
+  // é encerrado no Caixa (o número muda), prontos/cancelados/concluídos antigos
+  // saem da tela sozinhos.
+  const [turno, setTurno] = useState('');
+  const turnoRef = useRef('');
+  const lastTurnoAt = useRef(0);
 
   const load = async () => {
+    // o turno quase nunca muda: consulta o caixa no máximo 1x a cada 20s
+    if (Date.now() - lastTurnoAt.current > 20000) {
+      const cash = await fetch('/api/cash').then((r) => r.json()).catch(() => null);
+      if (cash && cash.turno) {
+        turnoRef.current = String(cash.turno);
+        setTurno(String(cash.turno));
+      }
+      lastTurnoAt.current = Date.now();
+    }
+
     const [recentes, canc] = await Promise.all([
-      fetch('/api/orders?limit=60').then((r) => r.json()).catch(() => []),
-      fetch('/api/orders?status=cancelado&limit=10').then((r) => r.json()).catch(() => []),
+      fetch('/api/orders?limit=80').then((r) => r.json()).catch(() => []),
+      fetch('/api/orders?status=cancelado&limit=40').then((r) => r.json()).catch(() => []),
     ]);
-    setOrders(Array.isArray(recentes) ? recentes : []);
-    setCancelados(Array.isArray(canc) ? canc : []);
+
+    // se o caixa não respondeu, mostra tudo (melhor repetir do que esconder pedido)
+    const doTurno = (arr: any) => {
+      const l = Array.isArray(arr) ? arr : [];
+      return turnoRef.current ? l.filter((o: any) => String(o.turnoId || '1') === turnoRef.current) : l;
+    };
+    setOrders(doTurno(recentes));
+    setCancelados(doTurno(canc));
   };
   useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t); }, []);
 
@@ -125,6 +147,7 @@ export default function Cozinha() {
             <h1 className="text-xl font-black text-white">Cozinha</h1>
             <p className="text-xs text-gray-500">
               {list.length} pedido(s) na cozinha{readyList.length > 0 ? ` · ${readyList.length} pronto(s)` : ''}
+              {turno ? ` · Turno ${turno}` : ''}
             </p>
           </div>
         </div>
@@ -141,7 +164,7 @@ export default function Cozinha() {
         {[
           { label: 'A preparar', count: orders.filter(o => o.status === 'confirmado').length, color: '#f59e0b' },
           { label: 'Em preparo', count: orders.filter(o => o.status === 'preparo').length, color: '#3b82f6' },
-          { label: 'Prontos Hoje', count: orders.filter(o => o.status === 'pronto').length, color: '#22c55e' },
+          { label: 'Prontos', count: orders.filter(o => o.status === 'pronto').length, color: '#22c55e' },
         ].map((s) => (
           <div key={s.label} className="rounded-xl p-4 text-center" style={{ background: `${s.color}08`, border: `1px solid ${s.color}18` }}>
             <p className="text-3xl font-black" style={{ color: s.color }}>{s.count}</p>
