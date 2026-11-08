@@ -373,7 +373,11 @@ export default function Caixa() {
     setDayDelivery({ count: deliveryDayCount, drivers: Object.entries(byLabel).map(([label, v]) => ({ label, ...v })) });
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const t = setInterval(() => { load().catch(() => {}); }, 8000);
+    return () => clearInterval(t);
+  }, [load]);
 
   // Vendas do caixa agrupadas por forma de pagamento (para o historico dos cards).
   // Usa as mesmas movimentacoes que formam o total, entao card e lista sempre batem.

@@ -441,7 +441,8 @@ export default function Pedidos() {
   useEffect(() => { loadDrivers(); setDriverNote(''); }, [dispatchOrder]);
 
   const setStatus = async (id: string, status: string) => {
-    await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+    const r = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) }).then((x) => x.json()).catch(() => null);
+    if (r?.cashLaunch === 'sem_caixa') showToast('Pedido concluído, mas NÃO entrou no caixa — nenhum caixa aberto', 'error');
     // recarrega tudo: mudança de status pode remover o pedido da coluna/turno
     load(true);
   };

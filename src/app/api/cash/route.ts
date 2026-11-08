@@ -19,12 +19,19 @@ async function closeOpenTables(registerId: string, payment: string) {
     const orders = await prisma.order.findMany({ where: { tableId: t.id, status: { notIn: ['concluido', 'cancelado'] } } });
     for (const o of orders) {
       await prisma.order.update({ where: { id: o.id }, data: { status: 'concluido', endedAt: new Date() } });
+      const valor = Math.round((Number(o.total) - Number(o.cardFee || 0)) * 100) / 100;
+      // 1 venda por pedido: refaz a que ja esta neste caixa, cria so se nunca entrou em caixa nenhum
+      const inOpen = await prisma.cashMovement.count({ where: { orderId: o.id, kind: 'venda', registerId } });
+      const anywhere = await prisma.cashMovement.count({ where: { orderId: o.id, kind: 'venda' } });
+      const pdvJaLancou = o.source === 'pdv' && anywhere > 0; // PDV lanca na criacao — nao duplica
       if (o.source !== 'pdv') {
-        const valor = Math.round((Number(o.total) - Number(o.cardFee || 0)) * 100) / 100;
         // a mesa foi paga agora: a forma escolhida no fechamento substitui a do site
         await prisma.order.update({ where: { id: o.id }, data: { payment } });
         await prisma.payment.deleteMany({ where: { orderId: o.id } });
         await prisma.payment.create({ data: { orderId: o.id, method: payment, amount: valor } });
+      }
+      if (!pdvJaLancou && (inOpen > 0 || anywhere === 0)) {
+        if (inOpen > 0) await prisma.cashMovement.deleteMany({ where: { orderId: o.id, kind: 'venda', registerId } });
         await prisma.cashMovement.create({ data: { registerId, kind: 'venda', method: payment, amount: valor, orderId: o.id, reason: `${t.number} #${o.number}` } });
         sales += valor;
       }

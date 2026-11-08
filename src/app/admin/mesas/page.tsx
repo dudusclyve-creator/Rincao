@@ -468,7 +468,11 @@ export default function Mesas() {
     setTables(t); setOrders(o); setMenu(m);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const t = setInterval(() => { if (!closingRef.current) load().catch(() => {}); }, 8000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const activeTableId = modalTableId;
   const activeTable = tables.find((t: any) => t.id === activeTableId);
@@ -535,6 +539,7 @@ export default function Mesas() {
     setClosing(true);
     try {
       let fail: string | null = null;
+      let semCaixa = false;
       // taxa do cartao: fica registrada no pedido (comanda/total), mas o caixa recebe
       // so o valor da venda (sem a taxa) para bater com o extrato da maquininha
       if (cardFee > 0) {
@@ -544,13 +549,11 @@ export default function Mesas() {
           await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: alvo.id, cardFee: novaTaxa }) }).then((x) => x.json()).catch(() => null);
         }
       }
+      // o PATCH de "concluido" ja lancava/atualiza a venda no caixa (sem duplicar)
       for (const o of activeOrders) {
         const pr = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, status: 'concluido', payment: o.source === 'pdv' ? undefined : payment }) }).then((x) => x.json()).catch(() => null);
         if (!pr || pr.error) { fail = pr?.error || 'falha na conexao'; break; }
-        if (o.source === 'pdv') continue; // venda ja lancada no caixa pelo PDV
-        const valorCaixa = Math.round((Number(pr.total ?? o.total) - Number(pr.cardFee ?? o.cardFee ?? 0)) * 100) / 100;
-        const mr = await fetch('/api/cash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'movement', kind: 'venda', method: payment, amount: valorCaixa, orderId: o.id, reason: `${activeTable?.number} #${o.number}` }) }).then((x) => x.json()).catch(() => null);
-        if (!mr || mr.error) { fail = mr?.error || 'falha na conexao'; break; }
+        if (pr.cashLaunch === 'sem_caixa') semCaixa = true;
       }
       if (fail) {
         showToast(`Mesa nao fechada: ${fail}`, 'error');
@@ -560,6 +563,7 @@ export default function Mesas() {
       await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: activeTableId, status: 'livre' }) });
       setModalClose(null);
       await load();
+      if (semCaixa) showToast('Mesa fechada, mas a venda NAO entrou no caixa — nenhum caixa aberto', 'error');
     } finally {
       closingRef.current = false;
       setClosing(false);

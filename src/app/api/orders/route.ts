@@ -139,14 +139,26 @@ async function syncOrderMoney(orderId: string, number: number, total: number): P
   }
   await prisma.payment.deleteMany({ where: { orderId } });
   await prisma.payment.createMany({ data: parts.map((p) => ({ orderId, method: p.method, amount: p.amount })) });
+  if (ord.status === 'cancelado') return paymentStr;
   const openReg = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
-  if (openReg) {
-    const hasMv = await prisma.cashMovement.count({ where: { orderId, kind: 'venda', registerId: openReg.id } });
-    if (hasMv > 0) {
-      await prisma.cashMovement.deleteMany({ where: { orderId, kind: 'venda', registerId: openReg.id } });
-      for (const p of parts) {
-        await prisma.cashMovement.create({ data: { registerId: openReg.id, kind: 'venda', method: p.method, amount: p.amount, reason: `Pedido #${number}`, orderId } });
-      }
+  if (!openReg) return paymentStr;
+  const inOpen = await prisma.cashMovement.count({ where: { orderId, kind: 'venda', registerId: openReg.id } });
+  if (inOpen > 0) {
+    // valor ou forma mudou: refaz o movimento do caixa aberto (1 venda por pedido)
+    await prisma.cashMovement.deleteMany({ where: { orderId, kind: 'venda', registerId: openReg.id } });
+    for (const p of parts) {
+      await prisma.cashMovement.create({ data: { registerId: openReg.id, kind: 'venda', method: p.method, amount: p.amount, reason: `Pedido #${number}`, orderId } });
+    }
+    return paymentStr;
+  }
+  // nunca lancado: cria agora so se o pedido ja deve contar no caixa de hoje.
+  // (mesa do salao conta so quando a conta e paga; pedido de outro dia nao entra no caixa de agora)
+  const anywhere = await prisma.cashMovement.count({ where: { orderId, kind: 'venda' } });
+  const mesmoDia = new Date(ord.createdAt).toDateString() === new Date().toDateString();
+  const deveContar = anywhere === 0 && mesmoDia && (ord.status === 'concluido' || ord.type !== 'mesa');
+  if (deveContar) {
+    for (const p of parts) {
+      await prisma.cashMovement.create({ data: { registerId: openReg.id, kind: 'venda', method: p.method, amount: p.amount, reason: `Pedido #${number}`, orderId } });
     }
   }
   return paymentStr;
@@ -606,6 +618,8 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const b = await req.json();
+  const prev = await prisma.order.findUnique({ where: { id: b.id }, select: { status: true, tableId: true } });
+  if (!prev) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
   const data: any = {};
   if (b.status) {
     data.status = b.status;
@@ -637,6 +651,17 @@ export async function PATCH(req: Request) {
     await prisma.payment.deleteMany({ where: { orderId: order.id } });
     await prisma.payment.createMany({ data: parts.map((p) => ({ orderId: order.id, method: p.method, amount: p.amount })) });
   }
+
+  // caixa: concluir garante a venda; trocar a forma de pagamento atualiza o movimento
+  if ((b.status === 'concluido' || b.payment !== undefined) && b.status !== 'cancelado') {
+    await syncOrderMoney(order.id, order.number, order.total);
+  }
+  // sinal para a tela avisar quando o pedido concluido nao entrou no caixa
+  let cashLaunch: string | undefined;
+  if (b.status === 'concluido') {
+    const anyMv = await prisma.cashMovement.count({ where: { orderId: order.id, kind: 'venda' } });
+    cashLaunch = anyMv > 0 ? 'ok' : 'sem_caixa';
+  }
   if (b.status === 'cancelado') {
     await prisma.notification.create({ data: { kind: 'cancelado', text: `Pedido #${order.number} cancelado` } });
     const items = await prisma.orderItem.findMany({ where: { orderId: order.id } });
@@ -651,7 +676,26 @@ export async function PATCH(req: Request) {
     const openReg = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' } });
     if (openReg) await prisma.cashMovement.deleteMany({ where: { orderId: order.id, kind: 'venda', registerId: openReg.id } });
   }
+  // mesa: pagar/cancelar o ultimo pedido libera a mesa; reativar volta a ocupar
+  if (b.status && b.status !== prev.status && order.tableId) {
+    if (b.status === 'concluido' || b.status === 'cancelado') {
+      const restam = await prisma.order.count({ where: { tableId: order.tableId, id: { not: order.id }, status: { notIn: ['concluido', 'cancelado'] } } });
+      if (restam === 0) await prisma.tableMap.update({ where: { id: order.tableId }, data: { status: 'livre' } }).catch(() => {});
+    } else if (prev.status === 'concluido' || prev.status === 'cancelado') {
+      await prisma.tableMap.update({ where: { id: order.tableId }, data: { status: 'ocupada' } }).catch(() => {});
+    }
+  }
+  // transferencia de mesa: origem fica livre quando nao sobra pedido aberto e destino volta a ocupar
+  if (b.tableId !== undefined && (order.tableId || '') !== (prev.tableId || '')) {
+    if (prev.tableId) {
+      const restam = await prisma.order.count({ where: { tableId: prev.tableId, id: { not: order.id }, status: { notIn: ['concluido', 'cancelado'] } } });
+      if (restam === 0) await prisma.tableMap.update({ where: { id: prev.tableId }, data: { status: 'livre' } }).catch(() => {});
+    }
+    if (order.tableId && !['concluido', 'cancelado'].includes(order.status)) {
+      await prisma.tableMap.update({ where: { id: order.tableId }, data: { status: 'ocupada' } }).catch(() => {});
+    }
+  }
   if (b.status === 'pronto')
     await prisma.notification.create({ data: { kind: 'pronto', text: `Pedido #${order.number} pronto` } });
-  return NextResponse.json(order);
+  return NextResponse.json({ ...order, ...(cashLaunch ? { cashLaunch } : {}) });
 }
