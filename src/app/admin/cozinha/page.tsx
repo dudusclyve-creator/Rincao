@@ -51,7 +51,7 @@ function MiniPedido({ o, cor }: { o: any; cor: string }) {
     <div className="rounded-xl overflow-hidden" style={{ background: `${cor}06`, border: `1px solid ${cor}25` }}>
       <div className="px-3 py-1.5 flex items-center justify-between" style={{ background: `${type.color}12`, borderBottom: `1px solid ${type.color}25` }}>
         <span className="flex items-center gap-1 text-[11px] font-black uppercase" style={{ color: type.color }}>
-          {type.icon} {o.type === 'mesa' && o.table?.number ? `MESA ${o.table.number}` : type.label}
+          {type.icon} {o.type === 'mesa' && o.table?.number ? String(o.table.number).toUpperCase() : type.label}
         </span>
         <span className="text-sm font-black text-white">#{o.number}</span>
       </div>
@@ -192,7 +192,7 @@ export default function Cozinha() {
               <div className="px-4 py-2 flex items-center justify-between" style={{ background: `${type.color}12`, borderBottom: `1px solid ${type.color}25` }}>
                 <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider" style={{ color: type.color }}>
                   <span>{type.icon}</span>
-                  {o.type === 'mesa' && o.table?.number ? `MESA ${o.table.number}` : type.label}
+                  {o.type === 'mesa' && o.table?.number ? String(o.table.number).toUpperCase() : type.label}
                 </span>
                 {o.customerName && (
                   <span className="text-[15px] font-black text-white truncate max-w-[55%] text-right">👤 {o.customerName}</span>
@@ -317,7 +317,7 @@ export default function Cozinha() {
                     {/* Type strip */}
                     <div className="px-3 py-1.5 flex items-center justify-between" style={{ background: `${type.color}12`, borderBottom: `1px solid ${type.color}25` }}>
                       <span className="flex items-center gap-1 text-[11px] font-black uppercase" style={{ color: type.color }}>
-                        {type.icon} {o.type === 'mesa' && o.table?.number ? `MESA ${o.table.number}` : type.label}
+                        {type.icon} {o.type === 'mesa' && o.table?.number ? String(o.table.number).toUpperCase() : type.label}
                       </span>
                       <span className="text-sm font-black text-white">#{o.number}</span>
                     </div>

@@ -20,6 +20,8 @@ const PUBLIC_GET = [
   '/api/settings',
   '/api/delivery-areas',
   '/api/image',
+  // o cardapio aberto pelo QR da mesa precisa saber qual mesa e
+  '/api/tables',
 ];
 
 // Escrita publica: login e criacao de pedido pelo cardapio.

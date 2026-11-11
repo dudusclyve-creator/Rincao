@@ -34,9 +34,9 @@ const TYPE_BADGE: Record<string, { bg: string; text: string; label: string }> = 
 };
 
 function getOrderType(o: any): string {
+  if (o.type === 'mesa' || (o.addressText || '').toUpperCase().includes('MESA')) return 'mesa';
   if (o.type === 'retirada' || (o.addressText || '').toUpperCase().includes('RETIRADA')) return 'retirada';
   if (o.type === 'local' || (o.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL')) return 'local';
-  if (o.type === 'mesa' || (o.addressText || '').toUpperCase().includes('MESA')) return 'mesa';
   if (o.type === 'balcao' || o.type === 'balcão') return 'balcao';
   return 'entrega';
 }
@@ -606,16 +606,14 @@ export default function Pedidos() {
     };
     if (editSplit) {
       const partes = editPayments.filter((p) => Number(p.amount || 0) > 0);
-      if (partes.length < 2) {
-        showToast('Pagamento dividido precisa de pelo menos 2 formas — ou cancele a divisão para usar uma só.', 'error');
+      if (partes.length === 0) {
+        showToast('Informe pelo menos uma forma de pagamento com valor — ou cancele a divisão para usar uma só.', 'error');
         return;
       }
-      const soma = Math.round(partes.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
-      if (Math.abs(soma - total) > 0.005) {
-        showToast(`As formas somam ${BRL(soma)}, mas o total é ${BRL(total)} — ajuste os valores.`, 'error');
-        return;
-      }
-      payload.payment = payToString(partes);
+      // 1 forma -> manda simples (o servidor fecha o valor no total);
+      // 2+ formas -> manda como está e o servidor ajusta a diferença na última parcela,
+      // então adicionar item/trocar valores não bloqueia mais o salvamento.
+      payload.payment = partes.length === 1 ? partes[0].method : payToString(partes);
     } else {
       payload.payment = editForm.payment;
     }

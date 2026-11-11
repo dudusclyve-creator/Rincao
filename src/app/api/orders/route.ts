@@ -236,11 +236,20 @@ export async function POST(req: Request) {
   // Sem sessão = pedido do cardápio. O servidor decide a origem, aplica limite
   // por IP e recalcula os preços — o navegador não escolhe valor nem desconto.
   const orderSource = authed ? (b.source || 'cardapio') : 'cardapio';
+  // Mesa pelo QR code: o site manda o id da mesa, o servidor confere no banco e
+  // define tipo/endereço. O texto do navegador não é usado como identificação.
+  let tableOrder: { id: string; number: string } | null = null;
+  if (!authed && b.tableId) {
+    const t = await prisma.tableMap.findUnique({ where: { id: String(b.tableId) } }).catch(() => null);
+    if (t) tableOrder = { id: t.id, number: t.number };
+  }
   // o site só trabalha com entrega, retirada ou consumo no local; qualquer
   // outro tipo vindo de fora (ex.: "mesa") é ignorado para não furar taxa/caixa
-  const orderType = authed
-    ? (b.type || 'entrega')
-    : (['entrega', 'retirada', 'local'].includes(String(b.type)) ? String(b.type) : 'entrega');
+  const orderType = tableOrder
+    ? 'mesa'
+    : authed
+      ? (b.type || 'entrega')
+      : (['entrega', 'retirada', 'local'].includes(String(b.type)) ? String(b.type) : 'entrega');
   if (!authed) {
     const ip = String(req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 'local';
     if (rateLimited(ip)) {
@@ -250,8 +259,9 @@ export async function POST(req: Request) {
     if (!val.ok) return NextResponse.json({ error: val.error }, { status: 400 });
     b.items = val.items;
     b.discount = 0;
-    // mesa e motoboy só podem ser definidos pelo painel (o site não escolhe mesa)
-    b.tableId = null;
+    // mesa só entra quando o id existe de verdade (QR da mesa); motoboy não.
+    b.tableId = tableOrder ? tableOrder.id : null;
+    if (tableOrder) b.addressText = tableOrder.number.toUpperCase();
     b.driverId = null;
     const met = String(b.payment || 'pix');
     b.payment = ['pix', 'dinheiro', 'debito', 'credito'].includes(met) ? met : 'pix';
@@ -505,7 +515,7 @@ export async function POST(req: Request) {
   // o operador marcou. Mesa do site paga no fechamento, então não entra aqui.
   const cardFeeCredit = Math.min(100, Math.max(0, Number(restPrefs?.cardFeeCredit ?? 3.9)));
   const cardFeeDebit = Math.min(100, Math.max(0, Number(restPrefs?.cardFeeDebit ?? 1.9)));
-  const siteFeePct = orderSource === 'cardapio' && orderType !== 'mesa'
+  const siteFeePct = orderSource === 'cardapio' && orderType !== 'mesa' && !tableOrder
     ? (b.payment === 'credito' ? cardFeeCredit : b.payment === 'debito' ? cardFeeDebit : 0)
     : 0;
   const cardFee = orderSource === 'cardapio'
@@ -519,7 +529,7 @@ export async function POST(req: Request) {
   // venda que ja entra no caixa junto com o pedido:
   //  - PDV (balcao/retirada/entrega/mesa): pago na hora, inclusive dividido
   //  - cardapio: pedido pago no site (mesa paga no fechamento da mesa)
-  const cashAtCreation = orderSource === 'pdv' || (orderSource === 'cardapio' && orderType !== 'mesa');
+  const cashAtCreation = orderSource === 'pdv' || (orderSource === 'cardapio' && orderType !== 'mesa' && !tableOrder);
   const cashTotal = Math.max(0, Math.round((total - cardFee) * 100) / 100);
   const cashParts = parsePayments(b.payment || 'pix', cashTotal);
   const cashReason = orderSource === 'pdv' ? 'PDV' : 'Pedido';
@@ -609,6 +619,11 @@ export async function POST(req: Request) {
     if (prod?.inventoryItemId) {
       await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: Number(it.qty || 1) } } });
     }
+  }
+
+  // pedido veio do QR da mesa: marca a mesa como ocupada para o painel
+  if (tableOrder) {
+    await prisma.tableMap.update({ where: { id: tableOrder.id }, data: { status: 'ocupada' } }).catch(() => {});
   }
 
   // pedidos de mesa (cardapio) pagam somente no fechamento da mesa (mesas/closeTable);

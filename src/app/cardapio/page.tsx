@@ -71,6 +71,8 @@ export default function CardapioPage() {
   const [hideRepeat, setHideRepeat] = useState(false);
   const [repeatItems, setRepeatItems] = useState<any[]>([]);
   const [savedAddress, setSavedAddress] = useState<any>(null);
+  // mesa veio do QR code (?mesa=<id>): o pedido sai com o numero da mesa
+  const [mesa, setMesa] = useState<any>(null);
   const isPickupLabel = (a: string) => a === 'Retirada no local' || a === 'Consumo no local';
   const applyMode = (id: string) => {
     let addr = addressText;
@@ -92,6 +94,10 @@ export default function CardapioPage() {
       if (fav) setFavorites(JSON.parse(fav));
       const lo = localStorage.getItem('cardapio_last_order');
       if (lo) setLastOrder(JSON.parse(lo));
+      // quando o cliente abriu pelo QR da mesa, o endereco salvo nao vale:
+      // a mesa manda no tipo de pedido e no endereco.
+      const mesaParam = new URLSearchParams(window.location.search).get('mesa');
+      if (mesaParam) return;
       const sa = localStorage.getItem('cardapio_saved_address');
       if (sa) {
         const parsed = JSON.parse(sa);
@@ -105,6 +111,28 @@ export default function CardapioPage() {
         }
       }
     } catch {}
+  }, []);
+
+  // QR da mesa: resolve o id (ou o numero, por compatibilidade) no /api/tables
+  // e trava o pedido como consumo no local daquela mesa.
+  useEffect(() => {
+    const mesaParam = new URLSearchParams(window.location.search).get('mesa');
+    if (!mesaParam) return;
+    let alive = true;
+    fetch('/api/tables')
+      .then((r) => r.json())
+      .then((tables: any[]) => {
+        if (!alive || !Array.isArray(tables)) return;
+        const digits = mesaParam.replace(/\D/g, '');
+        const t = tables.find((x: any) => x.id === mesaParam)
+          || (digits ? tables.find((x: any) => String(x.number).replace(/\D/g, '') === digits) : null);
+        if (!t) return;
+        setMesa(t);
+        setDeliveryType('local');
+        setAddressText(String(t.number).toUpperCase());
+      })
+      .catch(() => {});
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => { setRepeatItems(lastOrder?.items || []); }, [lastOrder]);
@@ -276,6 +304,12 @@ export default function CardapioPage() {
         <main className="flex-1 min-w-0 pb-32 lg:pb-8">
           {!open && <div className="rounded-xl p-3 text-sm font-bold text-center mb-4" style={{ background: '#3a1515', color: '#f87171', border: '1px solid #5a2020' }}>Estamos fechados no momento.</div>}
 
+          {mesa && (
+            <div className="rounded-xl p-3 text-sm font-bold text-center mb-4 flex items-center justify-center gap-2" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
+              🍽 Você está na <span className="font-black">{mesa.number}</span> — seu pedido já sai com o número da mesa.
+            </div>
+          )}
+
           {repeatItems.length > 0 && cart.items.length === 0 && !hideRepeat && (
             <div className="mb-4 rounded-2xl overflow-hidden" style={{ background: 'rgba(107,58,31,0.25)', border: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-3 px-4 pt-3">
@@ -374,17 +408,17 @@ export default function CardapioPage() {
         <aside className="hidden lg:block w-[300px] shrink-0"><div className="sticky top-[100px]">
           <div className="rounded-2xl w-full flex flex-col" style={{ background: 'white', border: '1px solid #f0f0f0', color: '#333', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
             {/* Endereço */}
-            <button onClick={() => { setAddressOpen(!addressOpen); setDeliveryStep(0); }} className="flex items-center justify-between px-4 py-3 text-left w-full cursor-pointer hover:bg-amber-50/50 transition rounded-t-2xl">
+            <button onClick={() => { if (mesa) return; setAddressOpen(!addressOpen); setDeliveryStep(0); }} className="flex items-center justify-between px-4 py-3 text-left w-full cursor-pointer hover:bg-amber-50/50 transition rounded-t-2xl">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: '#f5ebe0' }}>
                   <svg className="w-4 h-4" style={{ color: '#6b3a1f' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 </div>
                 <div>
-                  <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' ? (addressText && !isPickupLabel(addressText) ? addressText : 'Adicionar endereço') : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
+                  <p className="text-[12px] font-bold" style={{ color: '#3a2515' }}>{mesa ? `🍽 ${mesa.number} — consumo no local` : deliveryType === 'entrega' ? (addressText && !isPickupLabel(addressText) ? addressText : 'Adicionar endereço') : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
                   {deliveryType === 'entrega' && <p className="text-[10px]" style={{ color: '#b8906a' }}>{addressText && !isPickupLabel(addressText) ? BRL(taxaEntrega) : 'Defina o endereço'}</p>}
                 </div>
               </div>
-              <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+              <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: addressOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s', opacity: mesa ? 0 : 1 }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
             </button>
 
             {/* Itens ou vazio */}
@@ -446,7 +480,7 @@ export default function CardapioPage() {
           </div>
 
           {/* Popup de recebimento */}
-          {addressOpen && (
+          {addressOpen && !mesa && (
             <div className="absolute left-0 right-0 z-30 rounded-xl p-4 shadow-xl" style={{ top: '52px', background: 'white', border: '1px solid #f0f0f0', maxHeight: '420px', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}>
               {deliveryStep === 0 && (<>
                 <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Como você quer receber?</p>
@@ -543,15 +577,15 @@ export default function CardapioPage() {
         </button>
       )}
 
-      {cartOpen && <CartDrawer onClose={() => { setCartOpen(false); setCartStep(0); }} onCheckout={() => { setCartOpen(false); setCheckout(true); }} initialStep={cartStep} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={taxaEntrega} deliveryZones={deliveryZones} applyMode={applyMode} isPickupLabel={isPickupLabel} />}
-      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={taxaEntrega} addressText={addressText} setAddressText={setAddressText} cart={cart} isPickupLabel={isPickupLabel} deliveryZones={deliveryZones} onDefineAddress={() => { setCheckout(false); setCartStep(2); setCartOpen(true); }}       onOrderDone={(order: any) => {
+      {cartOpen && <CartDrawer onClose={() => { setCartOpen(false); setCartStep(0); }} onCheckout={() => { setCartOpen(false); setCheckout(true); }} initialStep={cartStep} products={data.products} deliveryType={deliveryType} setDeliveryType={setDeliveryType} addressText={addressText} setAddressText={(v: string) => { setAddressText(v); try { const prev = JSON.parse(localStorage.getItem('cardapio_saved_address') || 'null'); const sa = { phone: prev?.phone || '', addressText: v, deliveryType }; localStorage.setItem('cardapio_saved_address', JSON.stringify(sa)); setSavedAddress(sa); } catch {} }} deliveryFee={taxaEntrega} deliveryZones={deliveryZones} applyMode={applyMode} isPickupLabel={isPickupLabel} mesa={mesa} />}
+      {checkout && <CheckoutModal restaurant={R} onClose={() => setCheckout(false)} deliveryType={deliveryType} setDeliveryType={setDeliveryType} deliveryFee={taxaEntrega} addressText={addressText} setAddressText={setAddressText} cart={cart} isPickupLabel={isPickupLabel} deliveryZones={deliveryZones} mesa={mesa} onDefineAddress={() => { setCheckout(false); setCartStep(2); setCartOpen(true); }}       onOrderDone={(order: any) => {
         try {
           const lo = { number: order.number, date: new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), total: cart.subtotal, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, note: i.note, addons: i.addons })) };
           localStorage.setItem('cardapio_last_order', JSON.stringify(lo));
           setLastOrder(lo);
           setHideRepeat(false);
           const phoneDigits = String(order.customerPhone || '').replace(/\D/g, '');
-          if (phoneDigits.length >= 8 && addressText) {
+          if (phoneDigits.length >= 8 && addressText && !mesa) {
             const sa = { phone: phoneDigits, addressText, deliveryType };
             localStorage.setItem('cardapio_saved_address', JSON.stringify(sa));
             setSavedAddress(sa);
@@ -681,6 +715,7 @@ function CartDrawer(props: any) {
   const setAddressText = props.setAddressText;
   const deliveryFee = props.deliveryFee;
   const deliveryZones: Record<string, { name: string; fee: number }[]> = props.deliveryZones || DELIVERY_ZONES_FALLBACK;
+  const mesa = props.mesa;
   const cart = useCart();
   const [step, setStep] = useState(props.initialStep || 0);
   const [city, setCity] = useState('');
@@ -697,19 +732,19 @@ function CartDrawer(props: any) {
         <h2 className="font-bold text-base" style={{ color: '#3a2515' }}>Seu carrinho</h2>
 
         {/* Botão de endereço */}
-        <button onClick={() => setStep(step === 0 ? 1 : 0)} className="w-full flex items-center gap-2.5 mt-3 p-2.5 rounded-xl transition-all" style={{ background: addressText ? '#f5ebe0' : '#f9f9f9', border: `1px solid ${addressText ? '#e0d0c0' : '#eee'}` }}>
+        <button onClick={() => { if (mesa) return; setStep(step === 0 ? 1 : 0); }} className="w-full flex items-center gap-2.5 mt-3 p-2.5 rounded-xl transition-all" style={{ background: addressText ? '#f5ebe0' : '#f9f9f9', border: `1px solid ${addressText ? '#e0d0c0' : '#eee'}` }}>
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: addressText ? '#6b3a1f' : '#e0d5c8' }}>
             <svg className="w-4 h-4" style={{ color: addressText ? '#fff' : '#6b3a1f' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           </div>
           <div className="text-left flex-1 min-w-0">
-            <p className="text-[11px] font-bold" style={{ color: '#3a2515' }}>{deliveryType === 'entrega' ? (addressText && !props.isPickupLabel(addressText) ? addressText : 'Adicionar endereço') : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
+            <p className="text-[11px] font-bold" style={{ color: '#3a2515' }}>{mesa ? `🍽 ${mesa.number} — consumo no local` : deliveryType === 'entrega' ? (addressText && !props.isPickupLabel(addressText) ? addressText : 'Adicionar endereço') : deliveryType === 'retirada' ? 'Retirada no local' : deliveryType === 'local' ? 'Consumo no local' : 'Adicionar endereço'}</p>
             {deliveryType === 'entrega' && <p className="text-[9px]" style={{ color: '#b8906a' }}>{addressText && !props.isPickupLabel(addressText) ? BRL(deliveryFee) : 'Defina o endereço'}</p>}
           </div>
-          <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: step !== 0 ? 'rotate(180deg)' : '', transition: 'transform 0.2s' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+          <svg className="w-4 h-4 shrink-0" style={{ color: '#b8906a', transform: step !== 0 ? 'rotate(180deg)' : '', transition: 'transform 0.2s', opacity: mesa ? 0 : 1 }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
         </button>
 
         {/* Fluxo de endereço mobile */}
-        {step === 1 && (
+        {step === 1 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Como receber?</p>
             <div className="space-y-1.5">
@@ -723,7 +758,7 @@ function CartDrawer(props: any) {
           </div>
         )}
 
-        {step === 2 && (
+        {step === 2 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <button onClick={() => setStep(1)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Cidade</p>
@@ -738,7 +773,7 @@ function CartDrawer(props: any) {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 3 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <button onClick={() => setStep(2)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Bairro em {city}</p>
@@ -753,7 +788,7 @@ function CartDrawer(props: any) {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 4 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <button onClick={() => setStep(3)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
             <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>{bairro}, {city}</p>
@@ -804,7 +839,7 @@ function CartDrawer(props: any) {
 }
 
 /* ======================== CHECKOUT ======================== */
-function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, deliveryFee, addressText, setAddressText, onOrderDone, savedAddress, isPickupLabel, onDefineAddress, deliveryZones }: any) {
+function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, deliveryFee, addressText, setAddressText, onOrderDone, savedAddress, isPickupLabel, onDefineAddress, deliveryZones, mesa }: any) {
   const cart = useCart();
   const [f, setF] = useState({ name: '', phone: '', cpf: '', payment: 'pix', changeFor: '' });
   const [done, setDone] = useState<any>(null);
@@ -832,11 +867,13 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
     const d = v.replace(/\D/g, '').slice(0, 11);
     return d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
   };
-  const fee = deliveryType === 'entrega' ? deliveryFee : 0;
+  const fee = deliveryType === 'entrega' && !mesa ? deliveryFee : 0;
+  const isMesa = !!mesa;
+  const mesaAddress = mesa ? String(mesa.number).toUpperCase() : '';
   // taxa da maquininha no pedido do site: usa as taxas configuradas no painel
   const cardFeeCredit = Number(restaurant?.cardFeeCredit ?? 3.9);
   const cardFeeDebit = Number(restaurant?.cardFeeDebit ?? 1.9);
-  const cardFeePct = f.payment === 'credito' ? cardFeeCredit : f.payment === 'debito' ? cardFeeDebit : 0;
+  const cardFeePct = isMesa ? 0 : (f.payment === 'credito' ? cardFeeCredit : f.payment === 'debito' ? cardFeeDebit : 0);
   const cardFee = cardFeePct > 0 ? Math.round((cart.subtotal + fee) * cardFeePct) / 100 : 0;
   const total = Math.max(0, cart.subtotal + fee + cardFee);
 
@@ -859,13 +896,14 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
       customerName: f.name, customerPhone: f.phone, customerCpf: (deliveryType !== 'entrega' && !emitNota) ? '' : f.cpf,
       street: deliveryType === 'entrega' ? addr.street : '', number: deliveryType === 'entrega' ? addr.number : '',
       complement: deliveryType === 'entrega' ? addr.complement : '', district: deliveryType === 'entrega' ? `${addr.district}${addr.city ? `, ${addr.city}` : ''}` : '', reference: '',
-      addressText: deliveryType === 'entrega' ? addressText : (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL'),
-      type: deliveryType, payment: f.payment, changeFor: f.changeFor || null,
+      addressText: isMesa ? mesaAddress : (deliveryType === 'entrega' ? addressText : (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL')),
+      type: isMesa ? 'mesa' : deliveryType, payment: f.payment, changeFor: f.changeFor || null,
+      tableId: isMesa ? mesa.id : undefined,
       subtotal: cart.subtotal, deliveryFee: fee, discount: 0, cardFee,
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
       emitRequested: deliveryType === 'entrega' || emitNota,
     })}).then((r) => r.json());
-    setDone({ ...order, addressText: deliveryType === 'entrega' ? addressText : (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL') });
+    setDone({ ...order, addressText: isMesa ? mesaAddress : (deliveryType === 'entrega' ? addressText : (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL')) });
     onOrderDone?.({ ...order, customerPhone: f.phone });
     } finally { setSubmitting(false); }
   };
@@ -900,7 +938,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Finalizar pedido</h2>
-              <p className="text-[11px] mt-0.5 text-gray-400">{deliveryType === 'entrega' ? '🛵 Entrega' : deliveryType === 'retirada' ? '🚶 Retirada' : '🏠 No local'}</p>
+              <p className="text-[11px] mt-0.5 text-gray-400">{isMesa ? `🍽 ${mesa.number} — consumo no local` : deliveryType === 'entrega' ? '🛵 Entrega' : deliveryType === 'retirada' ? '🚶 Retirada' : '🏠 No local'}</p>
             </div>
             <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200">✕</button>
           </div>

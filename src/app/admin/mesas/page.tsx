@@ -3,10 +3,11 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { BRL, playDropSound, showToast, norm } from '@/lib/utils';
 import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
+import QRCode from 'qrcode';
 import {
   Users, Plus, Minus, X, Search, ArrowRightLeft, Receipt,
   User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CreditCard, Banknote, Smartphone,
-  Check, Trash2
+  Check, Trash2, QrCode
 } from 'lucide-react';
 
 const PAYMENT_OPTIONS = [
@@ -441,6 +442,108 @@ function TableDetail({ table, orders, onOpenTable, onOpenAddItem, onOpenTransfer
   );
 }
 
+const SITE_URL = 'https://rincao.vercel.app';
+
+// No app portatil o painel roda em localhost: o QR precisa apontar para o site
+// publico, senao o celular do cliente nao abre.
+function cardapioBase() {
+  if (typeof window === 'undefined') return SITE_URL;
+  const h = window.location.hostname;
+  return /^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/.test(h) ? SITE_URL : window.location.origin;
+}
+
+function tableQrUrl(t: any) {
+  return `${cardapioBase()}/cardapio?mesa=${encodeURIComponent(t.id)}`;
+}
+
+function TableQrModal({ table, onClose }: { table: any; onClose: () => void }) {
+  const url = tableQrUrl(table);
+  const [qr, setQr] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    QRCode.toDataURL(url, { width: 560, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
+      .then((d: string) => { if (alive) setQr(d); })
+      .catch(() => { if (alive) setQr(''); });
+    return () => { alive = false; };
+  }, [url]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Link do QR copiado', 'success');
+    } catch {
+      showToast('Não foi possível copiar o link', 'error');
+    }
+  };
+
+  const print = () => {
+    if (!qr) return;
+    const w = window.open('', '_blank', 'width=420,height=700');
+    if (!w) return;
+    w.document.write(`<!doctype html>
+<html><head><meta charset="utf-8"><title>QR ${table.number}</title>
+<style>
+  @page { size: 80mm auto; margin: 5mm; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+  .card { width: 70mm; margin: 0 auto; text-align: center; }
+  img.logo { max-width: 42mm; max-height: 18mm; margin: 0 auto 2mm; display: block; }
+  .mesa { font-size: 20px; font-weight: 900; letter-spacing: .5px; }
+  .qr { width: 60mm; height: 60mm; display: block; margin: 3mm auto; }
+  .txt { font-size: 11px; font-weight: 700; }
+  .sub { font-size: 9px; color: #333; margin-top: 1mm; }
+  .url { font-size: 7px; color: #666; word-break: break-all; margin-top: 2mm; }
+  @media screen {
+    body { padding: 16px; background: #eee; }
+    .card { background: #fff; padding: 16px; box-shadow: 0 1px 8px rgba(0,0,0,.2); }
+  }
+</style></head>
+<body><div class="card">
+  <img class="logo" src="${window.location.origin}/logo.png" alt="">
+  <div class="mesa">${table.number}</div>
+  <img class="qr" src="${qr}" alt="QR ${table.number}">
+  <div class="txt">Aponte a câmera e faça seu pedido</div>
+  <div class="sub">Seu pedido já sai com o número desta mesa.</div>
+  <div class="url">${url}</div>
+</div></body></html>`);
+    w.document.close();
+    setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 350);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl p-5" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest font-bold" style={{ color: '#8a7a6a' }}>QR code da mesa</p>
+            <h3 className="text-lg font-black text-white">{table.number}</h3>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="rounded-xl p-4 flex items-center justify-center" style={{ background: '#fff' }}>
+          {qr
+            ? <img src={qr} alt={`QR ${table.number}`} className="w-56 h-56" />
+            : <div className="w-56 h-56 flex items-center justify-center text-xs" style={{ color: '#8a7a6a' }}>Gerando QR…</div>}
+        </div>
+        <p className="text-[11px] mt-3 text-center" style={{ color: '#9ca3af' }}>
+          O cliente escaneia, cai no cardápio e o pedido já sai como <b className="text-white">{table.number}</b>.
+        </p>
+        <p className="text-[9px] mt-1 text-center break-all" style={{ color: '#6b5f55' }}>{url}</p>
+        <div className="flex gap-2 mt-4">
+          <button onClick={copy} className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all hover:brightness-110" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+            Copiar link
+          </button>
+          <button onClick={print} disabled={!qr} className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white transition-all hover:brightness-110 disabled:opacity-40" style={{ background: '#22c55e' }}>
+            Imprimir QR
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Mesas() {
   const [tables, setTables] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -452,6 +555,7 @@ export default function Mesas() {
   const [modalBill, setModalBill] = useState<string | null>(null);
   const [modalClose, setModalClose] = useState<string | null>(null);
   const [productModal, setProductModal] = useState<any>(null);
+  const [qrTable, setQrTable] = useState<any>(null);
   const [modalTableId, setModalTableId] = useState<string | null>(null);
   const [clientNames, setClientNames] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(true);
@@ -653,7 +757,13 @@ export default function Mesas() {
                     </span>
                     <span className="text-sm font-bold text-white">{t.number}</span>
                   </div>
-                  {isExpanded ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+                  <div className="flex items-center gap-1">
+                    <button onClick={(e) => { e.stopPropagation(); setQrTable(t); }} title="QR code da mesa"
+                      className="w-6 h-6 rounded-lg flex items-center justify-center transition-all hover:bg-white/10" style={{ color: '#8a7a6a' }}>
+                      <QrCode size={13} />
+                    </button>
+                    {isExpanded ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+                  </div>
                 </div>
 
                 {!isExpanded && (
@@ -695,6 +805,7 @@ export default function Mesas() {
       {modalTransfer && activeTable && <TransferModal table={activeTable} tables={tables} onTransfer={(destId) => transfer(destId)} onClose={closeAllModals} />}
       {modalBill && activeTable && <BillModal table={activeTable} orders={activeOrders} onClose={closeAllModals} />}
       {modalClose && activeTable && <CloseModal table={activeTable} orders={activeOrders} onClose={closeAllModals} onConfirm={closeTable} />}
+      {qrTable && <TableQrModal table={qrTable} onClose={() => setQrTable(null)} />}
     </div>
   );
 }
