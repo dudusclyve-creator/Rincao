@@ -45,6 +45,16 @@ export function danfeTexto(o: any): string {
 
   const homolog = String(o.nfeQrCode || '').split('|')[2] === '2';
 
+  // CPF do destinatario: a nota so identifica o consumidor quando o CPF foi
+  // informado no pedido (vai no XML como <dest><CPF>). O cupom precisa mostrar
+  // o mesmo CPF, senao o papel sai como "consumidor nao identificado".
+  const cpfDigits = String(o.customer?.cpf || '').replace(/\D/g, '');
+  const cpfFmt = cpfDigits.length === 11
+    ? cpfDigits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+    : '';
+  const consumidorNome = String(o.customer?.name || o.customerName || '').trim();
+  const nomeValido = consumidorNome && !/^(pdv|cliente)$/i.test(consumidorNome);
+
   sep('=');
   central('DANFE NFC-e');
   quebra('Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica').forEach((l) => central(l));
@@ -67,7 +77,12 @@ export function danfeTexto(o: any): string {
   sep();
 
   central(`#${o.nfeNumber} - DESTINATÁRIO / CONSUMIDOR`);
-  quebra(`CONSUMIDOR NÃO IDENTIFICADO${o.customerName ? ' - ' + o.customerName : ''}`).forEach(linha);
+  if (cpfFmt) {
+    if (nomeValido) quebra(`CONSUMIDOR: ${consumidorNome}`).forEach(linha);
+    linha(`CPF: ${cpfFmt}`);
+  } else {
+    quebra(`CONSUMIDOR NÃO IDENTIFICADO${consumidorNome ? ' - ' + consumidorNome : ''}`).forEach(linha);
+  }
   sep();
 
   for (const it of o.items || []) {
@@ -133,6 +148,15 @@ export async function printDanfe(o: any) {
     const payMap: any = { dinheiro: 'Dinheiro', pix: 'Pix', debito: 'Cartão de débito', credito: 'Cartão de crédito', cartao: 'Cartão' };
     const chaveFmt = (o.nfeKey || '').replace(/(\d{4})(?=\d)/g, '$1 ');
 
+    // mesmo criterio do cupom termico: mostra o CPF do destinatario quando a
+    // nota saiu identificada (o XML leva <dest><CPF>)
+    const cpfDigits = String(o.customer?.cpf || '').replace(/\D/g, '');
+    const cpfFmt = cpfDigits.length === 11
+      ? cpfDigits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+      : '';
+    const consumidorNome = String(o.customer?.name || o.customerName || '').trim();
+    const nomeValido = consumidorNome && !/^(pdv|cliente)$/i.test(consumidorNome);
+
     // versao em texto puro (fonte normal, 48 colunas). Fica escondida: no
     // aplicativo quem imprime e a impressora termica via ESC/POS, e o processo
     // principal le justamente este bloco. No site ela nao aparece na impressao.
@@ -163,7 +187,9 @@ export async function printDanfe(o: any) {
       <div><b>SANDRA REGINA DE MENEZES PIRES</b><br>RINCAO LANCHES<br>CNPJ: 42.462.389/0001-37<br>IE: 1060172256<br>AVENIDA DOM PEDRO II, 1694 - UMBU<br>SANTANA DO LIVRAMENTO/RS - CEP 97577-372<br>Fone: (55) 98437-5004</div>
       <hr>
       <div class="c"><b>#${o.nfeNumber} - DESTINATÁRIO / CONSUMIDOR</b></div>
-      <div class="small">CONSUMIDOR NÃO IDENTIFICADO${o.customerName ? ` - ${escapeHtml(o.customerName)}` : ''}</div>
+      <div class="small">${cpfFmt
+        ? `${nomeValido ? `CONSUMIDOR: ${escapeHtml(consumidorNome)}<br>` : ''}CPF: ${cpfFmt}`
+        : `CONSUMIDOR NÃO IDENTIFICADO${consumidorNome ? ` - ${escapeHtml(consumidorNome)}` : ''}`}</div>
       <hr>
       <table>${rows}${feeRow}</table>
       <hr>

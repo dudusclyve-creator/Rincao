@@ -957,7 +957,10 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
               </div>
             )}
             {deliveryType === 'entrega' && (
-              <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF (opcional — para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+              <>
+                <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF (opcional — para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+                <p className="text-[10px] text-gray-400 -mt-1">Se preencher, o CPF sai como destinatário da nota. Sem CPF a nota sai como consumidor não identificado.</p>
+              </>
             )}
             {deliveryType !== 'entrega' && (
               <div className="rounded-xl p-3" style={{ background: '#f9f9f9', border: '1px solid #ececec' }}>
