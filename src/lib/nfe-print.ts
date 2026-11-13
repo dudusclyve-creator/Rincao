@@ -45,13 +45,17 @@ export function danfeTexto(o: any): string {
 
   const homolog = String(o.nfeQrCode || '').split('|')[2] === '2';
 
-  // CPF do destinatario: a nota so identifica o consumidor quando o CPF foi
-  // informado no pedido (vai no XML como <dest><CPF>). O cupom precisa mostrar
-  // o mesmo CPF, senao o papel sai como "consumidor nao identificado".
-  const cpfDigits = String(o.customer?.cpf || '').replace(/\D/g, '');
-  const cpfFmt = cpfDigits.length === 11
-    ? cpfDigits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
-    : '';
+  // documento do destinatario (CPF 11 ou CNPJ 14): a nota so identifica o
+  // consumidor quando o documento foi informado no pedido (vai no XML como
+  // <dest><CPF>/<dest><CNPJ>). O cupom precisa mostrar o mesmo documento,
+  // senao o papel sai como "consumidor nao identificado".
+  const docDigits = String(o.customer?.cpf || '').replace(/\D/g, '');
+  const docFmt = docDigits.length === 11
+    ? docDigits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+    : docDigits.length === 14
+      ? docDigits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
+      : '';
+  const docLabel = docDigits.length === 14 ? 'CNPJ' : 'CPF';
   const consumidorNome = String(o.customer?.name || o.customerName || '').trim();
   const nomeValido = consumidorNome && !/^(pdv|cliente)$/i.test(consumidorNome);
 
@@ -77,9 +81,9 @@ export function danfeTexto(o: any): string {
   sep();
 
   central(`#${o.nfeNumber} - DESTINATÁRIO / CONSUMIDOR`);
-  if (cpfFmt) {
-    if (nomeValido) quebra(`CONSUMIDOR: ${consumidorNome}`).forEach(linha);
-    linha(`CPF: ${cpfFmt}`);
+  if (docFmt) {
+    if (nomeValido) quebra(`${docLabel === 'CNPJ' ? 'DESTINATÁRIO' : 'CONSUMIDOR'}: ${consumidorNome}`).forEach(linha);
+    linha(`${docLabel}: ${docFmt}`);
   } else {
     quebra(`CONSUMIDOR NÃO IDENTIFICADO${consumidorNome ? ' - ' + consumidorNome : ''}`).forEach(linha);
   }
@@ -148,12 +152,15 @@ export async function printDanfe(o: any) {
     const payMap: any = { dinheiro: 'Dinheiro', pix: 'Pix', debito: 'Cartão de débito', credito: 'Cartão de crédito', cartao: 'Cartão' };
     const chaveFmt = (o.nfeKey || '').replace(/(\d{4})(?=\d)/g, '$1 ');
 
-    // mesmo criterio do cupom termico: mostra o CPF do destinatario quando a
-    // nota saiu identificada (o XML leva <dest><CPF>)
-    const cpfDigits = String(o.customer?.cpf || '').replace(/\D/g, '');
-    const cpfFmt = cpfDigits.length === 11
-      ? cpfDigits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
-      : '';
+    // mesmo criterio do cupom termico: mostra CPF/CNPJ do destinatario quando
+    // a nota saiu identificada (o XML leva <dest><CPF> ou <dest><CNPJ>)
+    const docDigits = String(o.customer?.cpf || '').replace(/\D/g, '');
+    const docFmt = docDigits.length === 11
+      ? docDigits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+      : docDigits.length === 14
+        ? docDigits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
+        : '';
+    const docLabel = docDigits.length === 14 ? 'CNPJ' : 'CPF';
     const consumidorNome = String(o.customer?.name || o.customerName || '').trim();
     const nomeValido = consumidorNome && !/^(pdv|cliente)$/i.test(consumidorNome);
 
@@ -187,8 +194,8 @@ export async function printDanfe(o: any) {
       <div><b>SANDRA REGINA DE MENEZES PIRES</b><br>RINCAO LANCHES<br>CNPJ: 42.462.389/0001-37<br>IE: 1060172256<br>AVENIDA DOM PEDRO II, 1694 - UMBU<br>SANTANA DO LIVRAMENTO/RS - CEP 97577-372<br>Fone: (55) 98437-5004</div>
       <hr>
       <div class="c"><b>#${o.nfeNumber} - DESTINATÁRIO / CONSUMIDOR</b></div>
-      <div class="small">${cpfFmt
-        ? `${nomeValido ? `CONSUMIDOR: ${escapeHtml(consumidorNome)}<br>` : ''}CPF: ${cpfFmt}`
+      <div class="small">${docFmt
+        ? `${nomeValido ? `${docLabel === 'CNPJ' ? 'DESTINATÁRIO' : 'CONSUMIDOR'}: ${escapeHtml(consumidorNome)}<br>` : ''}${docLabel}: ${docFmt}`
         : `CONSUMIDOR NÃO IDENTIFICADO${consumidorNome ? ` - ${escapeHtml(consumidorNome)}` : ''}`}</div>
       <hr>
       <table>${rows}${feeRow}</table>

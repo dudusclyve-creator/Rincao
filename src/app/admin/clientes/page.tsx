@@ -26,8 +26,9 @@ export default function Clientes() {
 
   const fmtCpf = (v?: string) => {
     const d = (v || '').replace(/\D/g, '');
-    if (d.length !== 11) return d;
-    return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
+    if (d.length === 11) return `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}`;
+    if (d.length === 14) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`;
+    return d;
   };
 
   const saveCpf = async (id: string) => {
@@ -295,13 +296,13 @@ export default function Clientes() {
                         <span className="text-sm">🧾</span>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[9px] font-semibold uppercase tracking-wider text-amber-400/60 mb-0.5">CPF (nota fiscal de entrega)</p>
+                        <p className="text-[9px] font-semibold uppercase tracking-wider text-amber-400/60 mb-0.5">CPF / CNPJ (nota fiscal)</p>
                         <input
                           className="w-full bg-transparent text-[11px] text-gray-300 outline-none border-b border-white/10 focus:border-white/40 pb-0.5 transition-colors"
-                          placeholder="Não informado — digite 11 dígitos"
-                          inputMode="numeric" maxLength={14}
+                          placeholder="Não informado — CPF (11) ou CNPJ (14 dígitos)"
+                          inputMode="numeric" maxLength={18}
                           value={cpfDraft[c.id] ?? fmtCpf(c.cpf)}
-                          onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 11); setCpfDraft((p) => ({ ...p, [c.id]: fmtCpf(d) })); }}
+                          onChange={(e) => { const d = e.target.value.replace(/\D/g, '').slice(0, 14); setCpfDraft((p) => ({ ...p, [c.id]: fmtCpf(d) })); }}
                           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                           onBlur={() => saveCpf(c.id)}
                         />

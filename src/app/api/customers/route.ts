@@ -5,8 +5,11 @@ import { prisma } from '@/lib/db';
 
 export async function GET(req: Request) {
   const q = new URL(req.url).searchParams.get('q') || '';
+  const qDigits = q.replace(/\D/g, '');
   const customers = await prisma.customer.findMany({
-    where: q ? { OR: [{ name: { contains: q } }, { phone: { contains: q } }] } : {},
+    where: q
+      ? { OR: [{ name: { contains: q } }, { phone: { contains: q } }, ...(qDigits ? [{ cpf: { contains: qDigits } }] : [])] }
+      : {},
     include: { orders: { orderBy: { createdAt: 'desc' }, include: { items: true } } },
     orderBy: { createdAt: 'desc' }, take: 200,
   });
@@ -49,7 +52,11 @@ export async function PATCH(req: Request) {
   if (!b.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
   const data: any = {};
   if (b.tier !== undefined) data.tier = b.tier;
-  if (b.cpf !== undefined) data.cpf = String(b.cpf).replace(/\D/g, '');
+  // documento do cliente: CPF (11), CNPJ (14) ou vazio para limpar
+  if (b.cpf !== undefined) {
+    const doc = String(b.cpf).replace(/\D/g, '');
+    if (doc.length === 0 || doc.length === 11 || doc.length === 14) data.cpf = doc;
+  }
   if (b.name !== undefined) data.name = b.name;
   if (b.phone !== undefined) data.phone = b.phone;
   if (b.street !== undefined) data.street = b.street;

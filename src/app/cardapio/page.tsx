@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from '@/lib/store';
-import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, waNumber, openWhatsApp, norm, type CartAddon } from '@/lib/utils';
+import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, maskCpf, docValido, waNumber, openWhatsApp, norm, type CartAddon } from '@/lib/utils';
 import { parseAddress as parseAddressText, flattenZones } from '@/lib/address';
 
 type Product = any;
@@ -863,10 +863,6 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
     setPixCopied(true);
     setTimeout(() => setPixCopied(false), 2000);
   };
-  const maskCpf = (v: string) => {
-    const d = v.replace(/\D/g, '').slice(0, 11);
-    return d.length > 9 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6,9)}-${d.slice(9)}` : d.length > 6 ? `${d.slice(0,3)}.${d.slice(3,6)}.${d.slice(6)}` : d.length > 3 ? `${d.slice(0,3)}.${d.slice(3)}` : d;
-  };
   const fee = deliveryType === 'entrega' && !mesa ? deliveryFee : 0;
   const isMesa = !!mesa;
   const mesaAddress = mesa ? String(mesa.number).toUpperCase() : '';
@@ -886,7 +882,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
     if (f.phone.replace(/\D/g, '').length < 8) { showToast('Telefone incompleto — informe DDD + número (BR) ou +598...', 'warning'); return; }
     if (deliveryType === 'entrega' && !addrOk) { showToast('Informe o endereço da entrega', 'warning'); return; }
     const cpfDigits = (f.cpf || '').replace(/\D/g, '');
-    if (cpfDigits.length > 0 && cpfDigits.length !== 11) { showToast('CPF incompleto — complete os 11 dígitos ou deixe em branco', 'warning'); return; }
+    if (cpfDigits.length > 0 && !docValido(cpfDigits)) { showToast('CPF/CNPJ incompleto — complete os 11 dígitos do CPF ou 14 do CNPJ, ou deixe em branco', 'warning'); return; }
     if (deliveryType === 'entrega' && restaurant.minOrder && cart.subtotal < restaurant.minOrder) {
       showToast(`Pedido mínimo: ${BRL(restaurant.minOrder)}`, 'warning'); return;
     }
@@ -958,8 +954,8 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
             )}
             {deliveryType === 'entrega' && (
               <>
-                <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF (opcional — para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
-                <p className="text-[10px] text-gray-400 -mt-1">Se preencher, o CPF sai como destinatário da nota. Sem CPF a nota sai como consumidor não identificado.</p>
+                <input className="w-full rounded-xl px-4 py-3 text-sm outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF ou CNPJ (opcional — para a nota fiscal)" inputMode="numeric" maxLength={18} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+                <p className="text-[10px] text-gray-400 -mt-1">Se preencher, o CPF/CNPJ sai como destinatário da nota. Sem documento a nota sai como consumidor não identificado.</p>
               </>
             )}
             {deliveryType !== 'entrega' && (
@@ -970,8 +966,8 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
                 </label>
                 {emitNota && (
                   <>
-                    <input autoFocus className="mt-2.5 w-full rounded-xl px-4 py-3 text-sm outline-none bg-white border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF (opcional — para a nota fiscal)" inputMode="numeric" maxLength={14} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
-                    <p className="text-[10px] text-gray-400 mt-1.5">Se preencher, o CPF entra como destinatário da nota. Sem CPF a nota sai como consumidor não identificado.</p>
+                    <input autoFocus className="mt-2.5 w-full rounded-xl px-4 py-3 text-sm outline-none bg-white border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="CPF ou CNPJ (opcional — para a nota fiscal)" inputMode="numeric" maxLength={18} value={f.cpf} onChange={(e) => setF({ ...f, cpf: maskCpf(e.target.value) })} />
+                    <p className="text-[10px] text-gray-400 mt-1.5">Se preencher, o CPF/CNPJ entra como destinatário da nota. Sem documento a nota sai como consumidor não identificado.</p>
                   </>
                 )}
               </div>

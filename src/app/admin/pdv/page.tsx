@@ -788,7 +788,7 @@ export default function PDV() {
                             <button key={c.id} onMouseDown={() => {
                               setClient(c.name);
                               setClientPhone(maskPhone(c.phone || ''));
-                              setClientCpf(c.cpf || '');
+                              setClientCpf(maskCpf(c.cpf || ''));
                               const junkAddr = /^\s*(retirada|consumo|balcao|pdv)/i;
                               // monta o endereço com os dados do cliente; se rua/número
                               // estiverem vazios (cadastros antigos), aproveita o texto do
@@ -837,7 +837,7 @@ export default function PDV() {
                       );
                     })()}
                   </div>
-                  <input value={clientCpf} onChange={(e) => setClientCpf(maskCpf(e.target.value))} placeholder="CPF (opcional — para emitir a nota)"
+                  <input value={clientCpf} onChange={(e) => setClientCpf(maskCpf(e.target.value))} placeholder="CPF ou CNPJ (opcional — para emitir a nota)" maxLength={18}
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />
                   <input value={clientPhone} onChange={(e) => setClientPhone(maskPhone(e.target.value))} placeholder="Telefone (ex: 55 99999-9999 ou +598 99 123 456)" inputMode="tel" maxLength={20}
                     className="w-full px-3 py-3.5 rounded-xl text-base outline-none transition-all duration-200 hover:border-white/20 focus:border-rose-500/50" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: '#f0e8e0' }} />

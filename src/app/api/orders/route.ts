@@ -374,20 +374,26 @@ export async function POST(req: Request) {
       }
     }
 
-    // CPF do cliente (opcional; quando informado vira destinatario da NFC-e — precisa ter 11 digitos)
-    if (b.customerCpf !== undefined && String(b.customerCpf || '').replace(/\D/g, '').length === 11) {
-      const cpf = String(b.customerCpf).replace(/\D/g, '');
-      let cust = customerId ? await prisma.customer.findUnique({ where: { id: customerId } }) : null;
-      if (!cust) {
-        const phone = String(b.customerPhone || '').replace(/\D/g, '');
-        if (phone) cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
-      }
-      if (cust) {
-        if (cust.cpf !== cpf) await prisma.customer.update({ where: { id: cust.id }, data: { cpf } });
+    // Documento do cliente (opcional; vira destinatario da NFC-e): 11 = CPF, 14 = CNPJ.
+    // Vazio limpa o documento; tamanho invalido e ignorado.
+    if (b.customerCpf !== undefined) {
+      const cpf = String(b.customerCpf || '').replace(/\D/g, '');
+      const docOk = cpf.length === 0 || cpf.length === 11 || cpf.length === 14;
+      if (!docOk) {
+        // ignora documento incompleto para nao apagar/gravar lixo
       } else {
-        const key = String(b.customerPhone || '').replace(/\D/g, '') || cpf;
-        const created = await prisma.customer.create({ data: { name: b.customerName || order.customerName || 'Cliente', phone: key, cpf } }).catch(() => null);
-        if (created) customerId = created.id;
+        let cust = customerId ? await prisma.customer.findUnique({ where: { id: customerId } }) : null;
+        if (!cust) {
+          const phone = String(b.customerPhone || '').replace(/\D/g, '');
+          if (phone) cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
+        }
+        if (cust) {
+          if ((cust.cpf || '') !== cpf) await prisma.customer.update({ where: { id: cust.id }, data: { cpf } });
+        } else if (cpf) {
+          const key = String(b.customerPhone || '').replace(/\D/g, '') || cpf;
+          const created = await prisma.customer.create({ data: { name: b.customerName || order.customerName || 'Cliente', phone: key, cpf } }).catch(() => null);
+          if (created) customerId = created.id;
+        }
       }
     }
 
@@ -458,7 +464,7 @@ export async function POST(req: Request) {
   if (b.customerPhone) {
     const phone = String(b.customerPhone).replace(/\D/g, '');
     const cpf = String(b.customerCpf || '').replace(/\D/g, '');
-    const cpfOk = cpf.length === 11;
+    const cpfOk = cpf.length === 11 || cpf.length === 14;
     let cust = await prisma.customer.findUnique({ where: { phone } }).catch(() => null);
     if (!cust) {
       cust = await prisma.customer.create({
@@ -480,8 +486,8 @@ export async function POST(req: Request) {
       await prisma.customer.update({ where: { id: cust.id }, data: updateData });
     }
     if (cust) customerId = cust.id;
-  } else if (String(b.customerCpf || '').replace(/\D/g, '').length === 11) {
-    // sem telefone mas com CPF (PDV): localiza pelo CPF ou cria usando o CPF como chave
+  } else if ([11, 14].includes(String(b.customerCpf || '').replace(/\D/g, '').length)) {
+    // sem telefone mas com CPF/CNPJ (PDV): localiza pelo documento ou cria usando o documento como chave
     const cpf = String(b.customerCpf).replace(/\D/g, '');
     let cust = await prisma.customer.findFirst({ where: { cpf } }).catch(() => null);
     if (!cust) {

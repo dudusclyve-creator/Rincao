@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, openWhatsApp, formatPhone, cardFeePctFromOrder } from '@/lib/utils';
+import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, openWhatsApp, formatPhone, cardFeePctFromOrder, docFmt, docLabel } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { ItemCard } from '@/components/ItemCard';
 import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2, MessageCircle } from 'lucide-react';
@@ -240,7 +240,7 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
                 <div className="mt-2 pt-2 border-t border-gray-700 space-y-1">
                   {(o.emitRequested || o.customer?.cpf) && o.nfeStatus !== 'issued' && o.nfeStatus !== 'cancelled' && (
                     <p className="text-[11px] font-bold" style={{ color: o.emitRequested ? '#f59e0b' : '#9ca3af' }}>
-                      {o.emitRequested ? (o.type === 'entrega' ? '🔔 Entrega — emitir nota fiscal' : '🔔 Cliente pediu nota fiscal') : 'CPF informado'}{o.customer?.cpf ? ` — CPF: ${o.customer.cpf}` : ''}
+                      {o.emitRequested ? (o.type === 'entrega' ? '🔔 Entrega — emitir nota fiscal' : '🔔 Cliente pediu nota fiscal') : 'Documento informado'}{o.customer?.cpf ? ` — ${docLabel(o.customer.cpf)}: ${docFmt(o.customer.cpf)}` : ''}
                     </p>
                   )}
                   <p className="text-[10px] font-bold" style={{ color: chip.c }}>{chip.t}</p>
@@ -562,7 +562,7 @@ export default function Pedidos() {
       customerName: o.customerName || '', customerPhone: o.customerPhone || '', addressText: o.addressText || '',
       type: o.type || 'entrega', deliveryFee: String(o.deliveryFee || 0), discount: String(o.discount || 0),
       payment: o.payment || 'pix', changeFor: o.changeFor ? String(o.changeFor) : '', note: o.note || '',
-      customerCpf: o.customer?.cpf || '',
+      customerCpf: maskCpf(o.customer?.cpf || ''),
     });
 
     // pagamento dividido: "pix:20,dinheiro:38" -> lista editavel de formas
@@ -920,8 +920,9 @@ export default function Pedidos() {
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>🪪 CPF (para emitir a nota fiscal)</label>
-                    <input value={editForm.customerCpf || ''} onChange={(e) => setEditForm((f: any) => ({ ...f, customerCpf: maskCpf(e.target.value) }))} placeholder="000.000.000-00" className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                    <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>🪪 CPF / CNPJ (para emitir a nota fiscal)</label>
+                    <input value={editForm.customerCpf || ''} onChange={(e) => setEditForm((f: any) => ({ ...f, customerCpf: maskCpf(e.target.value) }))} placeholder="000.000.000-00 ou 00.000.000/0000-00" inputMode="numeric" maxLength={18} className="w-full px-3 py-2.5 rounded-xl text-[13px] outline-none" style={inputStyle} />
+                    <p className="text-[9px] mt-1" style={{ color: '#6b5f55' }}>Vale para a nota do pedido (depois de emitida, só cancelando e emitindo de novo).</p>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: '#8a7a6a' }}>📍 Endereço / Mesa</label>

@@ -103,13 +103,34 @@ export function buildWhatsMessage(o: {
 }
 
 // ---- Impressão térmica (ESC/POS texto + HTML) ----
-// mascara de CPF: 000.000.000-00
+// mascara de documento fiscal: CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00)
 export function maskCpf(v: string) {
-  const d = String(v || '').replace(/\D/g, '').slice(0, 11);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
-  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  const d = String(v || '').replace(/\D/g, '').slice(0, 14);
+  if (d.length <= 11) {
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+    if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+    return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  }
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+// documento do destinatario da nota: 11 = CPF, 14 = CNPJ
+export function docDigits(v?: string) {
+  return String(v || '').replace(/\D/g, '');
+}
+export function docValido(v?: string) {
+  const d = docDigits(v);
+  return d.length === 11 || d.length === 14;
+}
+export function docLabel(v?: string) {
+  return docDigits(v).length === 14 ? 'CNPJ' : 'CPF';
+}
+export function docFmt(v?: string) {
+  const d = docDigits(v);
+  if (d.length === 11) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  if (d.length === 14) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+  return d;
 }
 
 // ---- Telefone (Brasil DDI 55 e Uruguai +598) ----

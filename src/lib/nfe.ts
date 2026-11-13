@@ -318,13 +318,14 @@ export function buildNfce(order: any, fiscal: any, numero: number): BuildNfce {
     order.type === 'entrega' &&
     !(order.addressText || '').toUpperCase().includes('RETIRADA') &&
     !(order.addressText || '').toUpperCase().includes('CONSUMO NO LOCAL');
-  // NFC-e so aceita indPres 1 ou 4 (rej 717): entrega so usa 4 quando ha CPF do destinatario (rej 787);
-  // sem CPF, emite como consumidor nao identificado (indPres 1, sem tag dest) — CPF e opcional na NFC-e
-  const destCpf = String(order.customer?.cpf || '').replace(/\D/g, '');
-  const indPres = isRealDelivery && destCpf.length === 11 ? 4 : 1;
+  // NFC-e so aceita indPres 1 ou 4 (rej 717): entrega so usa 4 quando ha CPF/CNPJ do destinatario (rej 787);
+  // sem documento, emite como consumidor nao identificado (indPres 1, sem tag dest) — documento e opcional na NFC-e
+  const destDoc = String(order.customer?.cpf || '').replace(/\D/g, '');
+  const destOk = destDoc.length === 11 || destDoc.length === 14;
+  const indPres = isRealDelivery && destOk ? 4 : 1;
   let destXml = '';
-  // dest com CPF vale para entrega E para retirada (cliente marcou "deseja emitir a nota")
-  if (destCpf.length === 11) {
+  // dest com CPF/CNPJ vale para entrega E para retirada (cliente marcou "deseja emitir a nota")
+  if (destOk) {
     const cust: any = order.customer || {};
     const at = String(order.addressText || '');
     const m = at.match(/^(.+?),\s*(\S+?)(?:\s*-\s*(.+?))?\s*-\s*(.+)$/);
@@ -336,8 +337,10 @@ export function buildNfce(order: any, fiscal: any, numero: number): BuildNfce {
     const dComp = cleanTxt(String(cust.complement || ''), 60);
     const dBairro = cleanTxt(String(cust.district || ''), 60) || 'NAO INFORMADO';
     const destNome = tpAmb === 2 ? 'NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL' : cleanTxt(String(order.customerName || cust.name || 'CONSUMIDOR'), 60);
+    // CNPJ (14) identifica empresa; CPF (11) identifica pessoa fisica
+    const tagDoc = destDoc.length === 14 ? 'CNPJ' : 'CPF';
     destXml =
-      `<dest><CPF>${destCpf}</CPF><xNome>${esc(destNome)}</xNome>` +
+      `<dest><${tagDoc}>${destDoc}</${tagDoc}><xNome>${esc(destNome)}</xNome>` +
       `<enderDest><xLgr>${esc(dStreet)}</xLgr><nro>${esc(dNro)}</nro>` +
       (dComp ? `<xCpl>${esc(dComp)}</xCpl>` : '') +
       `<xBairro>${esc(dBairro)}</xBairro>` +
