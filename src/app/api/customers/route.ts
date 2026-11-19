@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     orderBy: { createdAt: 'desc' }, take: 200,
   });
   const enriched = customers.map((c) => {
-    const validOrders = c.orders.filter((o) => o.status !== 'cancelado');
+    const validOrders = c.orders.filter((o) => o.status !== 'cancelado' && o.status !== 'aguardando_pagamento');
     const totalSpent = validOrders.reduce((s, o) => s + o.total, 0);
     const orderCount = validOrders.length;
     const freqMap: Record<string, number> = {};

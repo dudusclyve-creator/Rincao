@@ -22,6 +22,8 @@ const PUBLIC_GET = [
   '/api/image',
   // o cardapio aberto pelo QR da mesa precisa saber qual mesa e
   '/api/tables',
+  // status do PIX do pedido (o link leva o token aleatorio do pedido)
+  '/api/pix',
 ];
 
 // Escrita publica: login e criacao de pedido pelo cardapio.
@@ -31,6 +33,8 @@ const PUBLIC_POST = [
   '/api/auth',
   '/api/orders',
   '/api/nfe-remote',
+  // gera a cobranca PIX do pedido (o pedido e validado no servidor)
+  '/api/pix',
 ];
 
 function matchesAny(pathname: string, list: string[]) {

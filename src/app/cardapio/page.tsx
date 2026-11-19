@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from '@/lib/store';
 import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, maskCpf, docValido, waNumber, openWhatsApp, norm, type CartAddon } from '@/lib/utils';
 import { parseAddress as parseAddressText, flattenZones } from '@/lib/address';
+import { PixQr } from '@/components/PixQr';
 
 type Product = any;
 
@@ -846,6 +847,70 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
   const [submitting, setSubmitting] = useState(false);
   const [emitNota, setEmitNota] = useState(false);
   const [pixCopied, setPixCopied] = useState(false);
+  // PIX automatico: cobranca gerada com valor, aguardando o Mercado Pago
+  const [pix, setPix] = useState<any>(null);
+  const [pixStatus, setPixStatus] = useState<'pending' | 'approved' | 'expired' | 'error'>('pending');
+  const [pixLoading, setPixLoading] = useState(false);
+  const [pixCodeCopied, setPixCodeCopied] = useState(false);
+
+  const startPix = async (order: any) => {
+    setPixLoading(true);
+    setPixStatus('pending');
+    try {
+      const r = await fetch('/api/pix', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: order.id }),
+      }).then((x) => x.json()).catch(() => null);
+      if (!r?.qr) {
+        setPix({ order, error: r?.error || 'Não foi possível gerar o PIX agora.' });
+        setPixStatus('error');
+        return;
+      }
+      setPix({ order, ...r });
+    } catch {
+      setPix({ order, error: 'Sem conexão para gerar o PIX.' });
+      setPixStatus('error');
+    } finally {
+      setPixLoading(false);
+    }
+  };
+
+  // polling da confirmacao: o webhook do Mercado Pago grava no banco e esta
+  // consulta (que tambem pergunta direto ao MP) libera a tela
+  useEffect(() => {
+    if (!pix?.order?.id || !pix?.token || pixStatus === 'approved') return;
+    let stop = false;
+    const check = async () => {
+      const r = await fetch(`/api/pix?orderId=${encodeURIComponent(pix.order.id)}&token=${encodeURIComponent(pix.token)}`)
+        .then((x) => x.json()).catch(() => null);
+      if (stop || !r) return;
+      if (r.paid || r.status === 'approved') {
+        setPixStatus('approved');
+        setDone({ ...pix.order });
+        onOrderDone?.({ ...pix.order, customerPhone: f.phone });
+      } else if (r.status === 'expired') {
+        setPixStatus('expired');
+      } else if (r.status === 'cancelled' || r.status === 'rejected') {
+        setPixStatus('error');
+      }
+    };
+    check();
+    const t = setInterval(check, 3000);
+    return () => { stop = true; clearInterval(t); };
+  }, [pix?.order?.id, pix?.token, pixStatus]);
+
+  const copyPixCode = async () => {
+    try {
+      await navigator.clipboard.writeText(String(pix?.qr || ''));
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = String(pix?.qr || '');
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      } catch {}
+    }
+    setPixCodeCopied(true);
+    setTimeout(() => setPixCodeCopied(false), 2000);
+  };
   const copyPixKey = async () => {
     const key = String(restaurant.pixKey || '');
     try {
@@ -899,10 +964,62 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
       note: cart.note, items: cart.items.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons, note: i.note })),
       emitRequested: deliveryType === 'entrega' || emitNota,
     })}).then((r) => r.json());
+    // PIX automatico (retirada/consumo no local): abre o QR com o valor e so
+    // mostra "pedido feito" depois que o banco confirmar
+    if (order?.pixPending) { await startPix(order); return; }
     setDone({ ...order, addressText: isMesa ? mesaAddress : (deliveryType === 'entrega' ? addressText : (deliveryType === 'retirada' ? 'RETIRADA NO BALCÃO' : 'CONSUMO NO LOCAL')) });
     onOrderDone?.({ ...order, customerPhone: f.phone });
     } finally { setSubmitting(false); }
   };
+
+  if (pix && !done) {
+    const expired = pixStatus === 'expired';
+    const failed = pixStatus === 'error';
+    return (
+      <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div className="rounded-2xl p-6 max-w-md w-full" style={{ background: 'white', color: '#333', boxShadow: '0 25px 60px rgba(0,0,0,0.12)' }}>
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl mx-auto" style={{ background: expired || failed ? '#fef2f2' : '#ecfdf5' }}>
+              {expired || failed ? '⚠️' : '📱'}
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mt-2">Pedido #{pix.order?.number} — PIX</h2>
+            <p className="text-[11px] text-gray-400 mt-0.5">Retirada no balcão • pagamento automático</p>
+            <p className="text-2xl font-black text-gray-900 mt-3">{BRL(Number(pix.total || pix.order?.total || 0))}</p>
+          </div>
+
+          {failed ? (
+            <div className="mt-4 rounded-xl p-3 text-center" style={{ background: '#fef2f2' }}>
+              <p className="text-[11px] font-bold" style={{ color: '#dc2626' }}>{String(pix.error || 'Não foi possível gerar o PIX.')}</p>
+              <button onClick={() => startPix(pix.order)} disabled={pixLoading} className="mt-2 text-[11px] font-bold px-3 py-1.5 rounded-lg" style={{ background: '#dc2626', color: '#fff' }}>Tentar de novo</button>
+            </div>
+          ) : expired ? (
+            <div className="mt-4 rounded-xl p-3 text-center" style={{ background: '#fffbeb' }}>
+              <p className="text-[11px] font-bold" style={{ color: '#b45309' }}>O QR expirou. Gere um novo para pagar.</p>
+              <button onClick={() => startPix(pix.order)} disabled={pixLoading} className="mt-2 text-[11px] font-bold px-3 py-1.5 rounded-lg" style={{ background: '#b45309', color: '#fff' }}>{pixLoading ? 'Gerando...' : 'Gerar novo QR'}</button>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-center mt-4">
+                <PixQr value={pix.qr} image={pix.qrImage} size={200} />
+              </div>
+              <button onClick={copyPixCode} className="w-full mt-3 rounded-xl py-2.5 text-xs font-bold transition-all" style={pixCodeCopied ? { background: '#16a34a', color: '#fff' } : { background: '#f3f4f6', color: '#374151' }}>
+                {pixCodeCopied ? '✅ Código copiado' : '📋 Copiar código PIX (copia e cola)'}
+              </button>
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#16a34a', borderTopColor: 'transparent' }} />
+                <p className="text-[11px] font-bold" style={{ color: '#16a34a' }}>Aguardando confirmação do banco...</p>
+              </div>
+              <p className="text-[10px] text-center text-gray-400 mt-1.5">
+                A confirmação é automática — pode deixar esta tela aberta. {pix.expiresAt ? `Expira às ${new Date(pix.expiresAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.` : ''}
+              </p>
+            </>
+          )}
+
+          <button onClick={() => { onClose?.(); }} className="w-full text-[11px] mt-3 text-gray-400 hover:text-gray-600 transition-colors">Fechar</button>
+        </div>
+      </div>
+    );
+  }
 
   if (done) {
     const msg = buildWhatsMessage({
@@ -1003,19 +1120,30 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
 
           {f.payment === 'pix' && (
             <div className="mt-3 p-3.5 rounded-xl bg-gray-50 border border-gray-100">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Chave Pix</p>
-              <div className="flex items-center justify-between gap-2 mt-1">
-                <p className="text-sm font-bold text-gray-900">{restaurant.pixKey}</p>
-                <button
-                  onClick={copyPixKey}
-                  className="shrink-0 flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
-                  style={pixCopied
-                    ? { background: '#16a34a', color: '#ffffff' }
-                    : { background: '#e5e7eb', color: '#374151' }}
-                >
-                  {pixCopied ? '✅ Copiado' : '📋 Copiar'}
-                </button>
-              </div>
+              {restaurant.pixConfigured && deliveryType !== 'entrega' && !isMesa ? (
+                <div className="flex items-start gap-2">
+                  <span className="text-base">⚡</span>
+                  <p className="text-[11px] leading-snug" style={{ color: '#166534' }}>
+                    <b>PIX automático:</b> ao finalizar, aparece o QR Code com o valor. O pedido é confirmado sozinho assim que o pagamento cair — não precisa mandar comprovante.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Chave Pix</p>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <p className="text-sm font-bold text-gray-900">{restaurant.pixKey}</p>
+                    <button
+                      onClick={copyPixKey}
+                      className="shrink-0 flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                      style={pixCopied
+                        ? { background: '#16a34a', color: '#ffffff' }
+                        : { background: '#e5e7eb', color: '#374151' }}
+                    >
+                      {pixCopied ? '✅ Copiado' : '📋 Copiar'}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

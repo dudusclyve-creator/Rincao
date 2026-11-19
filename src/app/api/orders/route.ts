@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic';
 import * as jose from 'jose';
 import { prisma } from '@/lib/db';
 import { parseAddress } from '@/lib/address';
+import { getPixConfig, sweepExpiredPix } from '@/lib/pix';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'dev-secret-trocar');
 
@@ -195,6 +196,7 @@ export async function GET(req: Request) {
         select: {
           id: true, number: true, status: true, source: true, type: true, customerName: true,
           createdAt: true, updatedAt: true, printCount: true, total: true, cardFee: true, payment: true,
+          paidAt: true, pixStatus: true,
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -208,11 +210,13 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
-    // não manda o XML da nota na lista (é pesado; o download busca em /api/nfe)
+    // não manda o XML da nota nem a imagem do QR PIX na lista (são pesados)
     const enxuto = orders.map((o: any) => {
-      const { nfeXml, nfePdfUrl, ...rest } = o;
+      const { nfeXml, nfePdfUrl, pixQr, pixQrImage, pixToken, ...rest } = o;
       return rest;
     });
+    // PIX abandonado não pode inflar relatório: vence e sai como cancelado
+    void sweepExpiredPix();
     return NextResponse.json(enxuto);
   } catch (e: any) {
     return NextResponse.json([], { status: 200 });
@@ -501,7 +505,11 @@ export async function POST(req: Request) {
   }
   // aceite automático: pedidos do cardápio já entram como confirmados, sem
   // precisar clicar em "Aceitar" no painel (PDV continua no fluxo do operador).
-  const initialStatus = orderSource === 'cardapio' && restPrefs?.autoAccept ? 'confirmado' : 'novo';
+  // PIX automatico (Mercado Pago) em balcao/retirada: o pedido so entra na
+  // cozinha depois que o banco confirmar o pagamento.
+  const pixCfg = await getPixConfig();
+  const pixPending = !!pixCfg && String(b.payment || '') === 'pix' && ['retirada', 'local', 'balcao'].includes(orderType);
+  const initialStatus = pixPending ? 'aguardando_pagamento' : (orderSource === 'cardapio' && restPrefs?.autoAccept ? 'confirmado' : 'novo');
   // taxa de entrega: no cardápio vale SEMPRE a taxa do bairro escolhido
   // (pagina antiga em cache mandava a taxa padrão do restaurante). Se o bairro
   // não estiver cadastrado, usa a taxa padrão do restaurante — nunca a que o
@@ -535,7 +543,7 @@ export async function POST(req: Request) {
   // venda que ja entra no caixa junto com o pedido:
   //  - PDV (balcao/retirada/entrega/mesa): pago na hora, inclusive dividido
   //  - cardapio: pedido pago no site (mesa paga no fechamento da mesa)
-  const cashAtCreation = orderSource === 'pdv' || (orderSource === 'cardapio' && orderType !== 'mesa' && !tableOrder);
+  const cashAtCreation = !pixPending && (orderSource === 'pdv' || (orderSource === 'cardapio' && orderType !== 'mesa' && !tableOrder));
   const cashTotal = Math.max(0, Math.round((total - cardFee) * 100) / 100);
   const cashParts = parsePayments(b.payment || 'pix', cashTotal);
   const cashReason = orderSource === 'pdv' ? 'PDV' : 'Pedido';
@@ -616,14 +624,19 @@ export async function POST(req: Request) {
       throw e;
     }
   }
-  await prisma.notification.create({ data: { kind: 'novo_pedido', text: `Novo pedido #${order.number} — ${order.customerName} — R$ ${total.toFixed(2)}` } });
+  if (!pixPending) {
+    await prisma.notification.create({ data: { kind: 'novo_pedido', text: `Novo pedido #${order.number} — ${order.customerName} — R$ ${total.toFixed(2)}` } });
+  }
 
-  // Deduzir estoque de bebidas (produtos com inventoryItemId vinculado)
-  for (const it of (b.items || [])) {
-    if (!it.productId) continue;
-    const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
-    if (prod?.inventoryItemId) {
-      await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: Number(it.qty || 1) } } });
+  // Deduzir estoque de bebidas (produtos com inventoryItemId vinculado).
+  // PIX pendente so desconta quando o pagamento for confirmado.
+  if (!pixPending) {
+    for (const it of (b.items || [])) {
+      if (!it.productId) continue;
+      const prod = await prisma.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) {
+        await prisma.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: Number(it.qty || 1) } } });
+      }
     }
   }
 
@@ -634,7 +647,7 @@ export async function POST(req: Request) {
 
   // pedidos de mesa (cardapio) pagam somente no fechamento da mesa (mesas/closeTable);
   // PDV e cardapio ja foram lancados no caixa na criacao (transacao acima)
-  return NextResponse.json({ ...order, cashRegisterOpen });
+  return NextResponse.json({ ...order, cashRegisterOpen, pixPending });
 }
 
 export async function PATCH(req: Request) {

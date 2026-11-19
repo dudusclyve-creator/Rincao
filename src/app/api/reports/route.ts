@@ -33,7 +33,7 @@ export async function GET(req: Request) {
     });
   }
 
-  const active = orders.filter((o) => o.status !== 'cancelado');
+  const active = orders.filter((o) => o.status !== 'cancelado' && o.status !== 'aguardando_pagamento');
   const cancelled = orders.filter((o) => o.status === 'cancelado');
   const revenue = active.reduce((s, o) => s + o.total, 0);
   const avgTicket = active.length ? revenue / active.length : 0;

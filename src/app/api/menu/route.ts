@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getPixConfig } from '@/lib/pix';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,5 +52,8 @@ export async function GET() {
     return { ...p, promoPrice, promoTitle: promo?.title, sold: soldByProduct[p.id] || 0 };
   });
 
-  return NextResponse.json({ restaurant, categories, products: enriched, promos });
+  // so o booleano: o cardapio precisa saber se o PIX automatico esta ligado
+  // para mostrar o aviso no checkout (o token nunca sai do servidor)
+  const pixConfigured = !!(await getPixConfig());
+  return NextResponse.json({ restaurant: { ...restaurant, pixConfigured }, categories, products: enriched, promos });
 }

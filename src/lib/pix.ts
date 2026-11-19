@@ -1,0 +1,244 @@
+import { prisma } from '@/lib/db';
+
+// PIX automatico via Mercado Pago.
+//
+// O token fica na tabela Setting (chave "mercadoPago"), nunca na Restaurant —
+// a Restaurant e lida publicamente pelo cardapio. Se o token nao estiver no
+// banco, cai para a variavel de ambiente MERCADO_PAGO_ACCESS_TOKEN (app/Vercel).
+//
+// Fluxo: o pedido nasce com status "aguardando_pagamento" e sem lancamento no
+// caixa. Quando o Mercado Pago confirma (webhook ou consulta), o pedido passa
+// para novo/confirmado e a venda entra no caixa. Sem confirmacao, o pedido
+// expira/cancela e nao entra em relatorio.
+
+const MP_API = 'https://api.mercadopago.com';
+
+export type PixConfig = { accessToken: string };
+
+let cache: { at: number; cfg: PixConfig | null } = { at: 0, cfg: null };
+
+export function resetPixCache() {
+  cache = { at: 0, cfg: null };
+}
+
+export async function getPixConfig(force = false, ignoreEnabled = false): Promise<PixConfig | null> {
+  if (!ignoreEnabled && !force && Date.now() - cache.at < 30_000) return cache.cfg;
+  let cfg: PixConfig | null = null;
+  try {
+    const s = await prisma.setting.findUnique({ where: { key: 'mercadoPago' } });
+    const j = s ? JSON.parse(s.value) : null;
+    const token = String(j?.accessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || '').trim();
+    if (token && (ignoreEnabled || j?.enabled !== false)) cfg = { accessToken: token };
+  } catch {}
+  if (!ignoreEnabled) cache = { at: Date.now(), cfg };
+  return cfg;
+}
+
+export function pixWebhookUrl() {
+  return String(process.env.PIX_WEBHOOK_URL || 'https://rincao.vercel.app/api/pix/webhook').trim();
+}
+
+function payerEmail(phone?: string) {
+  const d = String(phone || '').replace(/\D/g, '');
+  return d.length >= 8 ? `cliente${d}@rincao.com.br` : 'pix@rincao.com.br';
+}
+
+async function mpFetch(cfg: PixConfig, path: string, init?: RequestInit) {
+  const r = await fetch(`${MP_API}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${cfg.accessToken}`,
+      'Content-Type': 'application/json',
+      ...(init?.headers || {}),
+    },
+    cache: 'no-store',
+  });
+  const text = await r.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+  if (!r.ok) {
+    const msg = data?.message || data?.error || `Mercado Pago ${r.status}`;
+    throw new Error(String(msg));
+  }
+  return data;
+}
+
+export interface PixCharge {
+  id: string;
+  status: string;
+  qr: string;
+  qrImage: string;
+  ticketUrl: string;
+}
+
+export async function createPixCharge(cfg: PixConfig, opts: {
+  amount: number;
+  description: string;
+  externalReference: string;
+  payerPhone?: string;
+  expiresInMinutes?: number;
+}): Promise<PixCharge> {
+  const amount = Math.round(Number(opts.amount) * 100) / 100;
+  if (!(amount > 0)) throw new Error('Valor do PIX invalido');
+  const expires = new Date(Date.now() + (opts.expiresInMinutes ?? 30) * 60_000);
+  const body: any = {
+    transaction_amount: amount,
+    description: String(opts.description || 'Pedido').slice(0, 250),
+    payment_method_id: 'pix',
+    external_reference: String(opts.externalReference),
+    notification_url: pixWebhookUrl(),
+    date_of_expiration: expires.toISOString(),
+    payer: { email: payerEmail(opts.payerPhone), first_name: 'Cliente' },
+  };
+  const r = await mpFetch(cfg, '/v1/payments', {
+    method: 'POST',
+    // idempotencia: se a rede cair e o app repetir, o MP devolve a mesma cobranca
+    headers: { 'X-Idempotency-Key': `${opts.externalReference}-${Date.now()}` },
+    body: JSON.stringify(body),
+  });
+  const td = r?.point_of_interaction?.transaction_data || {};
+  const qr = String(td.qr_code || '');
+  if (!qr) throw new Error('Mercado Pago nao devolveu o codigo PIX');
+  return {
+    id: String(r.id || ''),
+    status: String(r.status || 'pending'),
+    qr,
+    qrImage: String(td.qr_code_base64 || ''),
+    ticketUrl: String(td.ticket_url || ''),
+  };
+}
+
+export async function getPixPayment(cfg: PixConfig, id: string) {
+  return mpFetch(cfg, `/v1/payments/${encodeURIComponent(id)}`);
+}
+
+export async function cancelPixPayment(cfg: PixConfig, id: string) {
+  try {
+    return await mpFetch(cfg, `/v1/payments/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'cancelled' }),
+    });
+  } catch {
+    return null;
+  }
+}
+
+function cashAmountOf(order: any) {
+  // a taxa da maquininha nao existe no PIX; ainda assim, se houver, nao entra no caixa
+  return Math.max(0, Math.round((Number(order.total || 0) - Number(order.cardFee || 0)) * 100) / 100);
+}
+
+async function approveOrder(order: any) {
+  const rest = await prisma.restaurant.findUnique({ where: { id: 'single' }, select: { autoAccept: true } }).catch(() => null);
+  const target = order.source === 'cardapio' && rest?.autoAccept ? 'confirmado' : 'novo';
+  const reason = order.source === 'pdv' ? `PDV #${order.number}` : `Pedido #${order.number}`;
+  const amount = cashAmountOf(order);
+  // pedido que ja tinha saido da tela (cancelado/expirado) e foi pago depois:
+  // o dinheiro entrou, entao reabre com aviso em vez de sumir do caixa
+  const reopened = !['aguardando_pagamento', 'novo', 'confirmado', 'preparo', 'pronto', 'saiu', 'concluido'].includes(String(order.status || ''));
+  // caixa: prioriza o que esta aberto agora (pagamento pode cair depois de um
+  // fechamento); se nao houver nenhum, usa o caixa de quando o QR foi gerado
+  const openNow = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' }, select: { id: true } });
+  const open = openNow?.id ? openNow : (order.pixRegisterId ? { id: order.pixRegisterId } : null);
+
+  await prisma.$transaction(async (tx) => {
+    // updateMany garante que webhook + consulta ao mesmo tempo confirmem so uma vez
+    const upd = await tx.order.updateMany({
+      where: { id: order.id, paidAt: null },
+      data: {
+        paidAt: new Date(),
+        pixStatus: 'approved',
+        ...(order.status === 'aguardando_pagamento' || reopened ? { status: target } : {}),
+      },
+    });
+    if (!upd.count) return;
+    // bebidas com estoque vinculado: desconta so agora (pedido PIX nasce sem baixa)
+    const items = await tx.orderItem.findMany({ where: { orderId: order.id }, select: { productId: true, qty: true } });
+    for (const it of items) {
+      if (!it.productId) continue;
+      const prod = await tx.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) {
+        await tx.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: it.qty } } });
+      }
+    }
+    if (open?.id && amount > 0) {
+      await tx.cashMovement.create({
+        data: { registerId: open.id, kind: 'venda', method: 'pix', amount, reason, orderId: order.id },
+      });
+    }
+    await tx.notification.create({
+      data: {
+        kind: 'pagamento',
+        text: reopened
+          ? `PIX pago DEPOIS do pedido ser cancelado/expirado — ${reason} — R$ ${amount.toFixed(2)} (pedido reaberto, confira)`
+          : `PIX confirmado — ${reason} — R$ ${amount.toFixed(2)}`,
+      },
+    });
+  });
+
+  if (!open?.id && amount > 0) {
+    await prisma.notification.create({
+      data: { kind: 'pagamento', text: `PIX confirmado com o caixa fechado — ${reason} — R$ ${amount.toFixed(2)} (lancar manualmente)` },
+    }).catch(() => {});
+  }
+}
+
+export type PixOrderStatus = 'pending' | 'approved' | 'cancelled' | 'expired' | 'none';
+
+// Consulta o Mercado Pago e aplica o resultado no pedido. Usado pelo webhook e
+// pelo polling do cardapio/PDV (funciona tambem no app portatil: o banco e o
+// mesmo do site, entao a confirmacao chega por qualquer um dos dois).
+export async function syncPixOrder(orderId: string): Promise<{ status: PixOrderStatus; order: any }> {
+  // ignora o "desligado": cobranca ja gerada precisa continuar confirmando
+  const cfg = await getPixConfig(false, true);
+  const order = await prisma.order.findUnique({ where: { id: orderId } }).catch(() => null);
+  if (!order) return { status: 'none', order: null };
+  if (order.paidAt) return { status: 'approved', order };
+  if (!cfg || !order.pixPaymentId) return { status: 'none', order };
+
+  try {
+    const p = await getPixPayment(cfg, order.pixPaymentId);
+    const st = String(p?.status || '').toLowerCase();
+
+    if (st === 'approved') {
+      await approveOrder(order);
+      return { status: 'approved', order };
+    }
+
+    if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(st)) {
+      await prisma.order.updateMany({
+        where: { id: order.id, paidAt: null },
+        data: { pixStatus: 'cancelled', ...(order.status === 'aguardando_pagamento' ? { status: 'cancelado' } : {}) },
+      });
+      return { status: 'cancelled', order };
+    }
+
+    // o MP pode manter "pending" depois do vencimento: encerra pela nossa data
+    if (order.pixExpiresAt && new Date(order.pixExpiresAt).getTime() < Date.now() - 60_000) {
+      await prisma.order.updateMany({
+        where: { id: order.id, paidAt: null },
+        data: { pixStatus: 'expired', ...(order.status === 'aguardando_pagamento' ? { status: 'cancelado' } : {}) },
+      });
+      return { status: 'expired', order };
+    }
+
+    return { status: 'pending', order };
+  } catch {
+    // rede/MP fora do ar: mantem pendente e tenta de novo no proximo poll
+    return { status: (order.pixStatus as PixOrderStatus) || 'pending', order };
+  }
+}
+
+// limpeza leve: pedidos PIX que ficaram aguardando e venceram saem do relatorio
+export async function sweepExpiredPix() {
+  try {
+    await prisma.order.updateMany({
+      where: {
+        status: 'aguardando_pagamento',
+        paidAt: null,
+        pixExpiresAt: { lt: new Date(Date.now() - 5 * 60_000) },
+      },
+      data: { status: 'cancelado', pixStatus: 'expired' },
+    });
+  } catch {}
+}

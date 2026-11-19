@@ -11,8 +11,15 @@ export default function Config() {
   const [r, setR] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [mpAccessToken, setMpAccessToken] = useState('');
+  const [mpEnabled, setMpEnabled] = useState(false);
 
-  useEffect(() => { fetch('/api/settings').then((x) => x.json()).then(setR); }, []);
+  useEffect(() => {
+    fetch('/api/settings').then((x) => x.json()).then((d) => {
+      setR(d);
+      setMpEnabled(!!d.pixEnabled);
+    });
+  }, []);
 
   const set = (k: string, v: any) => setR({ ...r, [k]: v });
 
@@ -48,7 +55,16 @@ export default function Config() {
   const save = async () => {
     setSaving(true);
     try {
-      await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r) });
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        // colar um token novo ja liga o PIX automatico
+        body: JSON.stringify({ ...r, mpAccessToken, mpEnabled: mpEnabled || !!mpAccessToken.trim() }),
+      });
+      if (res.ok) {
+        setR((prev: any) => ({ ...prev, pixConfigured: prev.pixConfigured || !!mpAccessToken, pixEnabled: mpEnabled }));
+        setMpAccessToken('');
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {}
@@ -291,6 +307,37 @@ export default function Config() {
             Coloque <b>0</b> pra não cobrar. Salva sozinho ao sair do campo.
           </p>
         </div>
+      </div>
+
+      {/* PIX automático (Mercado Pago) */}
+      <div className="rounded-xl p-4 mt-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <QrCode size={14} className="text-emerald-400" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/60">PIX automático (Mercado Pago)</p>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer shrink-0">
+            <input type="checkbox" checked={mpEnabled} onChange={(e) => setMpEnabled(e.target.checked)}
+              className="w-4 h-4 rounded" style={{ accentColor: '#10b981' }} />
+            <span className="text-[11px] text-gray-400">{mpEnabled ? 'Ligado' : 'Desligado'}</span>
+          </label>
+        </div>
+        <div>
+          <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Access Token de produção</label>
+          <input
+            className="input w-full"
+            type="password"
+            autoComplete="off"
+            value={mpAccessToken}
+            onChange={(e) => setMpAccessToken(e.target.value)}
+            placeholder={r.pixConfigured ? '•••••••••••• (já configurado — cole outro para trocar)' : 'Cole o Access Token do Mercado Pago'}
+          />
+        </div>
+        <p className="text-[9px] leading-snug text-gray-600">
+          Gera o QR Code com o valor e confirma sozinho quando o cliente paga. Vale no cardápio (retirada e consumo no local)
+          e no PDV (balcão e retirada). Entrega e mesa continuam como antes. O pedido só cai na cozinha depois da confirmação
+          do banco e a venda entra no caixa na hora. O token fica salvo no banco e nunca aparece no site.
+        </p>
       </div>
 
       {/* QR Code */}

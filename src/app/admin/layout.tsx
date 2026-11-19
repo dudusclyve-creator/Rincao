@@ -29,6 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const seenNotifs = useRef<Set<string>>(new Set());
   // controle de pedidos novos (notificação + impressão automática)
   const seenOrders = useRef<Set<string>>(new Set());
+  const seenStatus = useRef<Map<string, string>>(new Map());
   const ordersReady = useRef(false);
   const printingOrders = useRef<Set<string>>(new Set());
   const settingsRef = useRef<any>(null);
@@ -124,13 +125,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (settings && !settings.error) settingsRef.current = settings;
 
         const orders = Array.isArray(ordersRaw) ? ordersRaw : [];
-        const fresh = orders.filter((o: any) => !seenOrders.current.has(o.id));
-        orders.forEach((o: any) => seenOrders.current.add(o.id));
+        const isPendingPix = (o: any) => o.status === 'aguardando_pagamento';
+        // pedido que estava esperando PIX e acabou de ser confirmado
+        const justPaid = orders.filter((o: any) => !isPendingPix(o) && seenStatus.current.get(o.id) === 'aguardando_pagamento');
+        const justPaidIds = new Set(justPaid.map((o: any) => o.id));
+        const fresh = orders.filter((o: any) => !seenOrders.current.has(o.id) && !isPendingPix(o) && !justPaidIds.has(o.id));
+        orders.forEach((o: any) => {
+          seenOrders.current.add(o.id);
+          seenStatus.current.set(o.id, o.status);
+        });
 
         if (!ordersReady.current) {
           ordersReady.current = true;
-        } else if (fresh.length) {
-          const newest = fresh[0];
+        } else if (fresh.length || justPaid.length) {
+          const newest = (justPaid[0] || fresh[0]);
           playNotifSound();
           showBrowserNotif(newest);
           setNotif(newest);
@@ -143,8 +151,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         // leve, então busca o pedido completo só quando realmente vai imprimir.
         orders
           .filter(() => !!settingsRef.current?.printerAuto)
-          .filter((o: any) => new Date(o.createdAt).getTime() >= mountedAt.current - 20000)
-          .filter((o: any) => o.source !== 'pdv' && o.status !== 'cancelado' && !(Number(o.printCount || 0) > 0))
+          .filter((o: any) => justPaidIds.has(o.id) || new Date(o.createdAt).getTime() >= mountedAt.current - 20000)
+          .filter((o: any) => o.source !== 'pdv' && o.status !== 'cancelado' && o.status !== 'aguardando_pagamento' && !(Number(o.printCount || 0) > 0))
           .filter((o: any) => !printingOrders.current.has(o.id))
           .forEach((o: any) => {
             fetch(`/api/orders?id=${encodeURIComponent(o.id)}`)

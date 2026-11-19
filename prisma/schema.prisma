@@ -160,6 +160,15 @@ model Order {
   nfeProtocol    String?
   nfeIssuedAt    DateTime?
   nfeCancelledAt DateTime?
+  // PIX automatico (Mercado Pago) no cardapio retirada/local e no PDV balcao/retirada
+  pixPaymentId  String?
+  pixToken      String?
+  pixQr         String?
+  pixQrImage    String?
+  pixStatus     String? // pending|approved|rejected|cancelled|expired
+  pixExpiresAt  DateTime?
+  pixRegisterId String? // caixa aberto quando a cobranca foi gerada
+  paidAt        DateTime?
   endedAt         DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -173,6 +182,7 @@ model Order {
   @@index([tableId])
   @@index([driverId])
   @@index([customerId])
+  @@index([pixPaymentId])
 }
 
 model OrderItem {

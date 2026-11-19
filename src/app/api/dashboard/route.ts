@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db';
 export async function GET(req: Request) {
   const days = Number(new URL(req.url).searchParams.get('days') || 7);
   const since = new Date(); since.setDate(since.getDate() - days);
-  const orders = await prisma.order.findMany({ where: { createdAt: { gte: since }, status: { not: 'cancelado' } }, include: { items: true } });
+  const orders = await prisma.order.findMany({ where: { createdAt: { gte: since }, status: { notIn: ['cancelado', 'aguardando_pagamento'] } }, include: { items: true } });
   const all = await prisma.order.findMany({ where: { createdAt: { gte: since } } });
   const vendas = orders.reduce((s, o) => s + o.total, 0);
   const byDay: Record<string, number> = {};
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     preparo: all.filter((o) => o.status === 'preparo').length,
     concluidos: all.filter((o) => o.status === 'concluido').length,
     cancelados: all.filter((o) => o.status === 'cancelado').length,
-    hoje: { vendas: todayOrders.filter((o) => o.status !== 'cancelado').reduce((s,o)=>s+o.total,0), pedidos: todayOrders.length },
+    hoje: { vendas: todayOrders.filter((o) => o.status !== 'cancelado' && o.status !== 'aguardando_pagamento').reduce((s,o)=>s+o.total,0), pedidos: todayOrders.length },
     byDay, byPay, byHour,
     topProdutos: Object.values(prodCount).sort((a,b)=>b.qty-a.qty).slice(0,8),
   });

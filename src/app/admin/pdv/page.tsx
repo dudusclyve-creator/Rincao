@@ -4,6 +4,7 @@ import { BRL, receiptText, showToast, printReceiptText, maskCpf, maskPhone, norm
 import { parseAddress, flattenZones } from '@/lib/address';
 import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
+import { PixQr } from '@/components/PixQr';
 import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, AlertTriangle } from 'lucide-react';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
@@ -154,6 +155,105 @@ function CartItemNoteModal({ item, onSave, onClose }: { item: any; onSave: (note
 
 const PDV_STORAGE_KEY = 'pdv_state';
 
+function PixPdvModal({ sale, onApproved, onCancel }: { sale: any; onApproved: () => void; onCancel: () => void }) {
+  const [status, setStatus] = useState<'pending' | 'approved' | 'expired' | 'error'>('pending');
+  const [copied, setCopied] = useState(false);
+  const approvedRef = useRef(false);
+
+  useEffect(() => {
+    if (!sale?.order?.id || !sale?.token) return;
+    let stop = false;
+    const check = async () => {
+      const r = await fetch(`/api/pix?orderId=${encodeURIComponent(sale.order.id)}&token=${encodeURIComponent(sale.token)}`)
+        .then((x) => x.json()).catch(() => null);
+      if (stop || !r) return;
+      if (r.paid || r.status === 'approved') {
+        if (!approvedRef.current) {
+          approvedRef.current = true;
+          setStatus('approved');
+          setTimeout(() => onApproved(), 1200);
+        }
+      } else if (r.status === 'expired') setStatus('expired');
+      else if (r.status === 'cancelled' || r.status === 'rejected') setStatus('error');
+    };
+    check();
+    const t = setInterval(check, 3000);
+    return () => { stop = true; clearInterval(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sale?.order?.id, sale?.token]);
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(String(sale?.qr || '')); } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = String(sale?.qr || '');
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      } catch {}
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl p-5 text-center" style={{ background: '#241016', border: '1px solid #3a2028', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }}>
+        {status === 'approved' ? (
+          <div className="py-6">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl mx-auto" style={{ background: 'rgba(34,197,94,0.15)' }}>✅</div>
+            <h3 className="text-lg font-black text-white mt-3">PAGAMENTO CONFIRMADO</h3>
+            <p className="text-xs text-gray-400 mt-1">Venda #{sale?.order?.number} • {BRL(Number(sale?.total || sale?.order?.total || 0))}</p>
+            <p className="text-[10px] text-gray-500 mt-2">Imprimindo a comanda...</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <div className="text-left">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70">PIX automático</p>
+                <h3 className="text-sm font-black text-white">Venda #{sale?.order?.number}</h3>
+              </div>
+              <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>aguardando</span>
+            </div>
+            <p className="text-3xl font-black text-white mt-3">{BRL(Number(sale?.total || sale?.order?.total || 0))}</p>
+
+            {status === 'pending' && (
+              <>
+                <div className="flex justify-center mt-3 rounded-xl bg-white p-2">
+                  <PixQr value={sale?.qr} image={sale?.qrImage} size={210} />
+                </div>
+                <button onClick={copy} className="w-full mt-3 py-2.5 rounded-xl text-xs font-bold transition-all"
+                  style={copied ? { background: '#16a34a', color: '#fff' } : { background: 'rgba(255,255,255,0.08)', color: '#e5e7eb' }}>
+                  {copied ? '✅ Código copiado' : '📋 Copiar código copia e cola'}
+                </button>
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 rounded-full border-2 animate-spin" style={{ borderColor: '#22c55e', borderTopColor: 'transparent' }} />
+                  <p className="text-[11px] font-bold" style={{ color: '#4ade80' }}>Aguardando confirmação do banco...</p>
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1.5">A comanda só é impressa depois do pagamento.</p>
+              </>
+            )}
+
+            {status === 'expired' && (
+              <div className="mt-4 rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.1)' }}>
+                <p className="text-[11px] font-bold" style={{ color: '#fbbf24' }}>O QR expirou. Cancele e gere a venda de novo.</p>
+              </div>
+            )}
+
+            {status === 'error' && (
+              <div className="mt-4 rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.12)' }}>
+                <p className="text-[11px] font-bold" style={{ color: '#f87171' }}>O pagamento foi recusado/cancelado.</p>
+              </div>
+            )}
+
+            <button onClick={onCancel} className="w-full mt-3 py-2.5 rounded-xl text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+              Cancelar cobrança
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function loadPdvState() {
   if (typeof window === 'undefined') return null;
   try { return JSON.parse(localStorage.getItem(PDV_STORAGE_KEY) || 'null'); } catch { return null; }
@@ -177,6 +277,9 @@ export default function PDV() {
   const [editNoteIdx, setEditNoteIdx] = useState<number | null>(null);
   const [selectedTable, setSelectedTable] = useState(saved?.selectedTable || '');
   const [changeFor, setChangeFor] = useState(0);
+  // PIX automatico: venda fica aberta esperando o Mercado Pago confirmar
+  const [pixSale, setPixSale] = useState<any>(null);
+  const pixPrintRef = useRef<{ pages: string[]; orderId: string } | null>(null);
   const [splitPayment, setSplitPayment] = useState(false);
   const [cardFeeOn, setCardFeeOn] = useState(false);
   // taxas da maquininha vêm de Configurações (crédito/débito)
@@ -341,7 +444,7 @@ export default function PDV() {
   };
 
   const finish = async () => {
-    if (finishing || !cart.length) return;
+    if (finishing || pixSale || !cart.length) return;
     if (splitPayment) {
       const sumCents = Math.round(payments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100);
       const totalCents = Math.round(total * 100);
@@ -384,6 +487,43 @@ export default function PDV() {
       }
       return;
     }
+
+    // comprovante montado antes de limpar o carrinho (serve pro PIX tambem)
+    const receiptBase = {
+      store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
+      customerName: client || 'PDV', customerPhone: clientPhone || '',
+      items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
+      payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, cardFee,
+      cardFeeLabel: `Taxa cartao ${String(cardFeePct).replace('.', ',')}%`,
+      total: o.total,
+      addressText, type, changeFor: ((payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0) ? changeFor : undefined,
+      note: [orderNote, splitNote].filter(Boolean).join(' | '),
+      width: '80mm' as const,
+    };
+    // comanda dupla: 2 vias identicas (1a e unica impressao da venda) — corte no meio
+    const comanda = receiptText(receiptBase);
+    const pages = [comanda, comanda];
+
+    // PIX automatico (balcao/retirada): mostra o QR com o valor e so imprime/
+    // limpa o carrinho quando o banco confirmar
+    if (o.pixPending) {
+      const pr = await fetch('/api/pix', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: o.id }),
+      }).then((x) => x.json()).catch(() => null);
+      if (!pr?.qr) {
+        await fetch('/api/pix', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: o.id, action: 'cancel' }),
+        }).catch(() => {});
+        showToast(pr?.error || 'Nao foi possivel gerar o PIX — a venda nao foi finalizada', 'error', 7000);
+        return;
+      }
+      pixPrintRef.current = { pages, orderId: o.id };
+      setPixSale({ order: o, ...pr });
+      showToast(`PIX de ${BRL(o.total)} gerado — aguardando confirmacao`, 'info', 4000);
+      return;
+    }
+
     // limpa o carrinho na hora: se algo falhar depois, nao da pra finalizar de novo
     setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]); setCardFeeOn(false);
     // a taxa editada na mão vale só para esta venda: a próxima começa no padrão
@@ -400,20 +540,6 @@ export default function PDV() {
     } else {
       showToast(`Venda #${o.number} finalizada: ${BRL(o.total)}`, 'success');
     }
-    const receiptBase = {
-      store: 'Rincão Lanches', number: o.number, date: new Date(o.createdAt).toLocaleString('pt-BR'),
-      customerName: client || 'PDV', customerPhone: clientPhone || '',
-      items: cart.map((it: any) => ({ qty: it.qty, name: it.name, unitPrice: it.unitPrice, addons: it.addons || [], note: it.note || '' })),
-      payment: paymentMethod, subtotal: sub, fee: deliveryFee, discount: 0, cardFee,
-      cardFeeLabel: `Taxa cartao ${String(cardFeePct).replace('.', ',')}%`,
-      total: o.total,
-      addressText, type, changeFor: ((payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0) ? changeFor : undefined,
-      note: [orderNote, splitNote].filter(Boolean).join(' | '),
-      width: '80mm' as const,
-    };
-    // comanda dupla: 2 vias identicas (1a e unica impressao da venda) — corte no meio
-    const comanda = receiptText(receiptBase);
-    const pages = [comanda, comanda];
     fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, printed: true }) }).catch(() => {});
     for (const p of pages) {
       fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});
@@ -426,6 +552,39 @@ export default function PDV() {
 
   const scrollCats = (dir: number) => cats.scrollPage(dir);
 
+  // PIX confirmado pelo Mercado Pago: agora sim limpa a venda e imprime
+  const finishPixSale = () => {
+    const sale = pixSale;
+    const pending = pixPrintRef.current;
+    pixPrintRef.current = null;
+    setPixSale(null);
+    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]); setCardFeeOn(false);
+    setCardFeePctOverride(null);
+    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
+    localStorage.removeItem(PDV_STORAGE_KEY);
+    if (pending?.pages?.length) {
+      fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pending.orderId, printed: true }) }).catch(() => {});
+      for (const p of pending.pages) {
+        fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});
+      }
+      printReceiptText(pending.pages);
+    }
+    if (sale?.order) {
+      showToast(`PIX confirmado — venda #${sale.order.number} finalizada: ${BRL(sale.order.total)}`, 'success', 6000);
+    }
+  };
+
+  const cancelPixSale = async () => {
+    const sale = pixSale;
+    if (!sale?.order?.id) { setPixSale(null); return; }
+    setPixSale(null);
+    pixPrintRef.current = null;
+    await fetch('/api/pix', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: sale.order.id, action: 'cancel' }),
+    }).catch(() => {});
+    showToast('Cobrança PIX cancelada — a venda não foi finalizada', 'warning', 5000);
+  };
   const availableTables = tables.filter((t: any) => t.status === 'livre');
   const cities = Object.keys(deliveryZones);
   const bairros = deliveryCity ? deliveryZones[deliveryCity] || [] : [];
@@ -935,6 +1094,9 @@ export default function PDV() {
       {editNoteIdx !== null && cart[editNoteIdx] && (
         <CartItemNoteModal item={cart[editNoteIdx]} onSave={(note) => updateNote(cart[editNoteIdx].id, note)} onClose={() => setEditNoteIdx(null)} />
       )}
+
+      {/* PIX automatico: QR com valor, confirmacao pelo Mercado Pago */}
+      {pixSale && <PixPdvModal sale={pixSale} onApproved={finishPixSale} onCancel={cancelPixSale} />}
 
       {/* Caixa fechado: a venda nao foi criada */}
       {cashWarn && (
