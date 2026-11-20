@@ -142,6 +142,89 @@ export async function cancelPixPayment(cfg: PixConfig, id: string) {
   }
 }
 
+// PDV: o cliente desistiu do PIX na hora e vai pagar de outro jeito. Cancela a
+// cobranca no Mercado Pago e fecha a MESMA venda no metodo escolhido (o pedido
+// ja existe aguardando pagamento, entao o numero nao muda e nao fica buraco).
+export async function switchPixPayment(orderId: string, method: string) {
+  const pay = String(method || '');
+  if (!['dinheiro', 'debito', 'credito'].includes(pay)) throw new Error('Forma de pagamento invalida');
+  const order = await prisma.order.findUnique({ where: { id: orderId } }).catch(() => null);
+  if (!order) throw new Error('Pedido nao encontrado');
+  if (order.paidAt) throw new Error('Este PIX ja foi pago — a venda ja esta confirmada');
+  if (String(order.payment || '') !== 'pix') throw new Error('Este pedido nao esta no PIX');
+  if (String(order.status) !== 'aguardando_pagamento') throw new Error('Pedido nao esta aguardando pagamento');
+
+  // confere no banco antes de cancelar: o cliente pode ter pago no ultimo segundo
+  const cfg = await getPixConfig(false, true);
+  if (cfg && order.pixPaymentId) {
+    const mp = await getPixPayment(cfg, order.pixPaymentId).catch(() => null);
+    if (['approved', 'authorized'].includes(String(mp?.status || ''))) {
+      await syncPixOrder(order.id).catch(() => {});
+      throw new Error('O cliente acabou de pagar o PIX — venda confirmada automaticamente');
+    }
+    await cancelPixPayment(cfg, order.pixPaymentId);
+  }
+
+  const rest = await prisma.restaurant.findUnique({
+    where: { id: 'single' },
+    select: { autoAccept: true, cardFeeCredit: true, cardFeeDebit: true },
+  }).catch(() => null);
+  const pct = pay === 'credito'
+    ? Number(rest?.cardFeeCredit ?? 3.9)
+    : pay === 'debito' ? Number(rest?.cardFeeDebit ?? 1.9) : 0;
+  const base = Math.max(0, Number(order.total || 0) - Number(order.cardFee || 0));
+  const fee = pct > 0 ? Math.round(base * pct) / 100 : 0;
+  const total = Math.round((base + fee) * 100) / 100;
+  const target = order.source === 'cardapio' && rest?.autoAccept ? 'confirmado' : 'novo';
+  const label = pay === 'dinheiro' ? 'dinheiro' : pay === 'credito' ? 'credito' : 'debito';
+  const reason = order.source === 'pdv' ? `PDV #${order.number}` : `Pedido #${order.number}`;
+  const openNow = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' }, select: { id: true } });
+  const open = openNow?.id ? openNow : (order.pixRegisterId ? { id: order.pixRegisterId } : null);
+
+  await prisma.$transaction(async (tx) => {
+    const upd = await tx.order.updateMany({
+      where: { id: order.id, paidAt: null },
+      data: {
+        payment: pay, total, cardFee: fee, status: target,
+        pixStatus: 'cancelled', pixQr: null, pixQrImage: null, pixExpiresAt: null,
+      },
+    });
+    if (!upd.count) throw new Error('O pedido mudou enquanto trocava — confira em Pedidos');
+    // bebidas com estoque vinculado: pedido PIX nasce sem baixa, entao baixa agora
+    const items = await tx.orderItem.findMany({ where: { orderId: order.id }, select: { productId: true, qty: true } });
+    for (const it of items) {
+      if (!it.productId) continue;
+      const prod = await tx.product.findUnique({ where: { id: it.productId }, select: { inventoryItemId: true } });
+      if (prod?.inventoryItemId) {
+        await tx.inventoryItem.update({ where: { id: prod.inventoryItemId }, data: { qty: { decrement: it.qty } } });
+      }
+    }
+    if (open?.id && total > 0) {
+      const jaLancado = await tx.cashMovement.count({ where: { orderId: order.id, kind: 'venda' } });
+      if (!jaLancado) {
+        await tx.cashMovement.create({ data: { registerId: open.id, kind: 'venda', method: pay, amount: total, reason, orderId: order.id } });
+      }
+    }
+    if (order.tableId) {
+      await tx.tableMap.update({ where: { id: order.tableId }, data: { status: 'ocupada' } }).catch(() => {});
+    }
+    await tx.notification.create({
+      data: {
+        kind: 'pagamento',
+        text: `PIX cancelado no PDV — ${reason} pago em ${label}${fee > 0 ? ` (taxa ${pct}% R$ ${fee.toFixed(2)})` : ''} — R$ ${total.toFixed(2)}`,
+      },
+    });
+  });
+
+  if (!open?.id && total > 0) {
+    await prisma.notification.create({
+      data: { kind: 'pagamento', text: `Venda em ${label} com o caixa fechado — ${reason} — R$ ${total.toFixed(2)} (lancar manualmente)` },
+    }).catch(() => {});
+  }
+
+  return { ok: true, payment: pay, total, cardFee: fee, pct };
+}
+
 function cashAmountOf(order: any) {
   // a taxa da maquininha nao existe no PIX; ainda assim, se houver, nao entra no caixa
   return Math.max(0, Math.round((Number(order.total || 0) - Number(order.cardFee || 0)) * 100) / 100);

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { randomBytes } from 'crypto';
 import { prisma } from '@/lib/db';
-import { cancelPixPayment, createPixCharge, getPixConfig, syncPixOrder } from '@/lib/pix';
+import { cancelPixPayment, createPixCharge, getPixConfig, switchPixPayment, syncPixOrder } from '@/lib/pix';
 
 // PIX automatico (Mercado Pago) do cardapio (retirada / consumo no local) e do
 // PDV (balcao / retirada). O pedido ja nasce aguardando pagamento; aqui geramos
@@ -160,6 +160,17 @@ export async function PATCH(req: Request) {
       data: { pixStatus: 'cancelled', ...(order.status === 'aguardando_pagamento' ? { status: 'cancelado' } : {}) },
     });
     return NextResponse.json({ ok: true });
+  }
+
+  // PDV: cliente nao vai pagar o PIX (QR na tela) e escolheu outro metodo.
+  // Cancela a cobranca e fecha a mesma venda, sem trocar o numero do pedido.
+  if (b?.action === 'switch') {
+    try {
+      const r = await switchPixPayment(orderId, String(b?.payment || ''));
+      return NextResponse.json(r);
+    } catch (e: any) {
+      return NextResponse.json({ error: e?.message || 'Nao foi possivel trocar o pagamento' }, { status: 400 });
+    }
   }
 
   return NextResponse.json({ error: 'acao invalida' }, { status: 400 });

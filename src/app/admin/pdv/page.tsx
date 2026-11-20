@@ -155,10 +155,29 @@ function CartItemNoteModal({ item, onSave, onClose }: { item: any; onSave: (note
 
 const PDV_STORAGE_KEY = 'pdv_state';
 
-function PixPdvModal({ sale, onApproved, onCancel }: { sale: any; onApproved: () => void; onCancel: () => void }) {
+function PixPdvModal({ sale, cardFees, onApproved, onCancel, onSwitch }: {
+  sale: any;
+  cardFees: { credit: number; debit: number };
+  onApproved: () => void;
+  onCancel: () => void;
+  onSwitch: (method: string) => Promise<boolean>;
+}) {
   const [status, setStatus] = useState<'pending' | 'approved' | 'expired' | 'error'>('pending');
   const [copied, setCopied] = useState(false);
+  const [swapTo, setSwapTo] = useState<string | null>(null);
+  const [swapping, setSwapping] = useState(false);
   const approvedRef = useRef(false);
+
+  const base = Number(sale?.total || sale?.order?.total || 0);
+  const pctFor = (m: string) => (m === 'credito' ? cardFees.credit : m === 'debito' ? cardFees.debit : 0);
+  const totalFor = (m: string) => Math.round(base * (1 + pctFor(m) / 100) * 100) / 100;
+  const payLabel = (m: string) => (m === 'dinheiro' ? 'Dinheiro' : m === 'credito' ? 'Crédito' : 'Débito');
+  const confirmSwap = async () => {
+    if (!swapTo || swapping) return;
+    setSwapping(true);
+    const ok = await onSwitch(swapTo);
+    if (!ok) setSwapping(false);
+  };
 
   useEffect(() => {
     if (!sale?.order?.id || !sale?.token) return;
@@ -247,6 +266,46 @@ function PixPdvModal({ sale, onApproved, onCancel }: { sale: any; onApproved: ()
               </div>
             )}
 
+            {(status === 'pending' || status === 'expired') && (
+              <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Cliente vai pagar de outro jeito?</p>
+                {!swapTo ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['dinheiro', 'debito', 'credito'] as const).map((m) => (
+                      <button key={m} onClick={() => setSwapTo(m)} disabled={swapping}
+                        className="py-2.5 rounded-xl text-[11px] font-bold transition-all disabled:opacity-40"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: '#e5e7eb', border: '1px solid rgba(255,255,255,0.08)' }}>
+                        {payLabel(m)}
+                        {pctFor(m) > 0 && <span className="block text-[9px] font-semibold text-gray-500">+{String(pctFor(m)).replace('.', ',')}%</span>}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl p-3 text-left" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                    <p className="text-[11px] font-bold text-white">Trocar para {payLabel(swapTo)} e finalizar?</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">
+                      O QR PIX é cancelado na hora.{' '}
+                      {pctFor(swapTo) > 0
+                        ? `Total com a taxa de ${String(pctFor(swapTo)).replace('.', ',')}%: ${BRL(totalFor(swapTo))}`
+                        : `Total: ${BRL(base)}`}
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={confirmSwap} disabled={swapping}
+                        className="flex-1 py-2 rounded-lg text-[11px] font-bold text-white disabled:opacity-50"
+                        style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                        {swapping ? 'Trocando...' : 'Sim, trocar e finalizar'}
+                      </button>
+                      <button onClick={() => setSwapTo(null)} disabled={swapping}
+                        className="px-3 py-2 rounded-lg text-[11px] font-bold disabled:opacity-50"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                        Voltar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <button onClick={onCancel} className="w-full mt-3 py-2.5 rounded-xl text-xs font-bold" style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
               Cancelar cobrança
             </button>
@@ -282,7 +341,7 @@ export default function PDV() {
   const [changeFor, setChangeFor] = useState(0);
   // PIX automatico: venda fica aberta esperando o Mercado Pago confirmar
   const [pixSale, setPixSale] = useState<any>(null);
-  const pixPrintRef = useRef<{ pages: string[]; orderId: string } | null>(null);
+  const pixPrintRef = useRef<{ pages: string[]; orderId: string; base?: any } | null>(null);
   const [splitPayment, setSplitPayment] = useState(false);
   const [cardFeeOn, setCardFeeOn] = useState(false);
   // taxas da maquininha vêm de Configurações (crédito/débito)
@@ -534,7 +593,7 @@ export default function PDV() {
         showToast(pr?.error || 'Nao foi possivel gerar o PIX — a venda nao foi finalizada', 'error', 7000);
         return;
       }
-      pixPrintRef.current = { pages, orderId: o.id };
+      pixPrintRef.current = { pages, orderId: o.id, base: receiptBase };
       setPixSale({ order: o, ...pr });
       showToast(`PIX de ${BRL(o.total)} gerado — aguardando confirmacao`, 'info', 4000);
       return;
@@ -601,6 +660,53 @@ export default function PDV() {
     }).catch(() => {});
     showToast('Cobrança PIX cancelada — a venda não foi finalizada', 'warning', 5000);
   };
+  // Cliente desistiu do PIX com o QR na tela: cancela a cobranca e fecha a mesma
+  // venda no metodo escolhido (o servidor troca o pagamento, lanca no caixa e
+  // recalcula a taxa do cartao). Devolve false quando nao deu, para o modal
+  // continuar aberto mostrando o motivo.
+  const switchPixSale = async (method: string) => {
+    const sale = pixSale;
+    if (!sale?.order?.id) return false;
+    const r = await fetch('/api/pix', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: sale.order.id, action: 'switch', payment: method }),
+    }).then((x) => x.json()).catch(() => null);
+    if (!r?.ok) {
+      showToast(r?.error || 'Nao foi possivel trocar a forma de pagamento', 'error', 7000);
+      return false;
+    }
+    const pending = pixPrintRef.current;
+    pixPrintRef.current = null;
+    setPixSale(null);
+    setCart([]); setOrderNote(''); setClient(''); setClientPhone(''); setClientCpf(''); setChangeFor(0); setSelectedTable(''); setSplitPayment(false); setPayments([{ method: 'pix', amount: 0 }]); setCardFeeOn(false);
+    setCardFeePctOverride(null);
+    setDeliveryCity(''); setDeliveryBairro(''); setDeliveryStreet(''); setDeliveryNum(''); setDeliveryComp(''); setFeeOverride(null);
+    localStorage.removeItem(PDV_STORAGE_KEY);
+    let pages = pending?.pages || [];
+    if (pending?.base) {
+      const base = {
+        ...pending.base,
+        payment: method,
+        total: Number(r.total),
+        cardFee: Number(r.cardFee || 0),
+        cardFeeLabel: Number(r.cardFee) > 0 ? `Taxa cartao ${String(r.pct).replace('.', ',')}%` : '',
+        changeFor: undefined,
+      };
+      const comanda = receiptText(base);
+      pages = [comanda, comanda];
+    }
+    if (pages.length) {
+      fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: sale.order.id, printed: true }) }).catch(() => {});
+      for (const p of pages) {
+        fetch('/api/print', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p, printer: 'Padrao' }) }).catch(() => {});
+      }
+      printReceiptText(pages);
+    }
+    const label = method === 'dinheiro' ? 'Dinheiro' : method === 'credito' ? 'Credito' : 'Debito';
+    showToast(`Venda #${sale.order.number} finalizada em ${label}: ${BRL(Number(r.total))}`, 'success', 6000);
+    return true;
+  };
+
   const availableTables = tables.filter((t: any) => t.status === 'livre');
   const cities = Object.keys(deliveryZones);
   const bairros = deliveryCity ? deliveryZones[deliveryCity] || [] : [];
@@ -1126,7 +1232,7 @@ export default function PDV() {
       )}
 
       {/* PIX automatico: QR com valor, confirmacao pelo Mercado Pago */}
-      {pixSale && <PixPdvModal sale={pixSale} onApproved={finishPixSale} onCancel={cancelPixSale} />}
+      {pixSale && <PixPdvModal sale={pixSale} cardFees={cardFees} onApproved={finishPixSale} onCancel={cancelPixSale} onSwitch={switchPixSale} />}
 
       {/* Caixa fechado: a venda nao foi criada */}
       {cashWarn && (
