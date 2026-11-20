@@ -456,7 +456,9 @@ export default function PDV() {
     setCart(prev => prev.map(i => i.id === id ? { ...i, note } : i));
   };
 
-  const finish = async () => {
+  // wantPix=false: o operador so quer registrar a venda (PIX manual/por fora),
+  // sem gerar cobranca no Mercado Pago. Vale apenas no PDV.
+  const finish = async (wantPix = true) => {
     if (finishing || pixSale || !cart.length) return;
     if (splitPayment) {
       const sumCents = Math.round(payments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100);
@@ -487,6 +489,7 @@ export default function PDV() {
         type, payment: paymentMethod, changeFor: (payment === 'dinheiro' || (splitPayment && payments.some(p => p.method === 'dinheiro'))) && changeFor > 0 ? changeFor : undefined,
         subtotal: sub, deliveryFee, discount: 0, cardFee, source: 'pdv', note: [orderNote, splitNote].filter(Boolean).join(' | '),
         tableId: type === 'mesa' ? selectedTable : undefined,
+        pixAuto: wantPix,
         items: cart.map((i) => ({ productId: i.productId, name: i.name, qty: i.qty, unitPrice: i.unitPrice, addons: i.addons || [], note: i.note || '' })),
       })
     });
@@ -1088,17 +1091,25 @@ export default function PDV() {
                   <span className="text-2xl font-black text-white">Total</span>
                   <span className="text-2xl font-black text-white">{BRL(total)}</span>
                 </div>
-                <button onClick={finish}
+                <button onClick={() => finish(true)}
                   disabled={!cart.length || finishing || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
-                  className="w-full py-5 rounded-xl text-lg font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
+                  className="w-full py-4 rounded-xl text-base font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
                   style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
-                  {finishing ? 'Finalizando...' : pixAutoHere ? '📱 Abrir QR Code PIX' : 'Finalizar + Imprimir'}
+                  {finishing ? 'Finalizando...' : pixAutoHere ? '📱 Gerar QR Code PIX' : 'Finalizar + Imprimir'}
                 </button>
                 {pixAutoHere && (
-                  <p className="text-[10px] text-center text-gray-500 mt-2 leading-snug">
-                    O QR abre na tela{saleTableLabel ? ` para a ${saleTableLabel}` : ''} — o cliente escaneia e paga.
-                    A comanda imprime sozinha quando o banco confirmar.
-                  </p>
+                  <>
+                    <button onClick={() => finish(false)}
+                      disabled={!cart.length || finishing || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
+                      className="w-full mt-2 py-3 rounded-xl text-sm font-bold disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
+                      style={{ background: 'rgba(255,255,255,0.05)', color: '#d1d5db', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      Só finalizar o pedido
+                    </button>
+                    <p className="text-[10px] text-center text-gray-500 mt-2 leading-snug">
+                      <b style={{ color: '#fb7185' }}>Gerar QR:</b> abre na tela{saleTableLabel ? ` para a ${saleTableLabel}` : ''} — o cliente escaneia e a comanda imprime quando o banco confirmar.{' '}
+                      <b style={{ color: '#9ca3af' }}>Só finalizar:</b> registra a venda na hora, sem cobrança automática (PIX por fora).
+                    </p>
+                  </>
                 )}
               </div>
             )}

@@ -429,9 +429,10 @@ export default function Config() {
         )}
         <p className="text-[9px] leading-snug text-gray-600">
           Gera o QR Code com o valor e confirma sozinho quando o cliente paga. Vale no cardápio (retirada e consumo no local),
-          no PDV (balcão e retirada) e na <b>mesa do PDV</b> — o botão “Abrir QR Code PIX” mostra o código para o cliente sentado
-          na mesa escanear. Entrega e mesa do cardápio continuam como antes. O pedido só cai na cozinha depois da confirmação do
-          banco e a venda entra no caixa na hora. O token fica salvo no banco e nunca aparece no site.
+          no PDV (balcão e retirada) e na <b>mesa do PDV</b> — ali o operador escolhe entre “Gerar QR Code PIX” (cliente
+          escaneia na hora) e “Só finalizar o pedido” (registra a venda sem cobrança automática). Entrega e mesa do cardápio
+          continuam como antes. O pedido só cai na cozinha depois da confirmação do banco e a venda entra no caixa na hora.
+          O token fica salvo no banco e nunca aparece no site.
         </p>
       </div>
 

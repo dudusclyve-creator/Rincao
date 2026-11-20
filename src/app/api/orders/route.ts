@@ -508,8 +508,11 @@ export async function POST(req: Request) {
   // PIX automatico (Mercado Pago) em balcao/retirada e na mesa do PDV: o pedido
   // so entra na cozinha depois que o banco confirmar o pagamento. Mesa vinda do
   // QR do cardapio continua pagando no fechamento da mesa.
+  // No PDV o operador escolhe: "Gerar QR" (pixAuto true) ou "So finalizar"
+  // (pixAuto false). O site publico NUNCA pode usar essa escolha.
+  const allowAutoPix = authed ? b.pixAuto !== false : true;
   const pixCfg = await getPixConfig();
-  const pixPending = !!pixCfg && String(b.payment || '') === 'pix' && (
+  const pixPending = !!pixCfg && allowAutoPix && String(b.payment || '') === 'pix' && (
     ['retirada', 'local', 'balcao'].includes(orderType) ||
     (orderType === 'mesa' && orderSource === 'pdv' && !tableOrder)
   );
