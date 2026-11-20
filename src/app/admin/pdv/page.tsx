@@ -165,6 +165,7 @@ function PixPdvModal({ sale, cardFees, onApproved, onCancel, onSwitch }: {
   const [status, setStatus] = useState<'pending' | 'approved' | 'expired' | 'error'>('pending');
   const [copied, setCopied] = useState(false);
   const [swapTo, setSwapTo] = useState<string | null>(null);
+  const [showSwap, setShowSwap] = useState(false);
   const [swapping, setSwapping] = useState(false);
   const approvedRef = useRef(false);
 
@@ -236,6 +237,7 @@ function PixPdvModal({ sale, cardFees, onApproved, onCancel, onSwitch }: {
               <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>aguardando</span>
             </div>
             <p className="text-3xl font-black text-white mt-3">{BRL(Number(sale?.total || sale?.order?.total || 0))}</p>
+            <p className="text-[10px] font-bold mt-1" style={{ color: '#4ade80' }}>PIX • 0% de taxa — é exatamente esse valor que o cliente paga</p>
 
             {status === 'pending' && (
               <>
@@ -268,40 +270,55 @@ function PixPdvModal({ sale, cardFees, onApproved, onCancel, onSwitch }: {
 
             {(status === 'pending' || status === 'expired') && (
               <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Cliente vai pagar de outro jeito?</p>
-                {!swapTo ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['dinheiro', 'debito', 'credito'] as const).map((m) => (
-                      <button key={m} onClick={() => setSwapTo(m)} disabled={swapping}
-                        className="py-2.5 rounded-xl text-[11px] font-bold transition-all disabled:opacity-40"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: '#e5e7eb', border: '1px solid rgba(255,255,255,0.08)' }}>
-                        {payLabel(m)}
-                        {pctFor(m) > 0 && <span className="block text-[9px] font-semibold text-gray-500">+{String(pctFor(m)).replace('.', ',')}%</span>}
-                      </button>
-                    ))}
-                  </div>
+                {!showSwap && !swapTo ? (
+                  <button onClick={() => setShowSwap(true)}
+                    className="w-full py-1 text-[10px] font-bold text-gray-500 hover:text-white transition-colors">
+                    Cliente vai pagar de outro jeito? Trocar forma de pagamento
+                  </button>
                 ) : (
-                  <div className="rounded-xl p-3 text-left" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                    <p className="text-[11px] font-bold text-white">Trocar para {payLabel(swapTo)} e finalizar?</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">
-                      O QR PIX é cancelado na hora.{' '}
-                      {pctFor(swapTo) > 0
-                        ? `Total com a taxa de ${String(pctFor(swapTo)).replace('.', ',')}%: ${BRL(totalFor(swapTo))}`
-                        : `Total: ${BRL(base)}`}
-                    </p>
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={confirmSwap} disabled={swapping}
-                        className="flex-1 py-2 rounded-lg text-[11px] font-bold text-white disabled:opacity-50"
-                        style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                        {swapping ? 'Trocando...' : 'Sim, trocar e finalizar'}
-                      </button>
-                      <button onClick={() => setSwapTo(null)} disabled={swapping}
-                        className="px-3 py-2 rounded-lg text-[11px] font-bold disabled:opacity-50"
-                        style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
-                        Voltar
-                      </button>
+                  <>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Trocar forma de pagamento</p>
+                      <button onClick={() => { setShowSwap(false); setSwapTo(null); }} className="text-[10px] font-bold text-gray-500 hover:text-white transition-colors">fechar</button>
                     </div>
-                  </div>
+                    <p className="text-[10px] text-gray-500 mb-2 leading-snug">
+                      O QR PIX é cancelado. A taxa do cartão só entra se escolher débito ou crédito — <b style={{ color: '#4ade80' }}>PIX continua 0%</b>.
+                    </p>
+                    {!swapTo ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {(['dinheiro', 'debito', 'credito'] as const).map((m) => (
+                          <button key={m} onClick={() => setSwapTo(m)} disabled={swapping}
+                            className="py-2.5 rounded-xl text-[11px] font-bold transition-all disabled:opacity-40"
+                            style={{ background: 'rgba(255,255,255,0.06)', color: '#e5e7eb', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            {payLabel(m)}
+                            {pctFor(m) > 0 && <span className="block text-[9px] font-semibold text-gray-500">+{String(pctFor(m)).replace('.', ',')}%</span>}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl p-3 text-left" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                        <p className="text-[11px] font-bold text-white">Trocar para {payLabel(swapTo)} e finalizar?</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">
+                          O QR PIX é cancelado na hora.{' '}
+                          {pctFor(swapTo) > 0
+                            ? `Total com a taxa de ${String(pctFor(swapTo)).replace('.', ',')}%: ${BRL(totalFor(swapTo))}`
+                            : `Total sem taxa: ${BRL(base)}`}
+                        </p>
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={confirmSwap} disabled={swapping}
+                            className="flex-1 py-2 rounded-lg text-[11px] font-bold text-white disabled:opacity-50"
+                            style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                            {swapping ? 'Trocando...' : 'Sim, trocar e finalizar'}
+                          </button>
+                          <button onClick={() => setSwapTo(null)} disabled={swapping}
+                            className="px-3 py-2 rounded-lg text-[11px] font-bold disabled:opacity-50"
+                            style={{ background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                            Voltar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
