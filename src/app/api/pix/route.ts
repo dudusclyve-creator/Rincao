@@ -9,6 +9,9 @@ import { cancelPixPayment, createPixCharge, getPixConfig, syncPixOrder } from '@
 // PDV (balcao / retirada). O pedido ja nasce aguardando pagamento; aqui geramos
 // o QR com o valor e o polling confirma. Pedido de entrega e mesa ficam de fora.
 
+// Balcao e retirada do cardapio/PDV, consumo no local e a mesa do PDV (o
+// cliente sentado na mesa escaneia o QR que o operador abre na tela).
+// Mesa vinda do QR do cardapio paga no fechamento da mesa e fica de fora.
 const ALLOWED_TYPES = ['retirada', 'local', 'balcao'];
 
 const hits = new Map<string, number[]>();
@@ -39,8 +42,10 @@ export async function POST(req: Request) {
   if (!order) return NextResponse.json({ error: 'Pedido nao encontrado' }, { status: 404 });
   if (order.paidAt) return NextResponse.json({ error: 'Pedido ja pago', status: 'approved' }, { status: 409 });
   if (String(order.payment || '') !== 'pix') return NextResponse.json({ error: 'Pedido nao e PIX' }, { status: 400 });
-  if (!ALLOWED_TYPES.includes(String(order.type))) {
-    return NextResponse.json({ error: 'PIX automatico so vale para balcao/retirada' }, { status: 400 });
+  const type = String(order.type || '');
+  const typeOk = ALLOWED_TYPES.includes(type) || (type === 'mesa' && order.source === 'pdv');
+  if (!typeOk) {
+    return NextResponse.json({ error: 'PIX automatico so vale para balcao/retirada/mesa do PDV' }, { status: 400 });
   }
   if (!['aguardando_pagamento', 'cancelado'].includes(String(order.status))) {
     return NextResponse.json({ error: 'Pedido nao esta aguardando pagamento' }, { status: 400 });

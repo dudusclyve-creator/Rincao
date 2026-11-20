@@ -112,6 +112,25 @@ export async function getPixPayment(cfg: PixConfig, id: string) {
   return mpFetch(cfg, `/v1/payments/${encodeURIComponent(id)}`);
 }
 
+// valida o token e devolve a conta (usado no botao "Salvar token" do painel)
+export async function getMpAccount(accessToken: string) {
+  const token = String(accessToken || '').trim();
+  if (!token) throw new Error('Informe o Access Token');
+  const r = await fetch(`${MP_API}/users/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!r.ok) {
+    throw new Error(r.status === 401 || r.status === 403 ? 'Token inválido ou sem permissão' : `Mercado Pago ${r.status}`);
+  }
+  const j: any = await r.json();
+  return {
+    id: String(j?.id || ''),
+    nickname: String(j?.nickname || ''),
+    email: String(j?.email || ''),
+  };
+}
+
 export async function cancelPixPayment(cfg: PixConfig, id: string) {
   try {
     return await mpFetch(cfg, `/v1/payments/${encodeURIComponent(id)}`, {
@@ -162,9 +181,14 @@ async function approveOrder(order: any) {
       }
     }
     if (open?.id && amount > 0) {
-      await tx.cashMovement.create({
-        data: { registerId: open.id, kind: 'venda', method: 'pix', amount, reason, orderId: order.id },
-      });
+      // se a mesa/pedido ja tinha sido lancado no caixa (ex.: mesa fechada antes
+      // do webhook chegar), nao lanca de novo
+      const jaLancado = await tx.cashMovement.count({ where: { orderId: order.id, kind: 'venda' } });
+      if (!jaLancado) {
+        await tx.cashMovement.create({
+          data: { registerId: open.id, kind: 'venda', method: 'pix', amount, reason, orderId: order.id },
+        });
+      }
     }
     await tx.notification.create({
       data: {
@@ -174,6 +198,10 @@ async function approveOrder(order: any) {
           : `PIX confirmado — ${reason} — R$ ${amount.toFixed(2)}`,
       },
     });
+    // mesa do PDV: so ocupa a mesa depois que o pagamento caiu
+    if (order.tableId) {
+      await tx.tableMap.update({ where: { id: order.tableId }, data: { status: 'ocupada' } }).catch(() => {});
+    }
   });
 
   if (!open?.id && amount > 0) {

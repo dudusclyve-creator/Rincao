@@ -13,11 +13,15 @@ export default function Config() {
   const [saved, setSaved] = useState(false);
   const [mpAccessToken, setMpAccessToken] = useState('');
   const [mpEnabled, setMpEnabled] = useState(false);
+  const [mpSaving, setMpSaving] = useState(false);
+  const [mpTesting, setMpTesting] = useState(false);
+  const [mpMsg, setMpMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/settings').then((x) => x.json()).then((d) => {
       setR(d);
       setMpEnabled(!!d.pixEnabled);
+      if (d.mpAccount) setMpMsg({ kind: 'ok', text: `Conta conectada: ${d.mpAccount}` });
     });
   }, []);
 
@@ -58,17 +62,78 @@ export default function Config() {
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        // colar um token novo ja liga o PIX automatico
-        body: JSON.stringify({ ...r, mpAccessToken, mpEnabled: mpEnabled || !!mpAccessToken.trim() }),
+        body: JSON.stringify(r),
       });
-      if (res.ok) {
-        setR((prev: any) => ({ ...prev, pixConfigured: prev.pixConfigured || !!mpAccessToken, pixEnabled: mpEnabled }));
-        setMpAccessToken('');
-      }
-      setSaved(true);
+      if (res.ok) setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {}
     setSaving(false);
+  };
+
+  // Mercado Pago: o token é validado no servidor antes de salvar, então o
+  // painel consegue dizer se foi aceito (conta) ou recusado (motivo).
+  const saveMpToken = async () => {
+    const token = mpAccessToken.trim();
+    if (!token) { setMpMsg({ kind: 'err', text: 'Cole o Access Token antes de salvar.' }); return; }
+    setMpSaving(true);
+    setMpMsg(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mpAccessToken: token, mpEnabled: true }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) {
+        setMpMsg({ kind: 'err', text: d?.error || 'O Mercado Pago recusou este token.' });
+        return;
+      }
+      setMpAccessToken('');
+      setMpEnabled(true);
+      setR((prev: any) => ({ ...prev, pixConfigured: true, pixEnabled: true }));
+      setMpMsg({ kind: 'ok', text: `Token aceito pelo Mercado Pago — conta: ${d?.mpAccount || 'conectada'}` });
+    } catch {
+      setMpMsg({ kind: 'err', text: 'Sem conexão para validar o token. Tente de novo.' });
+    } finally {
+      setMpSaving(false);
+    }
+  };
+
+  const toggleMp = async (v: boolean) => {
+    setMpEnabled(v);
+    setMpMsg(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mpEnabled: v }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) {
+        setMpEnabled(!v);
+        setMpMsg({ kind: 'err', text: d?.error || 'Não foi possível salvar' });
+        return;
+      }
+      setR((prev: any) => ({ ...prev, pixEnabled: v }));
+      setMpMsg({ kind: 'ok', text: v ? 'PIX automático ligado.' : 'PIX automático desligado.' });
+    } catch {
+      setMpEnabled(!v);
+      setMpMsg({ kind: 'err', text: 'Sem conexão' });
+    }
+  };
+
+  const testMp = async () => {
+    setMpTesting(true);
+    setMpMsg(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mpAction: 'test' }),
+      });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) setMpMsg({ kind: 'err', text: d?.error || 'Token recusado pelo Mercado Pago.' });
+      else setMpMsg({ kind: 'ok', text: `Conexão OK — conta: ${d?.mpAccount || 'Mercado Pago'}` });
+    } catch {
+      setMpMsg({ kind: 'err', text: 'Sem conexão para testar.' });
+    } finally {
+      setMpTesting(false);
+    }
   };
 
   // switches de liga/desliga salvam na hora (não dependem do botão Salvar)
@@ -312,15 +377,22 @@ export default function Config() {
       {/* PIX automático (Mercado Pago) */}
       <div className="rounded-xl p-4 mt-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <QrCode size={14} className="text-emerald-400" />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/60">PIX automático (Mercado Pago)</p>
+          <div className="flex items-center gap-2 min-w-0">
+            <QrCode size={14} className="text-emerald-400 shrink-0" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/60 truncate">PIX automático (Mercado Pago)</p>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer shrink-0">
-            <input type="checkbox" checked={mpEnabled} onChange={(e) => setMpEnabled(e.target.checked)}
-              className="w-4 h-4 rounded" style={{ accentColor: '#10b981' }} />
-            <span className="text-[11px] text-gray-400">{mpEnabled ? 'Ligado' : 'Desligado'}</span>
-          </label>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full" style={r.pixConfigured
+              ? (mpEnabled ? { background: 'rgba(16,185,129,0.15)', color: '#34d399' } : { background: 'rgba(245,158,11,0.15)', color: '#fbbf24' })
+              : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+              {r.pixConfigured ? (mpEnabled ? 'ATIVO' : 'DESLIGADO') : 'SEM TOKEN'}
+            </span>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={mpEnabled} onChange={(e) => toggleMp(e.target.checked)}
+                className="w-4 h-4 rounded" style={{ accentColor: '#10b981' }} />
+              <span className="text-[11px] text-gray-400">{mpEnabled ? 'Ligado' : 'Desligado'}</span>
+            </label>
+          </div>
         </div>
         <div>
           <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Access Token de produção</label>
@@ -329,14 +401,37 @@ export default function Config() {
             type="password"
             autoComplete="off"
             value={mpAccessToken}
-            onChange={(e) => setMpAccessToken(e.target.value)}
+            onChange={(e) => { setMpAccessToken(e.target.value); if (mpMsg?.kind === 'err') setMpMsg(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveMpToken(); }}
             placeholder={r.pixConfigured ? '•••••••••••• (já configurado — cole outro para trocar)' : 'Cole o Access Token do Mercado Pago'}
           />
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={saveMpToken} disabled={mpSaving || !mpAccessToken.trim()}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-30"
+            style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+            {mpSaving ? 'Validando no Mercado Pago...' : 'Salvar e validar token'}
+          </button>
+          {r.pixConfigured && (
+            <button onClick={testMp} disabled={mpTesting}
+              className="px-3 py-2.5 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
+              style={{ background: 'rgba(255,255,255,0.06)', color: '#d1d5db', border: '1px solid rgba(255,255,255,0.08)' }}>
+              {mpTesting ? 'Testando...' : 'Testar conexão'}
+            </button>
+          )}
+        </div>
+        {mpMsg && (
+          <div className="rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug" style={mpMsg.kind === 'ok'
+            ? { background: 'rgba(16,185,129,0.12)', color: '#34d399' }
+            : { background: 'rgba(239,68,68,0.12)', color: '#f87171' }}>
+            {mpMsg.kind === 'ok' ? '✅ ' : '⚠️ '}{mpMsg.text}
+          </div>
+        )}
         <p className="text-[9px] leading-snug text-gray-600">
-          Gera o QR Code com o valor e confirma sozinho quando o cliente paga. Vale no cardápio (retirada e consumo no local)
-          e no PDV (balcão e retirada). Entrega e mesa continuam como antes. O pedido só cai na cozinha depois da confirmação
-          do banco e a venda entra no caixa na hora. O token fica salvo no banco e nunca aparece no site.
+          Gera o QR Code com o valor e confirma sozinho quando o cliente paga. Vale no cardápio (retirada e consumo no local),
+          no PDV (balcão e retirada) e na <b>mesa do PDV</b> — o botão “Abrir QR Code PIX” mostra o código para o cliente sentado
+          na mesa escanear. Entrega e mesa do cardápio continuam como antes. O pedido só cai na cozinha depois da confirmação do
+          banco e a venda entra no caixa na hora. O token fica salvo no banco e nunca aparece no site.
         </p>
       </div>
 

@@ -983,7 +983,9 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
               {expired || failed ? '⚠️' : '📱'}
             </div>
             <h2 className="text-lg font-bold text-gray-900 mt-2">Pedido #{pix.order?.number} — PIX</h2>
-            <p className="text-[11px] text-gray-400 mt-0.5">Retirada no balcão • pagamento automático</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {deliveryType === 'local' ? 'Consumo no local' : 'Retirada no balcão'} • pagamento automático
+            </p>
             <p className="text-2xl font-black text-gray-900 mt-3">{BRL(Number(pix.total || pix.order?.total || 0))}</p>
           </div>
 

@@ -505,10 +505,14 @@ export async function POST(req: Request) {
   }
   // aceite automático: pedidos do cardápio já entram como confirmados, sem
   // precisar clicar em "Aceitar" no painel (PDV continua no fluxo do operador).
-  // PIX automatico (Mercado Pago) em balcao/retirada: o pedido so entra na
-  // cozinha depois que o banco confirmar o pagamento.
+  // PIX automatico (Mercado Pago) em balcao/retirada e na mesa do PDV: o pedido
+  // so entra na cozinha depois que o banco confirmar o pagamento. Mesa vinda do
+  // QR do cardapio continua pagando no fechamento da mesa.
   const pixCfg = await getPixConfig();
-  const pixPending = !!pixCfg && String(b.payment || '') === 'pix' && ['retirada', 'local', 'balcao'].includes(orderType);
+  const pixPending = !!pixCfg && String(b.payment || '') === 'pix' && (
+    ['retirada', 'local', 'balcao'].includes(orderType) ||
+    (orderType === 'mesa' && orderSource === 'pdv' && !tableOrder)
+  );
   const initialStatus = pixPending ? 'aguardando_pagamento' : (orderSource === 'cardapio' && restPrefs?.autoAccept ? 'confirmado' : 'novo');
   // taxa de entrega: no cardápio vale SEMPRE a taxa do bairro escolhido
   // (pagina antiga em cache mandava a taxa padrão do restaurante). Se o bairro

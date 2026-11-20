@@ -210,6 +210,9 @@ function PixPdvModal({ sale, onApproved, onCancel }: { sale: any; onApproved: ()
               <div className="text-left">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70">PIX automático</p>
                 <h3 className="text-sm font-black text-white">Venda #{sale?.order?.number}</h3>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {String(sale?.order?.addressText || '').trim() || (sale?.order?.type === 'mesa' ? 'Mesa' : sale?.order?.type === 'retirada' ? 'Retirada' : 'Balcão')}
+                </p>
               </div>
               <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>aguardando</span>
             </div>
@@ -363,6 +366,16 @@ export default function PDV() {
     ? Math.round((sub + deliveryFee) * cardFeePct) / 100
     : 0;
   const total = Math.max(0, sub + deliveryFee + cardFee);
+  // PIX automatico: balcao, retirada e mesa do PDV abrem o QR na tela para o
+  // cliente escanear. Pagamento dividido continua no fluxo manual.
+  const pixAutoHere = payment === 'pix' && !splitPayment && (type === 'balcao' || type === 'retirada' || type === 'mesa');
+  const saleTableLabel = type === 'mesa'
+    ? (() => {
+        const t = tables.find((x: any) => x.id === selectedTable);
+        if (!t?.number) return '';
+        return /^mesa/i.test(String(t.number)) ? String(t.number) : `Mesa ${t.number}`;
+      })()
+    : '';
 
   // mantém o campo do percentual em sincronia com a taxa do pagamento escolhido
   useEffect(() => {
@@ -1079,8 +1092,14 @@ export default function PDV() {
                   disabled={!cart.length || finishing || (type === 'mesa' && !selectedTable) || (type === 'entrega' && (!deliveryCity || !deliveryBairro))}
                   className="w-full py-5 rounded-xl text-lg font-bold text-white disabled:opacity-30 disabled:cursor-not-allowed pdv-btn-hover"
                   style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 4px 20px rgba(225,29,72,0.3)' }}>
-                  {finishing ? 'Finalizando...' : 'Finalizar + Imprimir'}
+                  {finishing ? 'Finalizando...' : pixAutoHere ? '📱 Abrir QR Code PIX' : 'Finalizar + Imprimir'}
                 </button>
+                {pixAutoHere && (
+                  <p className="text-[10px] text-center text-gray-500 mt-2 leading-snug">
+                    O QR abre na tela{saleTableLabel ? ` para a ${saleTableLabel}` : ''} — o cliente escaneia e paga.
+                    A comanda imprime sozinha quando o banco confirmar.
+                  </p>
+                )}
               </div>
             )}
           </div>
