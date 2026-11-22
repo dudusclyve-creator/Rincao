@@ -220,6 +220,7 @@ export default function Config() {
           <div>
             <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Chave Pix</label>
             <input className="input w-full" value={r.pixKey || ''} onChange={(e) => set('pixKey', e.target.value)} />
+            <p className="text-[9px] text-gray-500 mt-1">Usada no QR de PIX manual (Pedidos) — CNPJ/CPF, telefone, e-mail ou chave aleatória.</p>
           </div>
           <div>
             <label className="text-[9px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Banner URL</label>

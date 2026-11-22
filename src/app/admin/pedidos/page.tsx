@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { BRL, playNewOrderSound, playDropSound, receiptText, printReceiptText, maskCpf, maskPhone, showToast, openWhatsApp, formatPhone, cardFeePctFromOrder, docFmt, docLabel } from '@/lib/utils';
 import { printDanfe } from '@/lib/nfe-print';
 import { ItemCard } from '@/components/ItemCard';
-import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2, MessageCircle } from 'lucide-react';
+import { Printer, Copy, X, ChevronDown, ChevronUp, Clock, MapPin, Truck, RotateCcw, Smartphone, Banknote, CreditCard, FileText, Pencil, Plus, Trash2, MessageCircle, QrCode, CheckCircle2 } from 'lucide-react';
+import { PixChargeModal } from '@/components/PixChargeModal';
+import { MarkPaidModal } from '@/components/MarkPaidModal';
 import QRCode from 'qrcode';
 
 const COLUMNS = [
@@ -103,7 +105,7 @@ function payToString(parts: { method: string; amount: number }[]): string {
     .join(',');
 }
 
-function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, onNfe, onEdit, draggable, onDragStart, onDragEnd }: any) {
+function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel, onDispatch, onNfe, onEdit, onPix, onMenu, draggable, onDragStart, onDragEnd }: any) {
   const orderType = getOrderType(o);
   const typeBadge = TYPE_BADGE[orderType];
   const isEnded = o.status === 'concluido' || o.status === 'cancelado';
@@ -137,6 +139,7 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
         boxShadow: overdue ? '0 0 20px rgba(239,68,68,0.2)' : 'inset 0 1px 0 rgba(255,255,255,0.05)',
       }}
       onClick={() => onSelect(o.id)}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onMenu?.(o, e.clientX, e.clientY); }}
     >
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -150,7 +153,10 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
             {overdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600 text-white">ATRASADO</span>}
             {wasOverdue && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-600/80 text-white">ATRASADO</span>}
           </div>
-          <span className="text-xs font-bold text-white whitespace-nowrap shrink-0">{BRL(o.total)}</span>
+          <div className="flex flex-col items-end shrink-0">
+            <span className="text-xs font-bold text-white whitespace-nowrap">{BRL(o.total)}</span>
+            {o.paidAt && <span className="text-[9px] font-black px-1.5 py-0.5 rounded mt-0.5" style={{ background: 'rgba(34,197,94,0.22)', color: '#4ade80' }}>PAGO</span>}
+          </div>
         </div>
 
         <div className="flex items-start gap-2 mb-2">
@@ -333,6 +339,11 @@ function OrderCard({ o, isSelected, onSelect, onStatus, onPrint, onDup, onCancel
         <button title="Imprimir pedido" onClick={(e) => { e.stopPropagation(); onPrint(o); }} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
           <Printer size={13} />
         </button>
+        {!o.paidAt && !String(o.payment || '').includes(',') && Number(o.total) > 0 && (
+          <button title="Cobrar PIX (QR manual, sem taxa)" onClick={(e) => { e.stopPropagation(); onPix?.(o); }} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>
+            <QrCode size={13} />
+          </button>
+        )}
         <button title="Duplicar pedido" onClick={(e) => { e.stopPropagation(); onDup(o); }} className="w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110" style={{ background: 'rgba(255,255,255,0.08)', color: '#c0b8c8' }}>
           <Copy size={13} />
         </button>
@@ -381,6 +392,9 @@ export default function Pedidos() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [editOrder, setEditOrder] = useState<any | null>(null);
+  const [pixCharge, setPixCharge] = useState<any | null>(null);
+  const [markPaidOrder, setMarkPaidOrder] = useState<any | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ o: any; x: number; y: number } | null>(null);
   const [editItems, setEditItems] = useState<any[]>([]);
   const [editForm, setEditForm] = useState<any>({});
   const [editSplit, setEditSplit] = useState(false);
@@ -578,6 +592,42 @@ export default function Pedidos() {
     setProducts(Array.isArray(p) ? p : []);
   };
 
+  // PIX manual: pega o "copia e cola" na chave da loja (sem taxa, sem webhook).
+  // A confirmacao do recebimento e feita na mao, dentro do proprio modal.
+  const openPix = async (o: any) => {
+    if (o.paidAt) { showToast('Este pedido ja esta pago.', 'error'); return; }
+    if (String(o.payment || '').includes(',')) { showToast('Pedido com pagamento dividido — gere o PIX pelo PDV.', 'error'); return; }
+    const r = await fetch('/api/pix/static', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: o.id }),
+    }).then((x) => x.json()).catch(() => null);
+    if (!r || r.error) { showToast(r?.error || 'Nao foi possivel gerar o PIX', 'error', 7000); return; }
+    setPixCharge(r);
+  };
+
+  const pixConfirmed = (r: any) => {
+    setPixCharge(null);
+    if (r?.alreadyPaid) showToast(`Pedido #${r.number} ja estava pago em PIX.`, 'success');
+    else showToast(`PIX confirmado — pedido #${r?.number} pago e lancado no caixa.`, 'success', 5000);
+    load(true);
+  };
+
+  const paidDone = (r: any) => {
+    setMarkPaidOrder(null);
+    if (r?.alreadyPaid) showToast(`Pedido #${r.number} ja estava pago.`, 'success');
+    else showToast(`Pagamento confirmado — pedido #${r?.number} (${r?.method || 'pago'}) lancado no caixa.`, 'success', 5000);
+    load(true);
+  };
+
+  // clique direito no card: acoes rapidas (marcar como pago, gerar QR PIX...)
+  const openMenu = (o: any, x: number, y: number) => {
+    const w = 224, h = 236;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+    setCtxMenu({ o, x: Math.max(8, Math.min(x, vw - w - 8)), y: Math.max(8, Math.min(y, vh - h - 8)) });
+  };
+
   const saveEdit = async () => {
     if (!editOrder) return;
     if (editOrder.nfeStatus === 'issued') { showToast('Nota fiscal emitida — cancele a nota antes de editar o pedido.', 'error'); return; }
@@ -676,7 +726,7 @@ export default function Pedidos() {
               </span>
               <span className="text-[10px] font-bold text-green-400">AO VIVO</span>
             </div>
-            <span className="text-[10px] text-gray-500">arraste para mover • toque para expandir</span>
+            <span className="text-[10px] text-gray-500">arraste para mover • toque para expandir • clique direito para pagar/imprimir</span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -728,7 +778,7 @@ export default function Pedidos() {
               {col.orders.map((o) => (
                 <OrderCard
                   key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder}
-                  onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit}
+                  onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit} onPix={openPix} onMenu={openMenu}
                   draggable onDragStart={setDragId} onDragEnd={() => { setDragId(null); setDragOverCol(null); }}
                 />
               ))}
@@ -768,7 +818,7 @@ export default function Pedidos() {
             <div className="px-4 pb-4 space-y-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               {concluidos.length === 0 && <p className="text-[11px] py-4 text-center" style={{ color: '#8a7a6a' }}>Nenhum</p>}
               {concluidos.map((o) => (
-                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit} draggable={false} />
+                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit} onPix={openPix} onMenu={openMenu} draggable={false} />
               ))}
             </div>
           </div>
@@ -782,7 +832,7 @@ export default function Pedidos() {
             <div className="px-4 pb-4 space-y-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               {cancelados.length === 0 && <p className="text-[11px] py-4 text-center" style={{ color: '#8a7a6a' }}>Nenhum</p>}
               {cancelados.map((o) => (
-                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit} draggable={false} />
+                <OrderCard key={o.id} o={o} isSelected={selectedOrder === o.id} onSelect={setSelectedOrder} onStatus={setStatus} onPrint={print} onDup={dup} onCancel={setStatus} onDispatch={setDispatchOrder} onNfe={onNfe} onEdit={openEdit} onPix={openPix} onMenu={openMenu} draggable={false} />
               ))}
             </div>
           </div>
@@ -1264,6 +1314,44 @@ export default function Pedidos() {
           </div>
         </div>
       )}
+
+      {pixCharge && <PixChargeModal charge={pixCharge} onConfirmed={pixConfirmed} onClose={() => setPixCharge(null)} />}
+      {markPaidOrder && <MarkPaidModal order={markPaidOrder} onDone={paidDone} onClose={() => setMarkPaidOrder(null)} />}
+
+      {ctxMenu && (() => {
+        const o = ctxMenu.o;
+        const canPix = !o.paidAt && !String(o.payment || '').includes(',') && Number(o.total) > 0;
+        return (
+          <>
+            <div className="fixed inset-0 z-[70]" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
+            <div className="fixed z-[71] rounded-xl overflow-hidden py-1" style={{ left: ctxMenu.x, top: ctxMenu.y, width: 216, background: '#241016', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+              <p className="px-3 py-1.5 text-[10px] font-bold text-gray-500">Pedido #{o.number}</p>
+              {!o.paidAt && (
+                <button onClick={() => { setMarkPaidOrder(o); setCtxMenu(null); }}
+                  className="w-full text-left px-3 py-2 text-[11px] font-bold text-white hover:bg-white/10 flex items-center gap-2">
+                  <CheckCircle2 size={12} color="#4ade80" /> Marcar como pago
+                </button>
+              )}
+              {canPix && (
+                <button onClick={() => { setCtxMenu(null); openPix(o); }}
+                  className="w-full text-left px-3 py-2 text-[11px] font-bold text-white hover:bg-white/10 flex items-center gap-2">
+                  <QrCode size={12} color="#4ade80" /> Gerar QR PIX (sem taxa)
+                </button>
+              )}
+              <button onClick={() => { setCtxMenu(null); print(o); }}
+                className="w-full text-left px-3 py-2 text-[11px] font-bold text-white hover:bg-white/10 flex items-center gap-2">
+                <Printer size={12} color="#c0b8c8" /> Imprimir
+              </button>
+              {o.status !== 'cancelado' && (
+                <button onClick={() => { setCtxMenu(null); openEdit(o); }}
+                  className="w-full text-left px-3 py-2 text-[11px] font-bold text-white hover:bg-white/10 flex items-center gap-2">
+                  <Pencil size={12} color="#60a5fa" /> Editar pedido
+                </button>
+              )}
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }

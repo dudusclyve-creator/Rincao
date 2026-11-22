@@ -5,7 +5,8 @@ import { parseAddress, flattenZones } from '@/lib/address';
 import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
 import { PixQr } from '@/components/PixQr';
-import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, AlertTriangle } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, AlertTriangle, Wallet } from 'lucide-react';
+import { PdvReceiveModal } from '@/components/PdvReceiveModal';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
   'Santana do Livramento': [
@@ -358,6 +359,7 @@ export default function PDV() {
   const [changeFor, setChangeFor] = useState(0);
   // PIX automatico: venda fica aberta esperando o Mercado Pago confirmar
   const [pixSale, setPixSale] = useState<any>(null);
+  const [showReceive, setShowReceive] = useState(false);
   const pixPrintRef = useRef<{ pages: string[]; orderId: string; base?: any } | null>(null);
   const [splitPayment, setSplitPayment] = useState(false);
   const [cardFeeOn, setCardFeeOn] = useState(false);
@@ -741,12 +743,20 @@ export default function PDV() {
             <p className="text-xs text-gray-500">Balcão / Mesa / Retirada / Entrega</p>
           </div>
         </div>
-        {cart.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: 'rgba(225,29,72,0.15)' }}>
-            <ShoppingBag size={16} className="text-rose-400" />
-            <span className="text-sm font-bold text-rose-400">{itemCount} {itemCount === 1 ? 'item' : 'itens'}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowReceive(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full transition-all hover:brightness-110 active:scale-95"
+            style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80' }}>
+            <Wallet size={16} />
+            <span className="text-xs font-bold">Receber</span>
+          </button>
+          {cart.length > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: 'rgba(225,29,72,0.15)' }}>
+              <ShoppingBag size={16} className="text-rose-400" />
+              <span className="text-sm font-bold text-rose-400">{itemCount} {itemCount === 1 ? 'item' : 'itens'}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-5">
@@ -1247,6 +1257,8 @@ export default function PDV() {
       {editNoteIdx !== null && cart[editNoteIdx] && (
         <CartItemNoteModal item={cart[editNoteIdx]} onSave={(note) => updateNote(cart[editNoteIdx].id, note)} onClose={() => setEditNoteIdx(null)} />
       )}
+
+      {showReceive && <PdvReceiveModal onClose={() => setShowReceive(false)} />}
 
       {/* PIX automatico: QR com valor, confirmacao pelo Mercado Pago */}
       {pixSale && <PixPdvModal sale={pixSale} cardFees={cardFees} onApproved={finishPixSale} onCancel={cancelPixSale} onSwitch={switchPixSale} />}

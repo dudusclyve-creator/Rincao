@@ -230,7 +230,7 @@ function cashAmountOf(order: any) {
   return Math.max(0, Math.round((Number(order.total || 0) - Number(order.cardFee || 0)) * 100) / 100);
 }
 
-async function approveOrder(order: any) {
+async function approveOrder(order: any, mp?: any) {
   const rest = await prisma.restaurant.findUnique({ where: { id: 'single' }, select: { autoAccept: true } }).catch(() => null);
   const target = order.source === 'cardapio' && rest?.autoAccept ? 'confirmado' : 'novo';
   const reason = order.source === 'pdv' ? `PDV #${order.number}` : `Pedido #${order.number}`;
@@ -242,6 +242,17 @@ async function approveOrder(order: any) {
   // fechamento); se nao houver nenhum, usa o caixa de quando o QR foi gerado
   const openNow = await prisma.cashRegister.findFirst({ where: { status: 'aberto' }, orderBy: { openedAt: 'desc' }, select: { id: true } });
   const open = openNow?.id ? openNow : (order.pixRegisterId ? { id: order.pixRegisterId } : null);
+
+  // taxa que o Mercado Pago desconta do PIX (aparece no extrato da conta, nao no
+  // valor do cliente). Lanca como saida no caixa para o fechamento bater.
+  const mpFee = (() => {
+    const gross = Number(mp?.transaction_amount ?? order.total ?? 0);
+    const details = Array.isArray(mp?.fee_details) ? mp.fee_details : [];
+    const sum = details.reduce((s: number, d: any) => s + (Number(d?.amount) || 0), 0);
+    const net = Number(mp?.transaction_details?.net_received_amount);
+    const fee = sum > 0 ? sum : (Number.isFinite(net) && gross > net ? gross - net : 0);
+    return Math.round(Math.max(0, fee) * 100) / 100;
+  })();
 
   await prisma.$transaction(async (tx) => {
     // updateMany garante que webhook + consulta ao mesmo tempo confirmem so uma vez
@@ -272,6 +283,13 @@ async function approveOrder(order: any) {
           data: { registerId: open.id, kind: 'venda', method: 'pix', amount, reason, orderId: order.id },
         });
       }
+    }
+    // taxa do Mercado Pago (R$ 0,06 no PIX de R$ 6,00, por exemplo): sai do
+    // valor recebido no banco, por isso entra como saida separada
+    if (open?.id && mpFee > 0) {
+      await tx.cashMovement.create({
+        data: { registerId: open.id, kind: 'taxa', method: 'pix', amount: mpFee, reason: `Taxa Mercado Pago - ${reason}`, orderId: order.id },
+      });
     }
     await tx.notification.create({
       data: {
@@ -312,7 +330,7 @@ export async function syncPixOrder(orderId: string): Promise<{ status: PixOrderS
     const st = String(p?.status || '').toLowerCase();
 
     if (st === 'approved') {
-      await approveOrder(order);
+      await approveOrder(order, p);
       return { status: 'approved', order };
     }
 

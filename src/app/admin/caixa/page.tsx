@@ -90,7 +90,7 @@ function StatCard({ icon: Icon, label, value, color, sub }: { icon: any; label: 
 
 function MovementItem({ m }: { m: any }) {
   const isVenda = m.kind === 'venda';
-  const isSaida = ['sangria', 'saida'].includes(m.kind);
+  const isSaida = ['sangria', 'saida', 'taxa'].includes(m.kind);
   const color = isVenda ? '#22c55e' : isSaida ? '#ef4444' : '#3b82f6';
   const Icon = isVenda ? TrendingUp : isSaida ? TrendingDown : ArrowDownCircle;
   const methodLabel = (() => {
@@ -143,8 +143,9 @@ function CloseModal({ data, driverTotal, driverPending, openTables, onClose, onC
     const vendas = data.open.movements.filter((m: any) => m.kind === 'venda').reduce((s: number, m: any) => s + m.amount, 0);
     const entradas = data.open.movements.filter((m: any) => ['entrada', 'suprimento'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
     const saidas = data.open.movements.filter((m: any) => ['sangria', 'saida'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
-    const expected = data.open.initial + entradas + vendas - saidas;
-    return { vendas, entradas, saidas, expected };
+    const taxas = data.open.movements.filter((m: any) => m.kind === 'taxa').reduce((s: number, m: any) => s + m.amount, 0);
+    const expected = data.open.initial + entradas + vendas - saidas - taxas;
+    return { vendas, entradas, saidas, taxas, expected };
   }, [data]);
 
   const diff = informed - totals.expected;
@@ -172,6 +173,7 @@ function CloseModal({ data, driverTotal, driverPending, openTables, onClose, onC
               <div className="flex justify-between text-xs"><span className="text-gray-400">Vendas</span><span className="text-green-400 font-bold">+{BRL(totals.vendas)}</span></div>
               {totals.entradas > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Suprimentos</span><span className="text-blue-400 font-bold">+{BRL(totals.entradas)}</span></div>}
               {totals.saidas > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Sangrias</span><span className="text-red-400 font-bold">-{BRL(totals.saidas)}</span></div>}
+              {(totals as any).taxas > 0 && <div className="flex justify-between text-xs"><span className="text-gray-400">Taxas Mercado Pago</span><span className="text-red-400 font-bold">-{BRL((totals as any).taxas)}</span></div>}
               {openTables.count > 0 && (
                 <div className="flex justify-between text-xs"><span className="text-amber-400 font-bold">Mesas abertas (serão fechadas)</span><span className="text-amber-400 font-bold">+{BRL(openTables.total)}</span></div>
               )}
@@ -489,19 +491,21 @@ export default function Caixa() {
     : [];
 
   const totals = (() => {
-    if (!data.open) return { vendas: 0, entradas: 0, saidas: 0, expected: 0 };
+    if (!data.open) return { vendas: 0, entradas: 0, saidas: 0, taxas: 0, expected: 0 };
     const vendas = data.open.movements.filter((m: any) => m.kind === 'venda').reduce((s: number, m: any) => s + m.amount, 0);
     const entradas = data.open.movements.filter((m: any) => ['entrada', 'suprimento'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
     const saidas = data.open.movements.filter((m: any) => ['sangria', 'saida'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
-    const expected = data.open.initial + entradas + vendas - saidas;
-    return { vendas, entradas, saidas, expected };
+    const taxas = data.open.movements.filter((m: any) => m.kind === 'taxa').reduce((s: number, m: any) => s + m.amount, 0);
+    const expected = data.open.initial + entradas + vendas - saidas - taxas;
+    return { vendas, entradas, saidas, taxas, expected };
   })();
 
   const printClose = (h: any) => {
     const vendas = h.movements.filter((m: any) => m.kind === 'venda').reduce((s: number, m: any) => s + m.amount, 0);
     const entradas = h.movements.filter((m: any) => ['entrada', 'suprimento'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
     const saidas = h.movements.filter((m: any) => ['sangria', 'saida'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
-    const expected = (h.initial || 0) + entradas + vendas - saidas;
+    const taxas = h.movements.filter((m: any) => m.kind === 'taxa').reduce((s: number, m: any) => s + m.amount, 0);
+    const expected = (h.initial || 0) + entradas + vendas - saidas - taxas;
     const informed = h.informed || expected;
     const byMethod: Record<string, number> = {};
     h.movements.filter((x: any) => x.kind === 'venda').forEach((x: any) => accumulateByMethod(byMethod, x));
@@ -510,7 +514,7 @@ export default function Caixa() {
       store: 'Rincão Lanches', operator: h.operator,
       openedAt: new Date(h.openedAt).toLocaleString('pt-BR'),
       closedAt: h.closedAt ? new Date(h.closedAt).toLocaleString('pt-BR') : '—',
-      initial: h.initial || 0, vendas, entradas, saidas, expected, informed, diff: informed - expected,
+      initial: h.initial || 0, vendas, entradas, saidas, taxas, expected, informed, diff: informed - expected,
       byMethod, width: '80mm', driverTotal: h.driverTotal || 0,
       orderNumbers: (h as any).orderNumbers ?? turnoOrderNumbers,
       driverBreakdown: (h as any).driverBreakdown ?? driverBreakdown,
@@ -637,7 +641,8 @@ export default function Caixa() {
                   const vendas = h.movements.filter((m: any) => m.kind === 'venda').reduce((s: number, m: any) => s + m.amount, 0);
                   const entradas = h.movements.filter((m: any) => ['entrada', 'suprimento'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
                   const saidas = h.movements.filter((m: any) => ['sangria', 'saida'].includes(m.kind)).reduce((s: number, m: any) => s + m.amount, 0);
-                  const expected = (h.initial || 0) + entradas + vendas - saidas;
+                  const taxas = h.movements.filter((m: any) => m.kind === 'taxa').reduce((s: number, m: any) => s + m.amount, 0);
+                  const expected = (h.initial || 0) + entradas + vendas - saidas - taxas;
                   const informed = h.informed || expected;
                   const diff = informed - expected;
                   const isExpanded = historyOpen === h.id;
@@ -672,6 +677,9 @@ export default function Caixa() {
                             </div>}
                             {saidas > 0 && <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
                               <p className="text-gray-500 font-bold">Sangrias</p><p className="text-red-400 font-black">{BRL(saidas)}</p>
+                            </div>}
+                            {taxas > 0 && <div className="rounded-lg p-2" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                              <p className="text-gray-500 font-bold">Taxas MP</p><p className="text-red-400 font-black">{BRL(taxas)}</p>
                             </div>}
                           </div>
                           <div className="flex flex-wrap gap-1.5">
@@ -719,6 +727,9 @@ export default function Caixa() {
             <StatCard icon={TrendingUp} label="Vendas" value={BRL(totals.vendas)} color="#3b82f6" />
             <StatCard icon={ArrowDownCircle} label="Suprimentos" value={BRL(totals.entradas)} color="#8b5cf6" sub={`${data.open.movements.filter((m: any) => m.kind === 'suprimento').length} registro(s)`} />
             <StatCard icon={ArrowUpCircle} label="Sangrias" value={BRL(totals.saidas)} color="#ef4444" sub={`${data.open.movements.filter((m: any) => m.kind === 'sangria').length} registro(s)`} />
+            {totals.taxas > 0 && (
+              <StatCard icon={ArrowUpCircle} label="Taxas Mercado Pago" value={BRL(totals.taxas)} color="#f97316" sub={`${data.open.movements.filter((m: any) => m.kind === 'taxa').length} PIX`} />
+            )}
             {driverTotal > 0 && (
               <button onClick={() => setShowDriverModal(true)} className="text-left rounded-2xl p-4 pdv-hover transition-all duration-300" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center gap-3">
@@ -864,7 +875,7 @@ export default function Caixa() {
                 openedAt: new Date(data.open.openedAt).toLocaleString('pt-BR'),
                 closedAt: now.toLocaleString('pt-BR'),
                 initial: data.open.initial, vendas: totals.vendas, entradas: totals.entradas,
-                saidas: totals.saidas, expected: totals.expected, informed: totals.expected, diff: 0,
+                saidas: totals.saidas, taxas: totals.taxas, expected: totals.expected, informed: totals.expected, diff: 0,
                 byMethod, width: '80mm', orderNumbers: turnoOrderNumbers, driverBreakdown,
                 deliveryDayCount: dayDelivery.count, driverDay: dayDelivery.drivers,
               });

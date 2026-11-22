@@ -372,6 +372,7 @@ export function receiptText(o: {
 export function cashReceiptText(o: {
   store: string; operator: string; openedAt: string; closedAt: string;
   initial: number; vendas: number; entradas: number; saidas: number; expected: number;
+  taxas?: number;
   informed: number; diff: number; byMethod: Record<string, number>; width?: '58mm' | '80mm';
   driverTotal?: number;
   orderNumbers?: number[];
@@ -416,6 +417,7 @@ export function cashReceiptText(o: {
   }
   if (o.entradas > 0) rowWrap('Suprimentos', BRL(o.entradas)).forEach((l) => out.push(l));
   if (o.saidas > 0) rowWrap('Sangrias', '-' + BRL(o.saidas)).forEach((l) => out.push(l));
+  if (o.taxas && o.taxas > 0) rowWrap('Taxas Mercado Pago', '-' + BRL(o.taxas)).forEach((l) => out.push(l));
   out.push(line);
   rowWrap('ESPERADO', BRL(o.expected)).forEach((l) => out.push(l));
   rowWrap('INFORMADO', BRL(o.informed)).forEach((l) => out.push(l));
