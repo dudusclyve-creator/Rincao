@@ -21,7 +21,9 @@ export function MarkPaidModal({ order, onDone, onClose }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const value = Math.round(Math.max(0, Number(order?.subtotal || 0) + Number(order?.deliveryFee || 0) - Number(order?.discount || 0)) * 100) / 100;
+  const base = Math.round(Math.max(0, Number(order?.subtotal || 0) + Number(order?.deliveryFee || 0) - Number(order?.discount || 0)) * 100) / 100;
+  // listas "light" (PDV) podem vir sem subtotal/entrega/desconto: cai para o total
+  const value = base > 0 ? base : Math.round(Math.max(0, Number(order?.total || 0) - Number(order?.cardFee || 0)) * 100) / 100;
 
   const confirm = async () => {
     if (saving) return;

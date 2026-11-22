@@ -196,7 +196,7 @@ export async function GET(req: Request) {
         select: {
           id: true, number: true, status: true, source: true, type: true, customerName: true,
           createdAt: true, updatedAt: true, printCount: true, total: true, cardFee: true, payment: true,
-          paidAt: true, pixStatus: true,
+          paidAt: true, pixStatus: true, subtotal: true, deliveryFee: true, discount: true,
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
