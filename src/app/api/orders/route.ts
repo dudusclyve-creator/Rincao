@@ -599,6 +599,9 @@ export async function POST(req: Request) {
             subtotal, deliveryFee: fee, discount: Number(b.discount || 0), cardFee,
             total, note: b.note || '', tableId: b.tableId || null, driverId: b.driverId || null,
             source: orderSource, emitRequested: !!b.emitRequested,
+            // venda do PDV ja sai paga (dinheiro/cartao na hora). PIX automatico
+            // so fica pago quando o Mercado Pago aprovar; cardapio segue manual.
+            paidAt: orderSource === 'pdv' && !pixPending ? new Date() : null,
             items: { create: (b.items || []).map((it: any) => ({
               productId: it.productId || '', name: it.name, qty: Math.max(1, Math.floor(Number(it.qty || 1))),
               unitPrice: Math.max(0, Number(it.unitPrice || 0)), addonsJson: JSON.stringify(it.addons || []), note: it.note || '',
