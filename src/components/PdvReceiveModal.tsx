@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { BRL, showToast } from '@/lib/utils';
 import { MarkPaidModal } from '@/components/MarkPaidModal';
 
-// PDV: lista os pedidos do dia que ainda nao foram marcados como pagos para o
+// PDV: lista os pedidos recentes que ainda nao foram marcados como pagos para o
 // operador confirmar o recebimento (PIX, dinheiro, cartao...) na mao.
 export function PdvReceiveModal({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<any[]>([]);
@@ -12,10 +12,11 @@ export function PdvReceiveModal({ onClose }: { onClose: () => void }) {
 
   const load = async () => {
     const r = await fetch('/api/orders?light=1&limit=200').then((x) => x.json()).catch(() => []);
-    const today = new Date().toDateString();
+    // pega o que virou a noite tambem: 48h para tras em vez de so "hoje"
+    const from = Date.now() - 48 * 60 * 60 * 1000;
     const list = (Array.isArray(r) ? r : []).filter((o: any) =>
       !o.paidAt && o.status !== 'cancelado' && o.number > 0 &&
-      new Date(o.createdAt).toDateString() === today
+      new Date(o.createdAt).getTime() >= from
     );
     setRows(list);
     setLoading(false);
@@ -35,7 +36,7 @@ export function PdvReceiveModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400/70">Receber pagamento</p>
-            <h3 className="text-sm font-black text-white">Pedidos de hoje em aberto</h3>
+            <h3 className="text-sm font-black text-white">Pedidos em aberto (48h)</h3>
           </div>
           <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-white" style={{ background: 'rgba(255,255,255,0.06)' }}>✕</button>
         </div>
@@ -43,7 +44,7 @@ export function PdvReceiveModal({ onClose }: { onClose: () => void }) {
         <div className="p-4 max-h-[60vh] overflow-y-auto space-y-2">
           {loading && <p className="text-xs text-gray-500 text-center py-6">Carregando...</p>}
           {!loading && rows.length === 0 && (
-            <p className="text-xs text-gray-500 text-center py-8">Nenhum pedido em aberto hoje.</p>
+            <p className="text-xs text-gray-500 text-center py-8">Nenhum pedido em aberto nas últimas 48h.</p>
           )}
           {rows.map((o) => (
             <button key={o.id} onClick={() => setSel(o)}
@@ -53,7 +54,10 @@ export function PdvReceiveModal({ onClose }: { onClose: () => void }) {
                 <p className="text-xs font-black text-white">#{o.number} <span className="font-bold text-gray-300">{o.customerName || 'PDV'}</span></p>
                 <p className="text-[10px] text-gray-500">
                   {o.type === 'entrega' ? 'Entrega' : o.type === 'retirada' ? 'Retirada' : o.type === 'mesa' ? 'Mesa' : o.type === 'local' ? 'Local' : 'Balcão'}
-                  {' • '}{String(o.payment || '').includes(',') ? 'dividido' : (o.payment || '').toUpperCase() || '—'}
+                  {' • '}{String(o.payment || '').includes(',') ? 'dividido'
+                    : o.status === 'aguardando_pagamento' || o.pixStatus === 'pending' ? 'PIX aguardando'
+                    : (o.payment || '').toUpperCase() || '—'}
+                  {' • '}{new Date(o.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
