@@ -659,12 +659,18 @@ export async function POST(req: Request) {
 
 export async function PATCH(req: Request) {
   const b = await req.json();
-  const prev = await prisma.order.findUnique({ where: { id: b.id }, select: { status: true, tableId: true } });
+  const prev = await prisma.order.findUnique({ where: { id: b.id }, select: { status: true, tableId: true, paidAt: true, pixStatus: true } });
   if (!prev) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
   const data: any = {};
   if (b.status) {
     data.status = b.status;
     data.endedAt = (b.status === 'concluido' || b.status === 'cancelado') ? new Date() : null;
+    // concluir = já pago: o "marcar como pago" é o passo de antes do
+    // fechamento, então o pedido concluído não pode ficar em aberto no caixa
+    if (b.status === 'concluido' && !prev.paidAt) {
+      data.paidAt = new Date();
+      if (prev.pixStatus === 'pending') data.pixStatus = 'approved';
+    }
   }
   if (b.driverId !== undefined) data.driverId = b.driverId;
   if (b.tableId !== undefined) data.tableId = b.tableId || null;

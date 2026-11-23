@@ -1326,7 +1326,7 @@ export default function Pedidos() {
             <div className="fixed inset-0 z-[70]" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
             <div className="fixed z-[71] rounded-xl overflow-hidden py-1" style={{ left: ctxMenu.x, top: ctxMenu.y, width: 216, background: '#241016', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
               <p className="px-3 py-1.5 text-[10px] font-bold text-gray-500">Pedido #{o.number}</p>
-              {!o.paidAt && (
+              {!o.paidAt && o.status !== 'concluido' && o.status !== 'cancelado' && (
                 <button onClick={() => { setMarkPaidOrder(o); setCtxMenu(null); }}
                   className="w-full text-left px-3 py-2 text-[11px] font-bold text-white hover:bg-white/10 flex items-center gap-2">
                   <CheckCircle2 size={12} color="#4ade80" /> Marcar como pago

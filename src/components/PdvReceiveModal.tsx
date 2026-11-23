@@ -15,7 +15,7 @@ export function PdvReceiveModal({ onClose }: { onClose: () => void }) {
     // pega o que virou a noite tambem: 48h para tras em vez de so "hoje"
     const from = Date.now() - 48 * 60 * 60 * 1000;
     const list = (Array.isArray(r) ? r : []).filter((o: any) =>
-      !o.paidAt && o.status !== 'cancelado' && o.number > 0 &&
+      !o.paidAt && o.status !== 'cancelado' && o.status !== 'concluido' && o.number > 0 &&
       new Date(o.createdAt).getTime() >= from
     );
     setRows(list);
