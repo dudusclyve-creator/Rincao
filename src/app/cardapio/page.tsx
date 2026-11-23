@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useCart } from '@/lib/store';
-import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, maskCpf, docValido, waNumber, openWhatsApp, norm, type CartAddon } from '@/lib/utils';
+import { BRL, isOpenNow, buildWhatsMessage, showToast, maskPhone, maskCpf, docValido, waNumber, openWhatsApp, norm, titleCase, type CartAddon } from '@/lib/utils';
 import { parseAddress as parseAddressText, flattenZones } from '@/lib/address';
 import { PixQr } from '@/components/PixQr';
 
@@ -288,7 +288,7 @@ export default function CardapioPage() {
             <button onClick={() => selectCat('best')} data-tab-id="best" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'best' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>⭐ Mais pedidos</button>
             <button onClick={() => selectCat('fav')} data-tab-id="fav" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'fav' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>❤️ Favoritos</button>
             {data.categories.map((c: any) => (
-              <button key={c.id} onClick={() => selectCat(c.id)} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold uppercase transition" style={cat === c.id ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>{c.name}</button>
+              <button key={c.id} onClick={() => selectCat(c.id)} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === c.id ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>{titleCase(c.name)}</button>
             ))}
           </div>
         </div>
@@ -329,11 +329,11 @@ export default function CardapioPage() {
                   <li key={idx} className="flex items-start gap-2 text-[11px]">
                     <span className="font-bold shrink-0 w-6 text-right" style={{ color: C.textPrice }}>{it.qty}×</span>
                     <span className="flex-1 min-w-0">
-                      <span className="font-semibold" style={{ color: C.textName }}>{it.name}</span>
+                      <span className="font-semibold" style={{ color: C.textName }}>{titleCase(it.name)}</span>
                       {it.note && <span className="block text-[9px] italic" style={{ color: C.textMuted }}>obs: {it.note}</span>}
                       {it.addons?.length > 0 && (
                         <span className="block text-[9px]" style={{ color: C.textMuted }}>
-                          + {it.addons.map((a: any) => a.qty > 1 ? `${a.qty}x ${a.name}` : a.name).join(', ')}
+                          + {it.addons.map((a: any) => a.qty > 1 ? `${a.qty}x ${titleCase(a.name)}` : titleCase(a.name)).join(', ')}
                         </span>
                       )}
                     </span>
@@ -355,7 +355,7 @@ export default function CardapioPage() {
           {grouped.map((group) => (
             <div key={group.name} className="mb-5">
               <div className="flex items-center justify-between mb-2.5">
-                <span className="rounded-full px-4 py-1 text-[11px] font-bold uppercase" style={{ background: C.bgChip, color: C.textName }}>{group.name}</span>
+                <span className="rounded-full px-4 py-1 text-[11px] font-bold" style={{ background: C.bgChip, color: C.textName }}>{titleCase(group.name)}</span>
                 <span className="text-[10px]" style={{ color: C.textMuted }}>{group.items.length} {group.items.length === 1 ? 'item' : 'itens'}</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -377,7 +377,7 @@ export default function CardapioPage() {
                       <div className="flex-1 min-w-0 flex flex-col justify-between" style={{ opacity: soldOut ? 0.5 : 1 }}>
                         <div className="min-w-0">
                           <div className="flex items-start gap-1.5">
-                            <h3 className="font-bold text-[11px] sm:text-xs lg:text-sm uppercase truncate" style={{ color: C.textName }}>{p.name}</h3>
+                            <h3 className="font-bold text-[11px] sm:text-xs lg:text-sm truncate" style={{ color: C.textName }}>{titleCase(p.name)}</h3>
                             <div className="hidden sm:flex items-center gap-0.5 flex-shrink-0">
                               {p.newArrival && <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold text-white" style={{ background: 'linear-gradient(to right, #15803d, #22c55e)' }}>✨ Novidade</span>}
                               {p.bestSeller && <span className="badge-popular inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold text-white" style={{ background: 'linear-gradient(to right, #c2410c, #f59e0b)' }}>🔥 Popular</span>}
@@ -385,7 +385,7 @@ export default function CardapioPage() {
                               {p.promoPrice && <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold text-white" style={{ background: 'linear-gradient(to right, #b45309, #f59e0b)' }}>Promoção</span>}
                             </div>
                           </div>
-                          <p className="text-[9px] sm:text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{p.description}</p>
+                          <p className="text-[9px] sm:text-[10px] lg:text-[11px] line-clamp-2 mt-0.5 leading-relaxed" style={{ color: C.textDesc }}>{titleCase(p.description)}</p>
                         </div>
                         <div className="flex items-center gap-1.5 sm:gap-2 pr-8">
                           <p className="font-extrabold text-xs sm:text-sm lg:text-base" style={{ color: p.promoPrice ? '#22c55e' : C.textPrice }}>{BRL(price)} {p.promoPrice && <s className="font-normal text-[9px] sm:text-[10px]" style={{ color: C.textMuted }}>{BRL(p.price)}</s>}</p>
@@ -443,13 +443,13 @@ export default function CardapioPage() {
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start">
-                            <p className="text-[11px] font-bold flex-1 pr-1" style={{ color: '#3a2515' }}>{i.qty}x {i.name}</p>
+                            <p className="text-[11px] font-bold flex-1 pr-1" style={{ color: '#3a2515' }}>{i.qty}x {titleCase(i.name)}</p>
                             <span className="text-[11px] font-bold shrink-0" style={{ color: '#3a2515' }}>{BRL(total)}</span>
                           </div>
                           {i.addons.length > 0 && (
                             <div className="mt-0.5">
                               {i.addons.map((a: CartAddon, k: number) => (
-                                <p key={k} className="text-[9px]" style={{ color: '#b8906a' }}>+ {a.name}{a.qty && a.qty > 1 ? ` (${a.qty}x)` : ''}</p>
+                                <p key={k} className="text-[9px]" style={{ color: '#b8906a' }}>+ {titleCase(a.name)}{a.qty && a.qty > 1 ? ` (${a.qty}x)` : ''}</p>
                               ))}
                             </div>
                           )}
@@ -535,7 +535,7 @@ export default function CardapioPage() {
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {(deliveryZones[deliveryCity] || []).map((z) => (
                     <button key={z.name} onClick={() => { setDeliveryBairro(z.name); setDeliveryStep(3); }} className="w-full flex items-center justify-between p-2.5 rounded-lg transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryBairro === z.name ? '#6b3a1f' : '#f9f9f9', color: deliveryBairro === z.name ? '#fff' : '#6b3a1f' }}>
-                      <span className="text-[11px] font-bold">{z.name}</span>
+                      <span className="text-[11px] font-bold">{titleCase(z.name)}</span>
                       <span className="text-[10px] font-bold" style={{ opacity: deliveryBairro === z.name ? 0.7 : 0.4 }}>+{BRL(z.fee)}</span>
                     </button>
                   ))}
@@ -615,7 +615,7 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
     let next: CartAddon[];
     if (has) next = cur.filter((x) => x.name !== a.name);
     else {
-      if (cur.reduce((s, x) => s + (x.qty || 1), 0) + 1 > g.maxSel) { showToast(`Máximo de ${g.maxSel} em "${g.name}"`, 'warning'); return; }
+      if (cur.reduce((s, x) => s + (x.qty || 1), 0) + 1 > g.maxSel) { showToast(`Máximo de ${g.maxSel} em "${titleCase(g.name)}"`, 'warning'); return; }
       next = [...cur, { name: a.name, price: a.price, qty: 1 }];
     }
     setSel({ ...sel, [g.id]: next });
@@ -639,21 +639,21 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
           <button onClick={onClose} className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-sm text-white/70 hover:text-white hover:bg-black/20 transition-all duration-200" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}>✕</button>
           <div className="absolute bottom-4 left-5 right-5">
-            <h2 className="text-lg font-bold text-white uppercase tracking-wide">{product.name}</h2>
-            <p className="text-xs mt-0.5 text-white/60 leading-relaxed">{product.description}</p>
+            <h2 className="text-lg font-bold text-white tracking-wide">{titleCase(product.name)}</h2>
+            <p className="text-xs mt-0.5 text-white/60 leading-relaxed">{titleCase(product.description)}</p>
             <p className="font-bold text-xl mt-1.5 text-white">{BRL(price)} {product.promoPrice && <s className="font-normal text-xs text-white/40">{BRL(product.price)}</s>}</p>
           </div>
         </div>
         <div className="p-5">
           {groups.map((g: any) => (
             <div key={g.id} className="mt-4 rounded-xl p-3.5 bg-gray-50 border border-gray-100">
-              <p className="font-semibold text-xs text-gray-900">{g.name} {g.required && <span className="text-red-500">*obrigatório</span>} <span className="text-gray-400">({(sel[g.id] || []).reduce((s: number, x: any) => s + (x.qty || 1), 0)}/{g.maxSel})</span></p>
+              <p className="font-semibold text-xs text-gray-900">{titleCase(g.name)} {g.required && <span className="text-red-500">*obrigatório</span>} <span className="text-gray-400">({(sel[g.id] || []).reduce((s: number, x: any) => s + (x.qty || 1), 0)}/{g.maxSel})</span></p>
               <div className="mt-2 grid grid-cols-2 gap-1.5">
                 {g.addons?.filter((a: any) => a.active).map((a: any) => {
                   const on = (sel[g.id] || []).some((x) => x.name === a.name);
                   return (
                     <button key={a.id} onClick={() => toggle(g, a)} className="flex justify-between items-center border-2 rounded-xl px-3 py-2.5 text-[11px] transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97] cursor-pointer" style={on ? { borderColor: '#6b3a1f', background: 'linear-gradient(135deg, #6b3a1f, #8b5e3a)', color: '#fff', boxShadow: '0 4px 14px rgba(107,58,31,0.25)' } : { borderColor: '#e8e0d8', background: '#fdfcfa', color: '#5a4030' }}>
-                      <span className="font-medium">{a.name}</span><span className="font-bold text-[10px]" style={{ color: on ? 'rgba(255,255,255,0.8)' : '#b8906a' }}>{a.price ? '+' + BRL(a.price) : 'grátis'}</span>
+                      <span className="font-medium">{titleCase(a.name)}</span><span className="font-bold text-[10px]" style={{ color: on ? 'rgba(255,255,255,0.8)' : '#b8906a' }}>{a.price ? '+' + BRL(a.price) : 'grátis'}</span>
                     </button>
                   );
                 })}
@@ -689,7 +689,7 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
                     return (
                       <button key={d.id} onClick={() => { cart.add({ key: Math.random().toString(36), productId: d.id, name: d.name, unitPrice: dp, qty: 1, note: '', addons: [] }); }} className="flex-shrink-0 w-[130px] rounded-xl p-2.5 text-center transition-all duration-200 hover:shadow-md active:scale-95 border" style={{ background: '#fdfcfa', borderColor: '#e8e0d8' }}>
                         <div className="w-full h-20 rounded-lg overflow-hidden mb-1.5" style={{ background: '#f0ebe5' }}>{d.photoUrl ? <img src={d.photoUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-3xl">🥤</span>}</div>
-                        <p className="text-[9px] font-bold truncate" style={{ color: '#5a4030' }}>{d.name}</p>
+                        <p className="text-[9px] font-bold truncate" style={{ color: '#5a4030' }}>{titleCase(d.name)}</p>
                         <p className="text-[10px] font-bold" style={{ color: '#b8906a' }}>{BRL(dp)}</p>
                       </button>
                     );
@@ -781,7 +781,7 @@ function CartDrawer(props: any) {
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {(deliveryZones[city] || []).map((z) => (
                 <button key={z.name} onClick={() => { setBairro(z.name); setStep(4); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: bairro === z.name ? '#6b3a1f' : '#f5ebe0', color: bairro === z.name ? '#fff' : '#5a4030' }}>
-                  <span className="text-[11px] font-bold">{z.name}</span>
+                  <span className="text-[11px] font-bold">{titleCase(z.name)}</span>
                   <span className="text-[10px] font-bold">+{BRL(z.fee)}</span>
                 </button>
               ))}
@@ -810,8 +810,8 @@ function CartDrawer(props: any) {
 
         {cart.items.map((i) => (
           <div key={i.key} className="py-2.5 text-xs" style={{ borderBottom: '1px solid #f0ebe5' }}>
-            <div className="flex justify-between"><b style={{ color: '#3a2515' }}>{i.qty}x {i.name}</b><span style={{ color: '#3a2515' }}>{BRL(i.qty * (i.unitPrice + i.addons.reduce((s, a) => s + a.price * (a.qty || 1), 0)))}</span></div>
-            {i.addons.map((a, k) => <div key={k} style={{ color: '#b8906a' }}>• {a.name}</div>)}
+            <div className="flex justify-between"><b style={{ color: '#3a2515' }}>{i.qty}x {titleCase(i.name)}</b><span style={{ color: '#3a2515' }}>{BRL(i.qty * (i.unitPrice + i.addons.reduce((s, a) => s + a.price * (a.qty || 1), 0)))}</span></div>
+            {i.addons.map((a, k) => <div key={k} style={{ color: '#b8906a' }}>• {titleCase(a.name)}</div>)}
             <div className="flex gap-3 mt-1">
               <button className="text-[10px] font-semibold" style={{ color: '#b8906a' }} onClick={() => cart.updateQty(i.key, i.qty + 1)}>+1</button>
               <button className="text-[10px] font-semibold" style={{ color: '#b8906a' }} onClick={() => cart.updateQty(i.key, i.qty - 1)}>-1</button>
@@ -1026,7 +1026,11 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
   if (done) {
     const msg = buildWhatsMessage({
       number: done.number, customerName: done.customerName, customerPhone: done.customerPhone,
-      items: done.items.map((it: any) => ({ qty: it.qty, name: it.name, addons: JSON.parse(it.addonsJson || '[]') })),
+      items: done.items.map((it: any) => ({
+        qty: it.qty,
+        name: titleCase(it.name),
+        addons: JSON.parse(it.addonsJson || '[]').map((a: any) => ({ ...a, name: titleCase(a.name) })),
+      })),
       note: done.note, addressText: done.addressText, payment: done.payment,
       subtotal: done.subtotal, deliveryFee: done.deliveryFee, discount: done.discount, total: done.total, cardFee: done.cardFee,
     });

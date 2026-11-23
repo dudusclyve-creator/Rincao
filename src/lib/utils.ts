@@ -6,6 +6,24 @@ export const BRL = (v: number) =>
 export const norm = (s: any) =>
   String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
+// Cardápio: primeira letra de cada palavra em maiúscula.
+// "xis bagual" -> "Xis Bagual", "combo + coca 600" -> "Combo + Coca 600".
+// Palavra com número (2L, 600ml, 0%) fica como está para não virar "2l".
+export function titleCase(input: any): string {
+  const s = String(input ?? '');
+  if (!s) return s;
+  return s
+    .split(/(\s+)/)
+    .map((token) => {
+      if (!token.trim()) return token;
+      if (/\d/.test(token)) return token;
+      return token
+        .toLowerCase()
+        .replace(/(^|[-/(.,:;'"+])([a-zà-ÿ])/g, (_m, pre: string, ch: string) => pre + ch.toUpperCase());
+    })
+    .join('');
+}
+
 // Percentual da taxa do cartão que foi realmente cobrado no pedido.
 // Usado no cupom: se o operador editou a taxa na mão, o cupom mostra o
 // percentual certo em vez do padrão das configurações.
