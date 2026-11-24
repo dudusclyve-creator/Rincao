@@ -6,20 +6,58 @@ export const BRL = (v: number) =>
 export const norm = (s: any) =>
   String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
-// Cardápio: primeira letra de cada palavra em maiúscula.
-// "xis bagual" -> "Xis Bagual", "combo + coca 600" -> "Combo + Coca 600".
+// Cardápio: primeira letra de cada palavra em maiúscula, com os conectivos
+// (de, da, do, e, com, para...) em minúscula — "xis bagual" -> "Xis Bagual",
+// "calabresa com requeijão" -> "Calabresa com Requeijão".
 // Palavra com número (2L, 600ml, 0%) fica como está para não virar "2l".
+const LOW_WORDS = new Set([
+  'a', 'à', 'ao', 'aos', 'as', 'às', 'com', 'da', 'das', 'de', 'do', 'dos',
+  'e', 'em', 'entre', 'na', 'nas', 'no', 'nos', 'o', 'os', 'ou', 'para', 'por', 'sem',
+  'sob', 'sobre', 'um', 'uma', 'até', 'ate', 'após', 'apos',
+  // nomes de bairro em espanhol (Rivera): "Paso de la Hormiga", "Cerro del Marco"
+  'del', 'el', 'la', 'las', 'los', 'y',
+]);
+
 export function titleCase(input: any): string {
   const s = String(input ?? '');
   if (!s) return s;
-  return s
-    .split(/(\s+)/)
-    .map((token) => {
+  const parts = s.split(/(\s+)/);
+  let firstWord = true;
+  // proxima palavra (pula os espacos) — usada para nao estragar a marca "Del Valle"
+  const nextWordCore = (i: number): string => {
+    for (let j = i; j < parts.length; j++) {
+      if (!parts[j].trim()) continue;
+      return parts[j].toLowerCase().replace(/^[^a-zà-ÿ]+|[^a-zà-ÿ]+$/g, '');
+    }
+    return '';
+  };
+  return parts
+    .map((token, idx) => {
       if (!token.trim()) return token;
+      const wasFirst = firstWord;
+      firstWord = false;
       if (/\d/.test(token)) return token;
+      const plain = token.replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ]+$/g, '');
+      // "c/" (com) e "s/" (sem) ficam minúsculos
+      if (/^[cs]\/$/i.test(token)) return token.toLowerCase();
+      // tamanhos (G, GG, XG, P, M, XL) não viram "Gg"
+      if (/^(G|GG|XG|P|M|XL|XXL)$/.test(plain)) return token;
+      const after = nextWordCore(idx + 1);
+      let firstPiece = wasFirst;
       return token
-        .toLowerCase()
-        .replace(/(^|[-/(.,:;'"+])([a-zà-ÿ])/g, (_m, pre: string, ch: string) => pre + ch.toUpperCase());
+        .split(/([-/])/)
+        .map((piece) => {
+          if (piece === '-' || piece === '/') return piece;
+          const cap = piece
+            .toLowerCase()
+            .replace(/(^|[.,:;'"+()])([a-zà-ÿ])/g, (_m, pre: string, ch: string) => pre + ch.toUpperCase());
+          const core = piece.toLowerCase().replace(/^[^a-zà-ÿ]+|[^a-zà-ÿ]+$/g, '');
+          // marca "Del Valle" mantem o "Del" maiusculo
+          const low = !firstPiece && LOW_WORDS.has(core) && !(core === 'del' && after === 'valle');
+          firstPiece = false;
+          return low ? piece.toLowerCase() : cap;
+        })
+        .join('');
     })
     .join('');
 }

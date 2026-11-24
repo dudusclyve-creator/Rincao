@@ -237,7 +237,7 @@ export default function Cozinha() {
                       {addons.length > 0 && (
                         <div className="ml-8 mt-2 flex flex-wrap gap-1.5">
                           {addons.map((a: any, k: number) => (
-                            <span key={k} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black uppercase"
+                            <span key={k} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black"
                               style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.45)', color: '#c4b5fd' }}>
                               <PlusCircle size={11} />
                               {a.name}
