@@ -241,7 +241,7 @@ export default function CardapioPage() {
             <h1 className="font-black text-sm lg:text-base truncate" style={{ color: C.textLight }}>Rincão Lanches</h1>
             <span className="flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white shrink-0" style={{ background: open ? WA_GREEN : '#dc2626' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              {open ? 'ABERTO' : 'FECHADO'}
+              {open ? 'Aberto' : 'Fechado'}
             </span>
             <span className="text-[10px] hidden sm:inline" style={{ color: C.textMuted }}>• 30–45 min</span>
           </div>
@@ -484,7 +484,7 @@ export default function CardapioPage() {
           {addressOpen && !mesa && (
             <div className="absolute left-0 right-0 z-30 rounded-xl p-4 shadow-xl" style={{ top: '52px', background: 'white', border: '1px solid #f0f0f0', maxHeight: '420px', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}>
               {deliveryStep === 0 && (<>
-                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Como você quer receber?</p>
+                <p className="text-[9px] font-semibold tracking-widest mb-2.5 text-gray-400">Como Você Quer Receber?</p>
                 <div className="space-y-1.5">
                   {[
                     { id: 'entrega', icon: '🛵', label: 'Entrega', desc: 'A gente leva até você' },
@@ -511,14 +511,14 @@ export default function CardapioPage() {
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
                   Voltar
                 </button>
-                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Qual sua cidade?</p>
+                <p className="text-[9px] font-semibold tracking-widest mb-2.5 text-gray-400">Qual Sua Cidade?</p>
                 <div className="space-y-1.5">
                   {Object.keys(deliveryZones).map((city) => (
                     <button key={city} onClick={() => { setDeliveryCity(city); setDeliveryStep(2); }} className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryCity === city ? '#6b3a1f' : '#f9f9f9', color: deliveryCity === city ? '#fff' : '#6b3a1f' }}>
                       <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-sm" style={{ background: deliveryCity === city ? 'rgba(255,255,255,0.15)' : '#fff' }}>📍</div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-bold">{city}</p>
-                        <p className="text-[9px] opacity-50">{deliveryZones[city].length} bairros</p>
+                        <p className="text-[11px] font-bold">{titleCase(city)}</p>
+                        <p className="text-[9px] opacity-50">{deliveryZones[city].length} Bairros</p>
                       </div>
                       <svg className="w-4 h-4 shrink-0 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
                     </button>
@@ -531,7 +531,7 @@ export default function CardapioPage() {
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
                   Voltar
                 </button>
-                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Bairro em {deliveryCity}</p>
+                <p className="text-[9px] font-semibold tracking-widest mb-2.5 text-gray-400">Bairro Em {titleCase(deliveryCity)}</p>
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {(deliveryZones[deliveryCity] || []).map((z) => (
                     <button key={z.name} onClick={() => { setDeliveryBairro(z.name); setDeliveryStep(3); }} className="w-full flex items-center justify-between p-2.5 rounded-lg transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryBairro === z.name ? '#6b3a1f' : '#f9f9f9', color: deliveryBairro === z.name ? '#fff' : '#6b3a1f' }}>
@@ -547,7 +547,7 @@ export default function CardapioPage() {
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
                   Voltar
                 </button>
-                <p className="text-[9px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">{deliveryBairro}, {deliveryCity}</p>
+                <p className="text-[9px] font-semibold tracking-widest mb-2.5 text-gray-400">{titleCase(deliveryBairro)}, {titleCase(deliveryCity)}</p>
                 <div className="space-y-2">
                   <input className="w-full rounded-xl px-3 py-2.5 text-[11px] outline-none bg-gray-50 border border-gray-200 text-gray-900 focus:border-gray-400 transition-colors" placeholder="Rua *" value={deliveryStreet} onChange={(e) => setDeliveryStreet(e.target.value)} />
                   <div className="flex gap-2">
@@ -680,7 +680,7 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
         {drinks.length > 0 && (<>
           <div className="px-5 pb-5">
             <div className="pt-4 border-t border-gray-100">
-              <p className="text-[10px] font-semibold uppercase tracking-widest mb-2.5" style={{ color: '#b8906a' }}>Que tal adicionar?</p>
+              <p className="text-[10px] font-semibold tracking-widest mb-2.5" style={{ color: '#b8906a' }}>Que Tal Adicionar?</p>
               <div className="relative">
                 <button onClick={() => drinksRef.current?.scrollBy({ left: -200, behavior: 'smooth' })} className="absolute left-0 top-0 bottom-0 z-10 w-10 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-200 hover:scale-110 active:scale-95 backdrop-blur shadow-md" style={{ background: 'rgba(107,58,31,0.1)', color: '#6b3a1f' }}>&lsaquo;</button>
                 <div ref={drinksRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide px-11 py-1">
@@ -747,7 +747,7 @@ function CartDrawer(props: any) {
         {/* Fluxo de endereço mobile */}
         {step === 1 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
-            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Como receber?</p>
+            <p className="text-[9px] font-semibold tracking-widest mb-2" style={{ color: '#b8906a' }}>Como Receber?</p>
             <div className="space-y-1.5">
               {[{ id: 'entrega', icon: '🛵', label: 'Entrega' }, { id: 'retirada', icon: '🚶', label: 'Retirada' }, { id: 'local', icon: '🏠', label: 'No local' }].map((t) => (
                 <button key={t.id} onClick={() => { if (t.id === 'entrega') { props.applyMode('entrega'); setStep(2); } else { props.applyMode(t.id); setStep(0); } }} className="w-full flex items-center gap-2.5 p-2 rounded-lg text-left transition-all" style={deliveryType === t.id ? { background: '#6b3a1f', color: '#fff' } : { background: '#f5ebe0', color: '#5a4030' }}>
@@ -762,12 +762,12 @@ function CartDrawer(props: any) {
         {step === 2 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <button onClick={() => setStep(1)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
-            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Cidade</p>
+            <p className="text-[9px] font-semibold tracking-widest mb-2" style={{ color: '#b8906a' }}>Cidade</p>
             <div className="space-y-1.5">
               {Object.keys(deliveryZones).map((c) => (
                 <button key={c} onClick={() => { setCity(c); setStep(3); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: city === c ? '#6b3a1f' : '#f5ebe0', color: city === c ? '#fff' : '#5a4030' }}>
-                  <span className="text-[11px] font-bold">{c}</span>
-                  <span className="text-[9px]">{deliveryZones[c].length} bairros</span>
+                  <span className="text-[11px] font-bold">{titleCase(c)}</span>
+                  <span className="text-[9px]">{deliveryZones[c].length} Bairros</span>
                 </button>
               ))}
             </div>
@@ -777,7 +777,7 @@ function CartDrawer(props: any) {
         {step === 3 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <button onClick={() => setStep(2)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
-            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>Bairro em {city}</p>
+            <p className="text-[9px] font-semibold tracking-widest mb-2" style={{ color: '#b8906a' }}>Bairro Em {titleCase(city)}</p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {(deliveryZones[city] || []).map((z) => (
                 <button key={z.name} onClick={() => { setBairro(z.name); setStep(4); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: bairro === z.name ? '#6b3a1f' : '#f5ebe0', color: bairro === z.name ? '#fff' : '#5a4030' }}>
@@ -792,7 +792,7 @@ function CartDrawer(props: any) {
         {step === 4 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <button onClick={() => setStep(3)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
-            <p className="text-[9px] font-semibold uppercase tracking-widest mb-2" style={{ color: '#b8906a' }}>{bairro}, {city}</p>
+            <p className="text-[9px] font-semibold tracking-widest mb-2" style={{ color: '#b8906a' }}>{titleCase(bairro)}, {titleCase(city)}</p>
             <div className="space-y-2">
               <input className="w-full rounded-lg px-3 py-2 text-[11px] outline-none" style={{ border: '1px solid #e8e0d8', background: 'white', color: '#333' }} placeholder="Rua *" value={street} onChange={(e) => setStreet(e.target.value)} />
               <div className="flex gap-2">
@@ -1039,10 +1039,10 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
         <div className="rounded-2xl p-6 max-w-md w-full text-center" style={{ background: 'white', color: '#333', boxShadow: '0 25px 60px rgba(0,0,0,0.1)' }}>
           <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mx-auto bg-green-50">✅</div>
           <h2 className="text-xl font-bold text-gray-900 mt-3">Pedido #{done.number}!</h2>
-          <p className="text-xs mt-1 text-gray-400">Total {BRL(done.total)} • {done.payment.toUpperCase()}</p>
+          <p className="text-xs mt-1 text-gray-400">Total {BRL(done.total)} • {({ pix: 'Pix', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito' } as Record<string, string>)[String(done.payment)] || titleCase(done.payment)}</p>
           <pre className="text-left text-[10px] rounded-xl p-3 mt-3 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono bg-gray-50 border border-gray-100 text-gray-700">{msg}</pre>
-          <button onClick={() => openWhatsApp(restaurant.whatsapp, msg)} className="block w-full rounded-xl py-3 font-bold text-white text-xs mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: WA_GREEN }}>ENVIAR NO WHATSAPP</button>
-          <button onClick={() => { cart.clear(); onClose(); }} className="w-full text-[11px] mt-2 text-gray-400 hover:text-gray-600 transition-colors">Voltar ao cardápio</button>
+          <button onClick={() => openWhatsApp(restaurant.whatsapp, msg)} className="block w-full rounded-xl py-3 font-bold text-white text-xs mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: WA_GREEN }}>Enviar No WhatsApp</button>
+          <button onClick={() => { cart.clear(); onClose(); }} className="w-full text-[11px] mt-2 text-gray-400 hover:text-gray-600 transition-colors">Voltar Ao Cardápio</button>
         </div>
       </div>
     );
@@ -1098,7 +1098,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
           </div>
 
           <div className="mt-5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest mb-2.5 text-gray-400">Pagamento</p>
+            <p className="text-[10px] font-semibold tracking-widest mb-2.5 text-gray-400">Pagamento</p>
             <div className="grid grid-cols-4 gap-2">
               {[{ id: 'pix', icon: '📱', label: 'Pix', taxa: 0 }, { id: 'dinheiro', icon: '💵', label: 'Dinheiro', taxa: 0 }, { id: 'debito', icon: '💳', label: 'Débito', taxa: cardFeeDebit }, { id: 'credito', icon: '💳', label: 'Crédito', taxa: cardFeeCredit }].map((p) => (
                 <button key={p.id} onClick={() => setF({ ...f, payment: p.id })} className="flex flex-col items-center gap-1.5 rounded-xl py-3 text-[10px] font-semibold transition-all duration-200 border" style={f.payment === p.id ? { borderColor: '#6b3a1f', background: '#6b3a1f', color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } : { borderColor: '#f0f0f0', background: '#f9f9f9', color: '#888' }}>
@@ -1135,7 +1135,7 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
                 </div>
               ) : (
                 <>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Chave Pix</p>
+                  <p className="text-[10px] font-semibold tracking-widest text-gray-400">Chave Pix</p>
                   <div className="flex items-center justify-between gap-2 mt-1">
                     <p className="text-sm font-bold text-gray-900">{restaurant.pixKey}</p>
                     <button
