@@ -140,8 +140,8 @@ export function buildWhatsMessage(o: {
   L.push('');
   L.push('*ITENS:*');
   o.items.forEach((it) => {
-    L.push(`${it.qty}x ${it.name}`);
-    it.addons.forEach((a) => L.push(`• ${a.name}${a.price ? ` (+${BRL(a.price)})` : ''}`));
+    L.push(`${it.qty}x ${titleCase(it.name)}`);
+    it.addons.forEach((a) => L.push(`• ${titleCase(a.name)}${a.price ? ` (+${BRL(a.price)})` : ''}`));
     L.push('');
   });
   if (o.note) { L.push('*OBSERVAÇÃO:*'); L.push(o.note); L.push(''); }
@@ -387,9 +387,9 @@ export function receiptText(o: {
   // itens e valores na mesma letra da comanda (2x), menos o numero do pedido
   out.push(line);
   o.items.forEach((it) => {
-    rowWrap(`${it.qty}x ${it.name}`, BRL(it.unitPrice * it.qty)).forEach((l) => out.push(l));
+    rowWrap(`${it.qty}x ${titleCase(it.name)}`, BRL(it.unitPrice * it.qty)).forEach((l) => out.push(l));
     it.addons.forEach((a) => {
-      const left = `  + ${a.name}${a.qty && a.qty > 1 ? ` ${a.qty}x` : ''}`;
+      const left = `  + ${titleCase(a.name)}${a.qty && a.qty > 1 ? ` ${a.qty}x` : ''}`;
       rowWrap(left, a.price ? BRL(a.price) : '').forEach((l) => out.push(l));
     });
     if (it.note) wrapWords(`  obs: ${it.note}`, '  ').forEach((l) => out.push(l));

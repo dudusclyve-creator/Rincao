@@ -531,7 +531,7 @@ export default function CardapioPage() {
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
                   Voltar
                 </button>
-                <p className="text-[9px] font-semibold tracking-widest mb-2.5 text-gray-400">Bairro Em {titleCase(deliveryCity)}</p>
+                <p className="text-[9px] font-semibold tracking-widest mb-2.5 text-gray-400">Bairro em {titleCase(deliveryCity)}</p>
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {(deliveryZones[deliveryCity] || []).map((z) => (
                     <button key={z.name} onClick={() => { setDeliveryBairro(z.name); setDeliveryStep(3); }} className="w-full flex items-center justify-between p-2.5 rounded-lg transition-all duration-200 text-left hover:shadow-sm" style={{ background: deliveryBairro === z.name ? '#6b3a1f' : '#f9f9f9', color: deliveryBairro === z.name ? '#fff' : '#6b3a1f' }}>
@@ -680,7 +680,7 @@ function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
         {drinks.length > 0 && (<>
           <div className="px-5 pb-5">
             <div className="pt-4 border-t border-gray-100">
-              <p className="text-[10px] font-semibold tracking-widest mb-2.5" style={{ color: '#b8906a' }}>Que Tal Adicionar?</p>
+              <p className="text-[10px] font-semibold tracking-widest mb-2.5" style={{ color: '#b8906a' }}>Que tal adicionar?</p>
               <div className="relative">
                 <button onClick={() => drinksRef.current?.scrollBy({ left: -200, behavior: 'smooth' })} className="absolute left-0 top-0 bottom-0 z-10 w-10 rounded-xl flex items-center justify-center text-xl font-bold transition-all duration-200 hover:scale-110 active:scale-95 backdrop-blur shadow-md" style={{ background: 'rgba(107,58,31,0.1)', color: '#6b3a1f' }}>&lsaquo;</button>
                 <div ref={drinksRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide px-11 py-1">
@@ -777,7 +777,7 @@ function CartDrawer(props: any) {
         {step === 3 && !mesa && (
           <div className="mt-2 p-3 rounded-xl" style={{ background: '#fdfcfa', border: '1px solid #e8e0d8' }}>
             <button onClick={() => setStep(2)} className="text-[10px] font-semibold mb-2" style={{ color: '#6b3a1f' }}>← Voltar</button>
-            <p className="text-[9px] font-semibold tracking-widest mb-2" style={{ color: '#b8906a' }}>Bairro Em {titleCase(city)}</p>
+            <p className="text-[9px] font-semibold tracking-widest mb-2" style={{ color: '#b8906a' }}>Bairro em {titleCase(city)}</p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {(deliveryZones[city] || []).map((z) => (
                 <button key={z.name} onClick={() => { setBairro(z.name); setStep(4); }} className="w-full flex items-center justify-between p-2 rounded-lg text-left" style={{ background: bairro === z.name ? '#6b3a1f' : '#f5ebe0', color: bairro === z.name ? '#fff' : '#5a4030' }}>
@@ -1041,8 +1041,8 @@ function CheckoutModal({ restaurant, onClose, deliveryType, setDeliveryType, del
           <h2 className="text-xl font-bold text-gray-900 mt-3">Pedido #{done.number}!</h2>
           <p className="text-xs mt-1 text-gray-400">Total {BRL(done.total)} • {({ pix: 'Pix', dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito' } as Record<string, string>)[String(done.payment)] || titleCase(done.payment)}</p>
           <pre className="text-left text-[10px] rounded-xl p-3 mt-3 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono bg-gray-50 border border-gray-100 text-gray-700">{msg}</pre>
-          <button onClick={() => openWhatsApp(restaurant.whatsapp, msg)} className="block w-full rounded-xl py-3 font-bold text-white text-xs mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: WA_GREEN }}>Enviar No WhatsApp</button>
-          <button onClick={() => { cart.clear(); onClose(); }} className="w-full text-[11px] mt-2 text-gray-400 hover:text-gray-600 transition-colors">Voltar Ao Cardápio</button>
+          <button onClick={() => openWhatsApp(restaurant.whatsapp, msg)} className="block w-full rounded-xl py-3 font-bold text-white text-xs mt-3 transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: WA_GREEN }}>Enviar no WhatsApp</button>
+          <button onClick={() => { cart.clear(); onClose(); }} className="w-full text-[11px] mt-2 text-gray-400 hover:text-gray-600 transition-colors">Voltar ao Cardápio</button>
         </div>
       </div>
     );
