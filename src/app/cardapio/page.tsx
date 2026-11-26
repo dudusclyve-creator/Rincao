@@ -188,13 +188,24 @@ export default function CardapioPage() {
   const products: Product[] = useMemo(() => {
     let p = data?.products || [];
     const activeCats = new Set((data?.categories || []).map((c: any) => c.id));
-    p = p.filter((x: any) => !x.categoryId || activeCats.has(x.categoryId));
+    // itens marcados como "oculto no cardápio" (feito pelo PDV) só existem no
+    // PDV para venda manual — aqui somem por completo, inclusive da busca.
+    p = p.filter((x: any) => !x.hiddenFromMenu && (!x.categoryId || activeCats.has(x.categoryId)));
     if (cat === 'best') p = p.filter((x: any) => x.bestSeller);
     else if (cat === 'fav') p = p.filter((x: any) => favorites.includes(x.id));
     else if (cat !== 'all') p = p.filter((x: any) => x.categoryId === cat);
     if (search) p = p.filter((x: any) => norm(x.name + ' ' + x.description).includes(norm(search)));
     return p;
   }, [data, cat, search, favorites]);
+
+  // categorias com pelo menos 1 item visível (categoria só com itens ocultos
+  // também some do cardápio, mas continua no PDV)
+  const visibleCategories = useMemo(() => {
+    const withVisible = new Set(
+      (data?.products || []).filter((p: any) => !p.hiddenFromMenu).map((p: any) => p.categoryId),
+    );
+    return (data?.categories || []).filter((c: any) => withVisible.has(c.id));
+  }, [data]);
 
   const catName = useMemo(() => {
     if (cat === 'all') return 'Todos';
@@ -287,7 +298,7 @@ export default function CardapioPage() {
             <button onClick={() => selectCat('all')} data-tab-id="all" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'all' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>Todos</button>
             <button onClick={() => selectCat('best')} data-tab-id="best" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'best' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>⭐ Mais pedidos</button>
             <button onClick={() => selectCat('fav')} data-tab-id="fav" className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === 'fav' ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>❤️ Favoritos</button>
-            {data.categories.map((c: any) => (
+            {visibleCategories.map((c: any) => (
               <button key={c.id} onClick={() => selectCat(c.id)} className="whitespace-nowrap rounded-full px-4 py-1.5 text-[11px] font-bold transition" style={cat === c.id ? { background: C.bgChipActive, color: C.textLight } : { background: C.bgChip, color: C.textMuted }}>{titleCase(c.name)}</button>
             ))}
           </div>
@@ -601,7 +612,7 @@ export default function CardapioPage() {
 /* ======================== PRODUCT MODAL ======================== */
 function ProductModal({ product, onClose, onAdded, allProducts, isOpen }: any) {
   const drinksRef = useRef<HTMLDivElement>(null);
-  const drinks = (allProducts || []).filter((p: any) => p.category?.name?.toLowerCase() === 'bebidas' && p.id !== product.id && p.available).slice(0, 8);
+  const drinks = (allProducts || []).filter((p: any) => p.category?.name?.toLowerCase() === 'bebidas' && p.id !== product.id && p.available && !p.hiddenFromMenu).slice(0, 8);
   const cart = useCart();
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');

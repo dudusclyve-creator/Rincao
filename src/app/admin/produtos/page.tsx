@@ -479,6 +479,7 @@ export default function CardapioAdmin() {
                                 {p.featured && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}><Star size={7} className="inline mr-0.5" />Destaque</span>}
                                 {p.bestSeller && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}><Flame size={7} className="inline mr-0.5" />Popular</span>}
                                 {!p.available && <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)', color: '#6b7280' }}>Off</span>}
+                                {(p as any).hiddenFromMenu && <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(220,38,38,0.16)', color: '#ef4444' }}><EyeOff size={7} className="inline mr-0.5" />Oculto</span>}
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 justify-end shrink-0">

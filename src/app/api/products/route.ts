@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   const p = await prisma.product.create({ data: {
     name: b.name, description: b.description || '', price: Number(b.price), promoPrice: b.promoPrice ? Number(b.promoPrice) : null,
     photoUrl: b.photoUrl || '', categoryId: b.categoryId, available: b.available ?? true,
+    hiddenFromMenu: !!b.hiddenFromMenu,
     featured: !!b.featured, bestSeller: !!b.bestSeller, newArrival: !!b.newArrival, order: Number(b.order || 0), relatedIds: JSON.stringify(b.relatedIds || []),
   }});
   if (b.groupIds?.length) for (const g of b.groupIds) { try { await prisma.productAddonGroup.create({ data: { productId: p.id, groupId: g } }); } catch {} }
@@ -29,6 +30,9 @@ export async function PATCH(req: Request) {
     name: b.name, description: b.description, price: b.price !== undefined ? Number(b.price) : undefined,
     promoPrice: b.promoPrice === null ? null : b.promoPrice !== undefined ? Number(b.promoPrice) : undefined,
     photoUrl: b.photoUrl, categoryId: b.categoryId, available: b.available, featured: b.featured,
+    // "oculto no cardápio": some só no PDV para pedidos manuais. Aceita atualizar
+    // sozinho (PATCH com { id, hiddenFromMenu }), sem exigir o resto do cadastro.
+    hiddenFromMenu: typeof b.hiddenFromMenu === 'boolean' ? b.hiddenFromMenu : undefined,
     bestSeller: b.bestSeller, newArrival: b.newArrival, order: b.order !== undefined ? Number(b.order) : undefined,
     relatedIds: b.relatedIds ? JSON.stringify(b.relatedIds) : undefined,
   }});
@@ -45,7 +49,7 @@ export async function DELETE(req: Request) {
   if (dup) {
     const src = await prisma.product.findUnique({ where: { id }, include: { groups: true } });
     if (!src) return NextResponse.json({ error: 'N/A' }, { status: 404 });
-    const np = await prisma.product.create({ data: { name: src.name + ' (cópia)', description: src.description, price: src.price, promoPrice: src.promoPrice, photoUrl: src.photoUrl, categoryId: src.categoryId, available: src.available, featured: false, bestSeller: false, relatedIds: src.relatedIds } });
+    const np = await prisma.product.create({ data: { name: src.name + ' (cópia)', description: src.description, price: src.price, promoPrice: src.promoPrice, photoUrl: src.photoUrl, categoryId: src.categoryId, available: src.available, hiddenFromMenu: src.hiddenFromMenu, featured: false, bestSeller: false, relatedIds: src.relatedIds } });
     for (const g of src.groups) { try { await prisma.productAddonGroup.create({ data: { productId: np.id, groupId: g.groupId } }); } catch {} }
     return NextResponse.json(np);
   }

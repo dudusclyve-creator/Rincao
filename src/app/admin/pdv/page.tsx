@@ -5,7 +5,7 @@ import { parseAddress, flattenZones } from '@/lib/address';
 import { useScrollRail } from '@/lib/useScrollRail';
 import { ItemCard } from '@/components/ItemCard';
 import { PixQr } from '@/components/PixQr';
-import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, AlertTriangle, Wallet } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, CreditCard, Banknote, Smartphone, X, Search, Package, MapPin, ChevronLeft, ChevronRight, StickyNote, Table2, AlertTriangle, Wallet, EyeOff, Eye } from 'lucide-react';
 import { PdvReceiveModal } from '@/components/PdvReceiveModal';
 
 const DELIVERY_ZONES_FALLBACK: Record<string, { name: string; fee: number }[]> = {
@@ -354,6 +354,9 @@ export default function PDV() {
   const [search, setSearch] = useState('');
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [modalProduct, setModalProduct] = useState<any>(null);
+  // clique direito num produto: ocultar/mostrar no cardapio (continua no PDV)
+  const [ctxProduct, setCtxProduct] = useState<any | null>(null);
+  const [ctxPos, setCtxPos] = useState({ x: 0, y: 0 });
   const [editNoteIdx, setEditNoteIdx] = useState<number | null>(null);
   const [selectedTable, setSelectedTable] = useState(saved?.selectedTable || '');
   const [changeFor, setChangeFor] = useState(0);
@@ -516,6 +519,29 @@ export default function PDV() {
     setTimeout(() => setLastAdded(null), 400);
     if (p.groups?.length) { setModalProduct(p); return; }
     setCart(prev => [...prev, { id: Math.random().toString(36), productId: p.id, name: p.name, unitPrice: p.promoPrice ?? p.price, qty: 1, note: '', addons: [] }]);
+  };
+
+  // Clique direito no produto: tira do cardapio publico mas deixa no PDV para
+  // venda manual (item fica com borda vermelha e selo "Oculto").
+  const toggleHiddenFromMenu = async () => {
+    const p = ctxProduct;
+    if (!p) return;
+    const next = !p.hiddenFromMenu;
+    setCtxProduct(null);
+    const apply = (hidden: boolean) =>
+      setMenu((m: any) => (m ? { ...m, products: m.products.map((x: any) => (x.id === p.id ? { ...x, hiddenFromMenu: hidden } : x)) } : m));
+    apply(next);
+    const r = await fetch('/api/products', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: p.id, hiddenFromMenu: next }),
+    }).then((x) => x.json()).catch(() => null);
+    if (!r || r.error) {
+      apply(!next);
+      showToast('Nao foi possivel atualizar o item', 'error');
+      return;
+    }
+    showToast(next ? 'Item oculto no cardapio (continua no PDV)' : 'Item de volta ao cardapio', 'success');
   };
 
   const removeFromCart = (id: string) => setCart(prev => prev.filter(x => x.id !== id));
@@ -813,14 +839,26 @@ export default function PDV() {
             {products.map((p: any) => {
               const inCart = cart.find(c => c.productId === p.id);
               const justAdded = lastAdded === p.id;
+              const hiddenFromMenu = !!p.hiddenFromMenu;
               return (
                 <button key={p.id} disabled={!p.available} onClick={() => quickAdd(p)}
+                  onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxProduct(p); setCtxPos({ x: e.clientX, y: e.clientY }); }}
+                  title={hiddenFromMenu ? 'Oculto no cardápio — clique direito para mostrar' : 'Clique direito para ocultar do cardápio'}
                   className="relative text-left rounded-2xl overflow-hidden pdv-hover disabled:opacity-30 disabled:cursor-not-allowed"
                   style={{
                     background: justAdded ? 'rgba(225,29,72,0.12)' : inCart ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.03)',
-                    border: justAdded ? '1px solid rgba(225,29,72,0.4)' : inCart ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.06)',
+                    border: hiddenFromMenu
+                      ? '1px solid rgba(239,68,68,0.7)'
+                      : justAdded ? '1px solid rgba(225,29,72,0.4)' : inCart ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(255,255,255,0.06)',
+                    boxShadow: hiddenFromMenu ? '0 0 0 1px rgba(239,68,68,0.14), 0 6px 18px rgba(239,68,68,0.10)' : undefined,
                     animation: justAdded ? 'cardPulse 0.4s ease' : undefined,
                   }}>
+                  {hiddenFromMenu && (
+                    <span className="absolute top-1.5 left-1.5 z-10 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-black text-white"
+                      style={{ background: '#dc2626', boxShadow: '0 2px 8px rgba(220,38,38,0.5)' }}>
+                      <EyeOff size={10} /> Oculto
+                    </span>
+                  )}
                   {/* Image */}
                   <div className="w-full h-20 overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)' }}>
                     {p.photoUrl
@@ -1284,6 +1322,33 @@ export default function PDV() {
               <a href="/admin/caixa" className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white text-center"
                 style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>Abrir caixa</a>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clique direito no produto: ocultar/mostrar no cardápio */}
+      {ctxProduct && (
+        <div className="fixed inset-0 z-[65]" onMouseDown={() => setCtxProduct(null)} onContextMenu={(e) => e.preventDefault()}>
+          <div className="absolute w-60 rounded-xl p-3"
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              left: Math.min(ctxPos.x, Math.max(8, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 248)),
+              top: Math.min(ctxPos.y, Math.max(8, (typeof window !== 'undefined' ? window.innerHeight : 800) - 168)),
+              background: '#241016',
+              border: '1px solid rgba(239,68,68,0.45)',
+              boxShadow: '0 18px 50px rgba(0,0,0,0.6)',
+            }}>
+            <p className="text-[9px] font-black uppercase tracking-widest text-red-400/80">Produto</p>
+            <p className="text-sm font-black text-white truncate">{ctxProduct.name}</p>
+            <p className="text-[10px] text-gray-400 mt-1 leading-snug">Some do cardápio público, mas continua aqui no PDV para venda manual.</p>
+            <button onClick={toggleHiddenFromMenu}
+              className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.98]"
+              style={{ background: ctxProduct.hiddenFromMenu ? '#16a34a' : '#dc2626' }}>
+              {ctxProduct.hiddenFromMenu ? <Eye size={14} /> : <EyeOff size={14} />}
+              {ctxProduct.hiddenFromMenu ? 'Mostrar no cardápio' : 'Ocultar do cardápio'}
+            </button>
+            <button onClick={() => setCtxProduct(null)}
+              className="w-full mt-1.5 rounded-lg py-1.5 text-[11px] text-gray-400 hover:text-white transition-colors">Cancelar</button>
           </div>
         </div>
       )}

@@ -66,6 +66,7 @@ model Product {
   categoryId      String
   category        Category @relation(fields: [categoryId], references: [id])
   available       Boolean  @default(true)
+  hiddenFromMenu  Boolean  @default(false)
   featured        Boolean  @default(false)
   bestSeller      Boolean  @default(false)
   newArrival      Boolean  @default(false)
