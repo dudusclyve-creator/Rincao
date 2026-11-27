@@ -7,7 +7,7 @@ import QRCode from 'qrcode';
 import {
   Users, Plus, Minus, X, Search, ArrowRightLeft, Receipt,
   User, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CreditCard, Banknote, Smartphone,
-  Check, Trash2, QrCode
+  Check, Trash2, QrCode, Map, LayoutGrid, Pencil, Save, Wand2, Armchair
 } from 'lucide-react';
 
 const PAYMENT_OPTIONS = [
@@ -16,6 +16,65 @@ const PAYMENT_OPTIONS = [
   { id: 'debito', label: 'Débito', icon: CreditCard, color: '#3b82f6' },
   { id: 'credito', label: 'Crédito', icon: CreditCard, color: '#8b5cf6' },
 ];
+
+// ---- vista aérea do salão -------------------------------------------------
+// As mesas são posicionadas num canvas virtual fixo (1200x760) e o front
+// converte tudo para % — assim o desenho fica igual em qualquer tela.
+const CANVAS_W = 1200;
+const CANVAS_H = 760;
+
+const clampInt = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, Math.round(v)));
+
+function autoLayoutTables(list: any[]) {
+  const n = list.length;
+  if (!n) return list;
+  const cols = Math.ceil(Math.sqrt(n));
+  const rows = Math.ceil(n / cols);
+  const gapX = CANVAS_W / (cols + 1);
+  const gapY = CANVAS_H / (rows + 1);
+  return list.map((t: any, i: number) => {
+    // mesas que nunca foram redimensionadas (120 padrão) ganham um tampo um
+    // pouco maior na primeira organização, para o desenho ficar legível
+    const w = Number(t.width) && Number(t.width) !== 120 ? Number(t.width) : 150;
+    const h = Number(t.height) && Number(t.height) !== 120 ? Number(t.height) : 150;
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    return {
+      ...t,
+      width: w,
+      height: h,
+      posX: Math.round(gapX * (col + 1) - w / 2),
+      posY: Math.round(gapY * (row + 1) - h / 2),
+      shape: t.shape || 'square',
+      rotation: Number(t.rotation) || 0,
+      seats: typeof t.seats === 'number' ? t.seats : 4,
+    };
+  });
+}
+
+// mesas antigas (sem posição salva) ganham uma grade automática só na tela;
+// o desenho é gravado quando o usuário salva o layout.
+const needsAutoLayout = (list: any[]) =>
+  list.length > 0 && list.every((t: any) => !t.posX && !t.posY);
+
+function firstFreeSpot(list: any[]) {
+  const size = 170;
+  for (let y = 30; y < CANVAS_H - 150; y += size) {
+    for (let x = 30; x < CANVAS_W - 150; x += size) {
+      const free = !list.some((t: any) => {
+        const tx = Number(t.posX) || 0;
+        const ty = Number(t.posY) || 0;
+        const tw = Number(t.width) || 150;
+        const th = Number(t.height) || 150;
+        return x < tx + tw + 20 && x + 150 + 20 > tx && y < ty + th + 20 && y + 150 + 20 > ty;
+      });
+      if (free) return { x, y };
+    }
+  }
+  return { x: Math.round(CANVAS_W / 2 - 75), y: Math.round(CANVAS_H / 2 - 75) };
+}
+
 
 function itemTotal(it: any) {
   const addons = typeof it.addonsJson === 'string' ? JSON.parse(it.addonsJson || '[]') : (it.addons || []);
@@ -563,20 +622,146 @@ export default function Mesas() {
   const [closing, setClosing] = useState(false);
   const closingRef = useRef(false);
 
+  // vista aérea / editor de layout
+  const [view, setView] = useState<'map' | 'list'>('map');
+  const [editing, setEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const editingRef = useRef(false);
+  const dragRef = useRef<any>(null);
+  const mapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => { editingRef.current = editing; }, [editing]);
+
   const load = useCallback(async () => {
     const [t, o, m] = await Promise.all([
       fetch('/api/tables').then((r) => r.json()),
       fetch('/api/orders?limit=500').then((r) => r.json()),
       fetch('/api/menu').then((r) => r.json()),
     ]);
-    setTables(t); setOrders(o); setMenu(m);
+    const list = Array.isArray(t) ? t : [];
+    // mesa sem posição salva: mostra numa grade só na tela (salva quando o
+    // operador confirmar o layout)
+    setTables(needsAutoLayout(list) ? autoLayoutTables(list) : list);
+    setOrders(o); setMenu(m);
   }, []);
 
   useEffect(() => {
     load();
-    const t = setInterval(() => { if (!closingRef.current) load().catch(() => {}); }, 8000);
+    // não recarrega por cima de um layout sendo editado
+    const t = setInterval(() => { if (!closingRef.current && !editingRef.current) load().catch(() => {}); }, 8000);
     return () => clearInterval(t);
   }, [load]);
+
+  const selTable = tables.find((t: any) => t.id === expanded) || null;
+
+  const patchTable = (id: string, patch: any) => {
+    setTables((prev: any[]) => prev.map((x: any) => (x.id === id ? { ...x, ...patch } : x)));
+    setDirty(true);
+  };
+
+  const startDrag = (e: React.PointerEvent, t: any, mode: 'move' | 'resize') => {
+    if (!editing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setExpanded(t.id);
+    const rect = mapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragRef.current = {
+      id: t.id, mode,
+      startX: e.clientX, startY: e.clientY,
+      ox: Number(t.posX) || 0, oy: Number(t.posY) || 0,
+      ow: Number(t.width) || 120, oh: Number(t.height) || 120,
+      scale: rect.width / CANVAS_W,
+    };
+    setDragging(true);
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const dx = (e.clientX - d.startX) / d.scale;
+      const dy = (e.clientY - d.startY) / d.scale;
+      setTables((prev: any[]) => prev.map((x: any) => {
+        if (x.id !== d.id) return x;
+        if (d.mode === 'move') {
+          return {
+            ...x,
+            posX: clampInt(d.ox + dx, 0, CANVAS_W - (Number(x.width) || 120)),
+            posY: clampInt(d.oy + dy, 0, CANVAS_H - (Number(x.height) || 120)),
+          };
+        }
+        return {
+          ...x,
+          width: clampInt(d.ow + dx, 56, CANVAS_W - (Number(x.posX) || 0)),
+          height: clampInt(d.oh + dy, 56, CANVAS_H - (Number(x.posY) || 0)),
+        };
+      }));
+      setDirty(true);
+    };
+    const up = () => { setDragging(false); dragRef.current = null; };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [dragging]);
+
+  const saveLayout = async () => {
+    const payload = tables.map((t: any) => ({
+      id: t.id, number: String(t.number).trim(),
+      posX: Number(t.posX) || 0, posY: Number(t.posY) || 0,
+      width: Number(t.width) || 120, height: Number(t.height) || 120,
+      shape: t.shape || 'square', rotation: Number(t.rotation) || 0, seats: Number(t.seats) || 0,
+    }));
+    const r = await fetch('/api/tables', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'layout', tables: payload }),
+    }).then((x) => x.json()).catch(() => null);
+    if (!r || r.error) { showToast(r?.error || 'Não foi possível salvar o layout', 'error'); return; }
+    setDirty(false);
+    setEditing(false);
+    await load();
+    showToast('Layout do salão salvo', 'success');
+  };
+
+  const cancelLayout = () => {
+    setDirty(false);
+    setEditing(false);
+    setExpanded(null);
+    load();
+  };
+
+  const autoOrganize = () => {
+    setTables((prev: any[]) => autoLayoutTables(prev));
+    setDirty(true);
+    showToast('Mesas organizadas em grade — ajuste e salve', 'success');
+  };
+
+  const addTable = async () => {
+    const nums = tables
+      .map((t: any) => parseInt(String(t.number).replace(/\D/g, ''), 10))
+      .filter((n: number) => Number.isFinite(n));
+    const next = (nums.length ? Math.max(...nums) : tables.length) + 1;
+    const spot = firstFreeSpot(tables);
+    const r = await fetch('/api/tables', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create', number: String(next),
+        posX: spot.x, posY: spot.y, width: 150, height: 150, shape: 'square', rotation: 0, seats: 4,
+      }),
+    }).then((x) => x.json()).catch(() => null);
+    if (!r || r.error) { showToast('Não foi possível criar a mesa', 'error'); return; }
+    await load();
+    setExpanded(r.id);
+    showToast(`Mesa ${r.number} criada`, 'success');
+  };
+
 
   const activeTableId = modalTableId;
   const activeTable = tables.find((t: any) => t.id === activeTableId);
@@ -700,7 +885,7 @@ export default function Mesas() {
 
   return (
     <div className="min-h-[calc(100vh-48px)] rounded-2xl p-4 md:p-5" style={{ background: '#1a1520', color: '#f0e8e0' }}>
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>
             <Users size={18} className="text-white" />
@@ -710,8 +895,301 @@ export default function Mesas() {
             <p className="text-[10px] text-gray-500">{tables.filter((t: any) => t.status === 'livre').length} livres · {tables.filter((t: any) => t.status === 'ocupada').length} ocupadas</p>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-xl p-0.5" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <button onClick={() => setView('map')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-bold transition-all"
+              style={view === 'map' ? { background: '#e11d48', color: '#fff' } : { color: '#9ca3af' }}>
+              <Map size={13} /> Vista aérea
+            </button>
+            <button onClick={() => { setView('list'); setEditing(false); setExpanded(null); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-[11px] font-bold transition-all"
+              style={view === 'list' ? { background: '#e11d48', color: '#fff' } : { color: '#9ca3af' }}>
+              <LayoutGrid size={13} /> Lista
+            </button>
+          </div>
+
+          {view === 'map' && (editing ? (
+            <>
+              <button onClick={addTable}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold text-white transition-all hover:brightness-110"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <Plus size={13} /> Nova mesa
+              </button>
+              <button onClick={autoOrganize}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold text-white transition-all hover:brightness-110"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <Wand2 size={13} /> Auto organizar
+              </button>
+              <button onClick={cancelLayout}
+                className="rounded-xl px-3 py-2 text-[11px] font-bold transition-all hover:bg-white/10"
+                style={{ color: '#9ca3af' }}>
+                Cancelar
+              </button>
+              <button onClick={saveLayout}
+                className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black text-white transition-all hover:brightness-110"
+                style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)', boxShadow: '0 2px 12px rgba(225,29,72,0.35)' }}>
+                <Save size={13} /> Salvar layout
+              </button>
+            </>
+          ) : (
+            <button onClick={() => setEditing(true)}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[11px] font-bold text-white transition-all hover:brightness-110"
+              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <Pencil size={13} /> Editar layout
+            </button>
+          ))}
+        </div>
       </div>
 
+      {view === 'map' ? (
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-3 items-start">
+          <div>
+            <div ref={mapRef}
+              onPointerDown={(e) => { if (e.target === e.currentTarget) setExpanded(null); }}
+              className="relative w-full rounded-2xl overflow-hidden select-none"
+              style={{
+                aspectRatio: `${CANVAS_W} / ${CANVAS_H}`,
+                containerType: 'inline-size',
+                background: 'radial-gradient(circle at 30% 20%, #241b26 0%, #17121b 60%, #120e16 100%)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                touchAction: editing ? 'none' : 'auto',
+              }}>
+              {/* piso quadriculado */}
+              <div className="absolute inset-0 pointer-events-none"
+                style={{
+                  backgroundImage: 'linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px)',
+                  backgroundSize: `${100 / 12}% ${100 / 8}%`,
+                }} />
+
+              {tables.length === 0 && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
+                  <p className="text-sm font-bold text-white">Nenhuma mesa cadastrada</p>
+                  <button onClick={(e) => { e.stopPropagation(); addTable(); }}
+                    className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black text-white"
+                    style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>
+                    <Plus size={13} /> Criar primeira mesa
+                  </button>
+                </div>
+              )}
+
+              {tables.map((t: any) => {
+                const tbOrders = orders.filter((o: any) => o.tableId === t.id && !['concluido', 'cancelado'].includes(o.status));
+                const total = tbOrders.reduce((s: number, o: any) => s + o.total, 0);
+                const isFree = t.status === 'livre';
+                const isOccupied = t.status === 'ocupada';
+                const color = isFree ? '#22c55e' : isOccupied ? '#f59e0b' : '#ef4444';
+                const selected = expanded === t.id;
+                const shape = t.shape || 'square';
+                const radius = shape === 'round' ? '50%' : shape === 'rect' ? 14 : 16;
+                const seats = Math.max(0, Math.min(20, Number(t.seats) || 0));
+                const w = Number(t.width) || 120;
+                const h = Number(t.height) || 120;
+                const x = Number(t.posX) || 0;
+                const y = Number(t.posY) || 0;
+                // "Mesa 01" vira "01" no desenho (o nome completo fica no painel)
+                const label = String(t.number).replace(/^mesa\s+/i, '');
+                const wPct = (w / CANVAS_W) * 100;
+
+                return (
+                  <div key={t.id}
+                    onPointerDown={(e) => startDrag(e, t, 'move')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (editing) { setExpanded(t.id); return; }
+                      setExpanded(selected ? null : t.id);
+                      setModalTableId(t.id);
+                    }}
+                    className={`absolute ${editing ? 'cursor-move' : 'cursor-pointer'}`}
+                    style={{
+                      left: `${(x / CANVAS_W) * 100}%`,
+                      top: `${(y / CANVAS_H) * 100}%`,
+                      width: `${(w / CANVAS_W) * 100}%`,
+                      height: `${(h / CANVAS_H) * 100}%`,
+                      transform: `rotate(${Number(t.rotation) || 0}deg)`,
+                      zIndex: selected ? 30 : 10,
+                      touchAction: editing ? 'none' : 'auto',
+                    }}>
+                    {/* cadeiras em volta da mesa */}
+                    {seats > 0 && Array.from({ length: seats }).map((_: any, i: number) => {
+                      const ang = (2 * Math.PI * i) / seats - Math.PI / 2;
+                      return (
+                        <span key={i} className="absolute rounded-[3px] pointer-events-none"
+                          style={{
+                            width: 10, height: 10,
+                            left: `calc(50% + ${Math.cos(ang) * 58}%)`,
+                            top: `calc(50% + ${Math.sin(ang) * 58}%)`,
+                            transform: 'translate(-50%,-50%)',
+                            background: 'rgba(255,255,255,0.10)',
+                            border: '1px solid rgba(255,255,255,0.14)',
+                          }} />
+                      );
+                    })}
+
+                    {/* tampo */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center px-1"
+                      style={{
+                        borderRadius: radius,
+                        background: `linear-gradient(160deg, ${color}26, ${color}10)`,
+                        border: `2px solid ${selected && editing ? '#ffffff' : color}`,
+                        boxShadow: selected && editing
+                          ? `0 0 0 3px ${color}33, 0 10px 24px rgba(0,0,0,0.35)`
+                          : '0 6px 16px rgba(0,0,0,0.28)',
+                      }}>
+                      <span className="font-black leading-none"
+                        title={t.number}
+                        style={{
+                          color: '#fff',
+                          fontSize: `clamp(8px, ${wPct * 0.26}cqw, 22px)`,
+                          maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                        {label}
+                      </span>
+                      {!isFree
+                        ? <span className="mt-1 font-bold" style={{ color, fontSize: `clamp(7px, ${wPct * 0.11}cqw, 11px)` }}>{BRL(total)}</span>
+                        : <span className="mt-0.5 font-bold uppercase tracking-wider" style={{ color: '#86efac', fontSize: `clamp(7px, ${wPct * 0.10}cqw, 10px)` }}>livre</span>}
+                    </div>
+
+                    {/* alça para redimensionar */}
+                    {editing && selected && (
+                      <span onPointerDown={(e) => startDrag(e, t, 'resize')}
+                        className="absolute rounded-md"
+                        style={{
+                          width: 16, height: 16, right: -8, bottom: -8,
+                          background: '#e11d48', border: '2px solid #fff',
+                          cursor: 'nwse-resize', zIndex: 40, touchAction: 'none',
+                        }} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {editing && selTable ? (
+              <div className="mt-2 rounded-2xl p-3 flex flex-wrap items-end gap-x-4 gap-y-2"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">Mesa</span>
+                  <input value={selTable.number}
+                    onChange={(e) => patchTable(selTable.id, { number: e.target.value })}
+                    className="w-24 rounded-lg px-2 py-1.5 text-sm font-bold text-white outline-none"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }} />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {[
+                    { id: 'square', label: 'Quadrada' },
+                    { id: 'round', label: 'Redonda' },
+                    { id: 'rect', label: 'Retangular' },
+                  ].map((s) => (
+                    <button key={s.id} onClick={() => patchTable(selTable.id, { shape: s.id })}
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                      style={(selTable.shape || 'square') === s.id
+                        ? { background: '#e11d48', color: '#fff' }
+                        : { background: 'rgba(255,255,255,0.06)', color: '#9ca3af' }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold uppercase text-gray-500">Larg.</span>
+                  <input type="number" min={56} max={CANVAS_W}
+                    value={Math.round(Number(selTable.width) || 120)}
+                    onChange={(e) => patchTable(selTable.id, { width: clampInt(Number(e.target.value), 56, CANVAS_W - (Number(selTable.posX) || 0)) })}
+                    className="w-16 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }} />
+                  <span className="text-[9px] font-bold uppercase text-gray-500">Alt.</span>
+                  <input type="number" min={56} max={CANVAS_H}
+                    value={Math.round(Number(selTable.height) || 120)}
+                    onChange={(e) => patchTable(selTable.id, { height: clampInt(Number(e.target.value), 56, CANVAS_H - (Number(selTable.posY) || 0)) })}
+                    className="w-16 rounded-lg px-2 py-1.5 text-xs font-bold text-white outline-none"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }} />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold uppercase text-gray-500">Rotação</span>
+                  <input type="range" min={0} max={345} step={15}
+                    value={Number(selTable.rotation) || 0}
+                    onChange={(e) => patchTable(selTable.id, { rotation: Number(e.target.value) })}
+                    className="w-24 accent-rose-500" />
+                  <span className="text-[10px] font-bold text-gray-400 w-8">{Number(selTable.rotation) || 0}°</span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <Armchair size={13} className="text-gray-500" />
+                  <button onClick={() => patchTable(selTable.id, { seats: Math.max(0, (Number(selTable.seats) || 0) - 1) })}
+                    className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-300 hover:bg-white/10"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}><Minus size={11} /></button>
+                  <span className="w-5 text-center text-xs font-bold text-white">{Number(selTable.seats) || 0}</span>
+                  <button onClick={() => patchTable(selTable.id, { seats: Math.min(20, (Number(selTable.seats) || 0) + 1) })}
+                    className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-300 hover:bg-white/10"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}><Plus size={11} /></button>
+                </div>
+
+                {dirty && <span className="text-[10px] font-bold text-amber-400">alterações não salvas</span>}
+              </div>
+            ) : (
+              <p className="text-[10px] text-gray-600 mt-2 text-center">
+                {editing
+                  ? 'Arraste para mover · alça no canto para redimensionar · clique numa mesa para ajustar forma, tamanho e cadeiras'
+                  : 'Clique numa mesa para abrir a comanda · arraste uma mesa ocupada sobre uma livre para transferir'}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {!editing && selTable ? (
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-black text-white">{selTable.number}</p>
+                  <button onClick={() => { setExpanded(null); setModalTableId(null); }}
+                    className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10">
+                    <X size={13} />
+                  </button>
+                </div>
+                <TableDetail
+                  table={selTable} orders={activeOrders}
+                  onOpenTable={() => openTable(selTable.id)}
+                  onOpenAddItem={() => openAddItem(selTable.id)}
+                  onOpenTransfer={() => { setModalTableId(selTable.id); setModalTransfer(selTable.id); }}
+                  onOpenBill={() => { setModalTableId(selTable.id); setModalBill(selTable.id); }}
+                  onOpenClose={() => { setModalTableId(selTable.id); setModalClose(selTable.id); }}
+                  clientName={clientNames[selTable.id] || ''}
+                  setClientName={(name: string) => setClientNames((prev) => ({ ...prev, [selTable.id]: name }))}
+                  saved={saved} setSaved={setSaved}
+                  saveClient={saveClient}
+                  removeItem={removeItem}
+                />
+              </div>
+            ) : (
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">Salão</p>
+                <div className="space-y-2">
+                  {[
+                    { c: '#22c55e', l: 'Livre' },
+                    { c: '#f59e0b', l: 'Ocupada' },
+                    { c: '#ef4444', l: 'Fechamento' },
+                  ].map((s) => (
+                    <div key={s.l} className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: s.c }} />
+                      <span className="text-[11px] text-gray-300">{s.l}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p className="text-[10px] text-gray-500 leading-relaxed">
+                    {editing
+                      ? 'Modo layout: arraste as mesas para desenhar o salão como numa planta baixa. Use a alça no canto para mudar o tamanho e o painel abaixo da planta para forma, rotação e cadeiras. Não esqueça de salvar.'
+                      : 'Clique numa mesa para abrir a comanda. Em "Editar layout" você posiciona as mesas como numa planta baixa — o desenho fica salvo para todos os operadores.'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {tables.map((t: any) => {
           const tbOrders = orders.filter((o: any) => o.tableId === t.id && !['concluido', 'cancelado'].includes(o.status));
@@ -797,8 +1275,11 @@ export default function Mesas() {
           );
         })}
       </div>
+      )}
 
-      <p className="text-[10px] text-gray-600 mt-4 text-center">Toque na mesa para expandir · Arraste uma mesa ocupada sobre uma livre para transferir</p>
+      {view === 'list' && (
+        <p className="text-[10px] text-gray-600 mt-4 text-center">Toque na mesa para expandir · Arraste uma mesa ocupada sobre uma livre para transferir</p>
+      )}
 
       {modalAddItem && menu && !productModal && <AddItemModal menu={menu} onAdd={addItem} onSelectProduct={handleSelectProduct} onClose={closeAllModals} />}
       {productModal && <ProductModal product={productModal} onAdd={addItem} onClose={() => { setProductModal(null); setModalTableId(null); }} />}

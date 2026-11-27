@@ -245,6 +245,15 @@ model TableMap {
   number String @unique
   status String @default("livre") // livre | ocupada | fechamento
   orders Order[]
+
+  // layout do salao (vista aerea): coordenadas num canvas virtual 1200x760
+  posX     Int    @default(0)
+  posY     Int    @default(0)
+  width    Int    @default(120)
+  height   Int    @default(120)
+  shape    String @default("square") // square | round | rect
+  rotation Int    @default(0)
+  seats    Int    @default(4)
 }
 
 model Driver {
