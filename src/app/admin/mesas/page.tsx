@@ -177,9 +177,20 @@ function ProductModal({ product, onClose, onAdd }: { product: any; onClose: () =
   );
 }
 
-function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; onAdd: (item: any) => void; onSelectProduct: (p: any) => void; onClose: () => void }) {
+function AddItemModal({ menu, onAdd, onSelectProduct, onClose, draft = [], onChangeQty, onRemoveDraft, onLaunch, launching }: {
+  menu: any;
+  onAdd: (item: any) => void;
+  onSelectProduct: (p: any) => void;
+  onClose: () => void;
+  draft?: any[];
+  onChangeQty?: (id: string, delta: number) => void;
+  onRemoveDraft?: (id: string) => void;
+  onLaunch?: () => void;
+  launching?: boolean;
+}) {
   const [cat, setCat] = useState('all');
   const [search, setSearch] = useState('');
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const cats = useScrollRail<HTMLDivElement>();
   const products = useMemo(() => {
     const term = norm(search);
@@ -199,13 +210,28 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
       norm(a.name).localeCompare(norm(b.name), 'pt-BR'));
   }, [menu.products, cat, search]);
 
+  // Fechar com itens no rascunho pede confirmação — nada é lançado nem perdido sem aviso.
+  const requestClose = () => {
+    if (draft.length > 0) { setConfirmDiscard(true); return; }
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm" onClick={requestClose}>
       <div className="w-full max-w-2xl rounded-2xl max-h-[85vh] overflow-hidden flex flex-col" style={{ background: '#1e1828', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 25px 60px rgba(0,0,0,0.5)' }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <h3 className="text-sm font-bold text-white">Adicionar produto</h3>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-all"><X size={16} className="text-gray-400" /></button>
+          <h3 className="text-sm font-bold text-white">Adicionar produto{draft.length > 0 && <span className="ml-2 text-[10px] font-bold text-gray-500">{draft.length} no rascunho</span>}</h3>
+          <button onClick={requestClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-all"><X size={16} className="text-gray-400" /></button>
         </div>
+        {confirmDiscard && (
+          <div className="px-5 py-2.5 flex items-center justify-between gap-3" style={{ background: 'rgba(225,29,72,0.12)', borderBottom: '1px solid rgba(225,29,72,0.3)' }}>
+            <span className="text-[11px] font-bold text-rose-300">Descartar {draft.length} {draft.length === 1 ? 'item' : 'itens'} não lançado(s)?</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setConfirmDiscard(false)} className="rounded-lg px-3 py-1.5 text-[11px] font-bold text-gray-300 hover:bg-white/10">Não</button>
+              <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-[11px] font-black text-white" style={{ background: '#be123c' }}>Sim, descartar</button>
+            </div>
+          </div>
+        )}
         <div className="px-5 pt-4">
           <div className="relative mb-3">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -240,7 +266,7 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
             {products.map((p: any) => (
               <button key={p.id} onClick={() => {
-                if (p.groups?.length) { onSelectProduct(p); } else { onAdd({ productId: p.id, name: p.name, unitPrice: p.promoPrice ?? p.price, qty: 1, addons: [], note: '' }); onClose(); }
+                if (p.groups?.length) { onSelectProduct(p); } else { onAdd({ productId: p.id, name: p.name, unitPrice: p.promoPrice ?? p.price, qty: 1, addons: [], note: '' }); }
               }}
                 className="text-left rounded-xl p-3 pdv-hover" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 {p.photoUrl ? <div className="w-full h-20 rounded-lg overflow-hidden mb-2"><img src={p.photoUrl} alt="" className="w-full h-full object-cover" /></div> : null}
@@ -251,6 +277,32 @@ function AddItemModal({ menu, onAdd, onSelectProduct, onClose }: { menu: any; on
             ))}
           </div>
         </div>
+
+        {draft.length > 0 && (
+          <div className="px-5 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
+            <div className="max-h-28 overflow-y-auto scrollbar-hide space-y-1 mb-2">
+              {draft.map((it: any) => (
+                <div key={it._id} className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-gray-400 w-5 text-right">{it.qty}x</span>
+                  <span className="flex-1 text-[11px] text-white truncate">{it.name}</span>
+                  {!!it.addons?.length && <span className="text-[9px] text-gray-500">+{it.addons.length}</span>}
+                  <span className="text-[11px] font-bold" style={{ color: '#d4a574' }}>{BRL(itemTotal(it))}</span>
+                  <button onClick={() => onChangeQty?.(it._id, -1)} className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:bg-white/10"><Minus size={10} /></button>
+                  <button onClick={() => onChangeQty?.(it._id, 1)} className="w-5 h-5 rounded flex items-center justify-center text-gray-400 hover:bg-white/10"><Plus size={10} /></button>
+                  <button onClick={() => onRemoveDraft?.(it._id)} className="w-5 h-5 rounded flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-white/10"><X size={10} /></button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-gray-400">Total <b className="text-white">{BRL(draft.reduce((s: number, it: any) => s + itemTotal(it), 0))}</b></span>
+              <button onClick={onLaunch} disabled={!!launching}
+                className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black text-white disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #e11d48, #be123c)' }}>
+                <Check size={13} /> {launching ? 'Lançando...' : `Lançar pedido (${draft.length})`}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -620,6 +672,9 @@ export default function Mesas() {
   const [saved, setSaved] = useState(true);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  // rascunho da comanda: itens só viram pedido ao clicar em "Lançar pedido"
+  const [draft, setDraft] = useState<any[]>([]);
+  const [launching, setLaunching] = useState(false);
   const closingRef = useRef(false);
 
   // vista aérea / editor de layout
@@ -802,20 +857,47 @@ export default function Mesas() {
     load();
   };
 
-  const addItem = async (item: any) => {
-    if (!activeTableId) return;
-    const name = clientNames[activeTableId] || activeTable?.number || 'Cliente';
-    if (activeOrders.length === 0) {
-      await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        customerName: name, customerPhone: '', addressText: activeTable?.number || '', type: 'mesa', payment: 'pix',
-        subtotal: item.unitPrice + (item.addons || []).reduce((s: number, a: any) => s + (a.price || 0) * (a.qty || 1), 0),
-        deliveryFee: 0, discount: 0, source: 'mesa', note: '', tableId: activeTableId,
-        items: [{ ...item, addons: item.addons || [] }],
-      })});
-    } else {
-      await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'addItems', orderId: activeOrders[0].id, items: [{ ...item, addons: item.addons || [] }] }) });
+  // Itens escolhidos ficam num rascunho (carrinho) e só entram em Pedidos
+  // quando o operador clica em "Lançar pedido" — antes o primeiro item já
+  // criava o pedido na hora, mesmo sem o pedido estar completo.
+  const addToDraft = (item: any) => {
+    setDraft((prev) => [...prev, { ...item, qty: item.qty || 1, addons: item.addons || [], _id: Math.random().toString(36).slice(2) }]);
+  };
+  const removeDraft = (id: string) => setDraft((prev) => prev.filter((x: any) => x._id !== id));
+  const changeDraftQty = (id: string, delta: number) => setDraft((prev) => prev.map((x: any) =>
+    x._id === id ? { ...x, qty: Math.max(1, Number(x.qty || 1) + delta) } : x));
+
+  const launchDraft = async () => {
+    if (!activeTableId || draft.length === 0 || launching) return;
+    setLaunching(true);
+    try {
+      const items = draft.map((it: any) => ({
+        productId: it.productId, name: it.name, unitPrice: it.unitPrice,
+        qty: it.qty || 1, addons: it.addons || [], note: it.note || '',
+      }));
+      const name = clientNames[activeTableId] || activeTable?.number || 'Cliente';
+      const subtotal = draft.reduce((s: number, it: any) => s + itemTotal(it), 0);
+      const r = await fetch('/api/orders', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activeOrders.length === 0 ? {
+          customerName: name, customerPhone: '', addressText: activeTable?.number || '', type: 'mesa', payment: 'pix',
+          subtotal, deliveryFee: 0, discount: 0, source: 'mesa', note: '', tableId: activeTableId, items,
+        } : { action: 'addItems', orderId: activeOrders[0].id, items }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || j?.error) {
+        showToast(j?.error || 'Não foi possível lançar o pedido', 'error');
+        return;
+      }
+      const qtd = draft.length;
+      setDraft([]);
+      setModalAddItem(null);
+      setModalTableId(null);
+      await load();
+      showToast(`${qtd} ${qtd === 1 ? 'item lançado' : 'itens lançados'} na ${activeTable?.number || 'mesa'}`, 'success');
+    } finally {
+      setLaunching(false);
     }
-    load();
   };
 
   const removeItem = async (orderId: string, itemIdx: number) => {
@@ -879,6 +961,7 @@ export default function Mesas() {
     setModalClose(null);
     setProductModal(null);
     setModalTableId(null);
+    setDraft([]);
   };
 
   const openAddItem = (tableId: string) => {
@@ -887,12 +970,14 @@ export default function Mesas() {
       setClientNames((prev) => ({ ...prev, [tableId]: tbOrders[0]?.customerName || '' }));
     }
     setSaved(true);
+    setDraft([]);
     setModalTableId(tableId);
     setModalAddItem(tableId);
   };
 
   const handleSelectProduct = (p: any) => {
-    setModalAddItem(null);
+    // mantém o "Adicionar produto" aberto por baixo: ao fechar os adicionais
+    // o operador volta para a lista com o rascunho intacto
     setProductModal(p);
   };
 
@@ -1316,8 +1401,11 @@ export default function Mesas() {
         <p className="text-[10px] text-gray-600 mt-4 text-center">Toque na mesa para expandir · Arraste uma mesa ocupada sobre uma livre para transferir</p>
       )}
 
-      {modalAddItem && menu && !productModal && <AddItemModal menu={menu} onAdd={addItem} onSelectProduct={handleSelectProduct} onClose={closeAllModals} />}
-      {productModal && <ProductModal product={productModal} onAdd={addItem} onClose={() => { setProductModal(null); setModalTableId(null); }} />}
+      {modalAddItem && menu && !productModal && <AddItemModal menu={menu} onAdd={addToDraft} onSelectProduct={handleSelectProduct} onClose={closeAllModals}
+        draft={draft} onChangeQty={changeDraftQty} onRemoveDraft={removeDraft} onLaunch={launchDraft} launching={launching} />}
+      {productModal && <ProductModal product={productModal}
+        onAdd={(item: any) => { addToDraft(item); setProductModal(null); }}
+        onClose={() => setProductModal(null)} />}
       {modalTransfer && activeTable && <TransferModal table={activeTable} tables={tables} onTransfer={(destId) => transfer(destId)} onClose={closeAllModals} />}
       {modalBill && activeTable && <BillModal table={activeTable} orders={activeOrders} onClose={closeAllModals} />}
       {modalClose && activeTable && <CloseModal table={activeTable} orders={activeOrders} onClose={closeAllModals} onConfirm={closeTable} />}
