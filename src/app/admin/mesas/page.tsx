@@ -1134,7 +1134,7 @@ export default function Mesas() {
               <p className="text-[10px] text-gray-600 mt-2 text-center">
                 {editing
                   ? 'Arraste para mover · alça no canto para redimensionar · clique numa mesa para ajustar forma, tamanho e cadeiras'
-                  : 'Clique numa mesa para abrir a comanda · arraste uma mesa ocupada sobre uma livre para transferir'}
+                  : 'Clique numa mesa para abrir a comanda · use "Editar layout" para desenhar o salão'}
               </p>
             )}
           </div>
