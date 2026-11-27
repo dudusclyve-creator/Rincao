@@ -24,15 +24,35 @@ const layoutData = (t: any) => ({
   seats: clampInt(t.seats, 0, 20, 4),
 });
 
-export async function GET() { return NextResponse.json(await prisma.tableMap.findMany({ orderBy: { number: 'asc' } })); }
+export async function GET() { return NextResponse.json(await prisma.tableMap.findMany({ where: { active: true }, orderBy: { number: 'asc' } })); }
 export async function POST(req: Request) {
   const b = await req.json();
   if (b.action === 'create') {
+    // numero sempre vem do servidor: conta todas as mesas (inclusive as
+    // removidas) para nunca repetir um numero que ainda existe no histórico
+    const all = await prisma.tableMap.findMany({ select: { number: true } });
+    const nums = all
+      .map((x) => parseInt(String(x.number).replace(/\D/g, ''), 10))
+      .filter((n) => Number.isFinite(n));
+    const next = (nums.length ? Math.max(...nums) : all.length) + 1;
     return NextResponse.json(await prisma.tableMap.create({
-      data: { number: String(b.number), ...layoutData(b) },
+      data: { number: String(next), ...layoutData(b) },
     }));
   }
   if (b.action === 'status') return NextResponse.json(await prisma.tableMap.update({ where: { id: b.id }, data: { status: b.status } }));
+
+  // Remover mesa = desativar. O histórico de pedidos continua apontando para
+  // ela (comanda antiga nao quebra), mas some do salao, do PDV e do QR.
+  if (b.action === 'delete') {
+    const abertos = await prisma.order.count({
+      where: { tableId: b.id, status: { notIn: ['concluido', 'cancelado'] } },
+    });
+    if (abertos > 0) {
+      return NextResponse.json({ error: 'Essa mesa tem pedidos em aberto. Feche a conta antes de remover.' }, { status: 400 });
+    }
+    await prisma.tableMap.update({ where: { id: b.id }, data: { active: false, status: 'livre' } });
+    return NextResponse.json({ ok: true });
+  }
 
   // Salva o desenho inteiro do salao de uma vez (posicao, tamanho, forma,
   // rotacao, cadeiras e o numero da mesa).

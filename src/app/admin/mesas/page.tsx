@@ -744,23 +744,36 @@ export default function Mesas() {
   };
 
   const addTable = async () => {
-    const nums = tables
-      .map((t: any) => parseInt(String(t.number).replace(/\D/g, ''), 10))
-      .filter((n: number) => Number.isFinite(n));
-    const next = (nums.length ? Math.max(...nums) : tables.length) + 1;
     const spot = firstFreeSpot(tables);
     const r = await fetch('/api/tables', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'create', number: String(next),
+        action: 'create',
         posX: spot.x, posY: spot.y, width: 150, height: 150, shape: 'square', rotation: 0, seats: 4,
       }),
     }).then((x) => x.json()).catch(() => null);
     if (!r || r.error) { showToast('Não foi possível criar a mesa', 'error'); return; }
-    await load();
+    // entra na lista sem recarregar tudo (preserva o layout que ainda não foi salvo)
+    setTables((prev: any[]) => [...prev, r]);
     setExpanded(r.id);
     showToast(`Mesa ${r.number} criada`, 'success');
   };
+
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const removeTable = async (id: string) => {
+    const r = await fetch('/api/tables', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', id }),
+    }).then((x) => x.json()).catch(() => null);
+    if (!r || r.error) { showToast(r?.error || 'Não foi possível remover a mesa', 'error'); return; }
+    setTables((prev: any[]) => prev.filter((t: any) => t.id !== id));
+    setExpanded(null);
+    setConfirmRemove(false);
+    showToast('Mesa removida do salão', 'success');
+  };
+
+  useEffect(() => { setConfirmRemove(false); }, [expanded]);
 
 
   const activeTableId = modalTableId;
@@ -1129,6 +1142,28 @@ export default function Mesas() {
                 </div>
 
                 {dirty && <span className="text-[10px] font-bold text-amber-400">alterações não salvas</span>}
+
+                <div className="ml-auto flex items-center gap-1.5">
+                  {confirmRemove ? (
+                    <>
+                      <span className="text-[10px] font-bold text-red-400">Remover mesa?</span>
+                      <button onClick={() => removeTable(selTable.id)}
+                        className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white"
+                        style={{ background: '#dc2626' }}>Sim</button>
+                      <button onClick={() => setConfirmRemove(false)}
+                        className="rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-gray-300"
+                        style={{ background: 'rgba(255,255,255,0.06)' }}>Não</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setConfirmRemove(true)}
+                      disabled={selTable.status !== 'livre'}
+                      title={selTable.status !== 'livre' ? 'Feche a conta dessa mesa antes de remover' : 'Remover mesa do salão'}
+                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>
+                      <Trash2 size={12} /> Remover mesa
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="text-[10px] text-gray-600 mt-2 text-center">

@@ -254,6 +254,7 @@ model TableMap {
   shape    String @default("square") // square | round | rect
   rotation Int    @default(0)
   seats    Int    @default(4)
+  active   Boolean @default(true) // false = mesa removida do salão (histórico continua)
 }
 
 model Driver {
