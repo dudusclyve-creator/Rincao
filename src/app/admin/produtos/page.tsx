@@ -489,8 +489,18 @@ export default function CardapioAdmin() {
                             <div className="flex items-center gap-0.5 justify-self-end">
                               <button onClick={() => { setEditingProduct(editingProduct === p.id ? null : p.id); setProductEditForm({ name: p.name, price: String(p.price), promoPrice: p.promoPrice ? String(p.promoPrice) : '', description: p.description || '', photoUrl: p.photoUrl || '', categoryId: p.categoryId, available: p.available, featured: p.featured, bestSeller: p.bestSeller, newArrival: p.newArrival, groupIds: p.groups?.map((g: any) => g.groupId) || [] }); }}
                                 className="p-1.5 rounded-lg text-gray-500 hover:text-blue-400" title="Editar"><Pencil size={13} /></button>
-                              <button onClick={() => { fetch(`/api/products?id=${p.id}&duplicate=1`, { method: 'DELETE' }); load(); }} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300" title="Duplicar"><Copy size={13} /></button>
-                              <button onClick={() => { fetch('/api/products', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, available: !p.available }) }); load(); }}
+                              <button onClick={async () => {
+                                  // espera a copia terminar antes de recarregar a lista,
+                                  // senao o item novo so aparecia depois de sair e voltar
+                                  const r = await fetch(`/api/products?id=${p.id}&duplicate=1`, { method: 'DELETE' }).then((x) => x.json()).catch(() => null);
+                                  await load();
+                                  if (r?.id) showToast(`"${r.name}" criado`, 'success');
+                                  else showToast('Nao foi possivel duplicar o produto', 'error');
+                                }} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300" title="Duplicar"><Copy size={13} /></button>
+                              <button onClick={async () => {
+                                  await fetch('/api/products', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, available: !p.available }) });
+                                  await load();
+                                }}
                                 className={`p-1.5 rounded-lg ${p.available ? 'text-amber-500' : 'text-gray-600'}`} title={p.available ? 'Desativar' : 'Ativar'}>{p.available ? <Eye size={13} /> : <EyeOff size={13} />}</button>
                               {confirmDel === 'prod:' + p.id ? (
                                 <>
