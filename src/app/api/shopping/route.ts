@@ -15,6 +15,9 @@ type Lista = { categories: Categoria[]; items: Item[] };
 
 const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
+// mesma comparação do painel: sem acento, sem maiúscula
+const chave = (s: string) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 function padrao(): Lista {
   return { categories: CATEGORIAS_PADRAO.map((name, i) => ({ id: `cat-${i + 1}`, name })), items: [] };
 }
@@ -81,6 +84,9 @@ export async function POST(req: Request) {
       const name = texto(b.name);
       if (!name) return NextResponse.json({ error: 'Informe o item' }, { status: 400 });
       if (!d.categories.some((c) => c.id === b.categoryId)) return NextResponse.json({ error: 'Categoria inválida' }, { status: 400 });
+      // não deixa o mesmo item entrar duas vezes na mesma lista
+      const repetido = d.items.find((i) => i.categoryId === String(b.categoryId) && chave(i.name) === chave(name));
+      if (repetido) return NextResponse.json({ error: `“${repetido.name}” já está nesta lista` }, { status: 409 });
       d.items.push({
         id: novoId(), categoryId: String(b.categoryId), name,
         qty: texto(b.qty), done: false, createdAt: Date.now(),

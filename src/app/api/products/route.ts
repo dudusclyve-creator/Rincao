@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 
+// mesma comparação usada no painel: sem acento, sem maiúscula
+const semAcento = (s: any) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 export async function GET() {
   return NextResponse.json(await prisma.product.findMany({ include: { category: true, groups: { include: { group: { include: { addons: true } } } } }, orderBy: { order: 'asc' } }));
 }
@@ -26,6 +29,8 @@ export async function PATCH(req: Request) {
     );
     return NextResponse.json({ ok: true });
   }
+  // guarda o nome atual para acompanhar nos pedidos se o produto for renomeado
+  const antes = await prisma.product.findUnique({ where: { id: b.id }, select: { name: true } }).catch(() => null);
   const p = await prisma.product.update({ where: { id: b.id }, data: {
     name: b.name, description: b.description, price: b.price !== undefined ? Number(b.price) : undefined,
     promoPrice: b.promoPrice === null ? null : b.promoPrice !== undefined ? Number(b.promoPrice) : undefined,
@@ -36,6 +41,18 @@ export async function PATCH(req: Request) {
     bestSeller: b.bestSeller, newArrival: b.newArrival, order: b.order !== undefined ? Number(b.order) : undefined,
     relatedIds: b.relatedIds ? JSON.stringify(b.relatedIds) : undefined,
   }});
+  // produto renomeado? o nome acompanha os pedidos que já usam esse produto
+  const novoNome = String(b.name ?? '').trim();
+  if (antes?.name && novoNome && novoNome !== antes.name) {
+    try {
+      const itens = await prisma.orderItem.findMany({ where: { productId: b.id }, select: { id: true, name: true } });
+      const alvo = semAcento(antes.name);
+      const trocar = itens.filter((i) => semAcento(i.name) === alvo).map((i) => i.id);
+      if (trocar.length) {
+        await prisma.orderItem.updateMany({ where: { id: { in: trocar } }, data: { name: novoNome } });
+      }
+    } catch {}
+  }
   if (b.groupIds) {
     await prisma.productAddonGroup.deleteMany({ where: { productId: b.id } });
     for (const g of b.groupIds) { try { await prisma.productAddonGroup.create({ data: { productId: b.id, groupId: g } }); } catch {} }

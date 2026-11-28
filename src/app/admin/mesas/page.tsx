@@ -456,7 +456,7 @@ function CloseModal({ table, orders, onClose, onConfirm }: { table: any; orders:
   );
 }
 
-function TableDetail({ table, orders, onOpenTable, onOpenAddItem, onOpenTransfer, onOpenBill, onOpenClose, clientName, setClientName, saved, setSaved, saveClient, removeItem }: any) {
+function TableDetail({ table, orders, antigos = 0, onOpenTable, onOpenAddItem, onOpenTransfer, onOpenBill, onOpenClose, clientName, setClientName, saved, setSaved, saveClient, removeItem }: any) {
   const total = orders.reduce((s: number, o: any) => s + o.total, 0);
   const isFree = table.status === 'livre';
 
@@ -530,6 +530,12 @@ function TableDetail({ table, orders, onOpenTable, onOpenAddItem, onOpenTransfer
         <span className="text-xs text-gray-400">Total</span>
         <span className="text-sm font-black text-white">{BRL(total)}</span>
       </div>
+
+      {antigos > 0 && (
+        <p className="text-[10px] font-bold mb-3 px-1" style={{ color: '#fbbf24' }}>
+          {antigos} pedido(s) em aberto de turno anterior nesta mesa — resolva em Pedidos
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <button onClick={onOpenAddItem} className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-bold pdv-btn-hover"
@@ -658,6 +664,7 @@ function TableQrModal({ table, onClose }: { table: any; onClose: () => void }) {
 export default function Mesas() {
   const [tables, setTables] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [turno, setTurno] = useState('');
   const [menu, setMenu] = useState<any>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -689,16 +696,20 @@ export default function Mesas() {
   useEffect(() => { editingRef.current = editing; }, [editing]);
 
   const load = useCallback(async () => {
-    const [t, o, m] = await Promise.all([
+    const [t, o, m, cx] = await Promise.all([
       fetch('/api/tables').then((r) => r.json()),
       fetch('/api/orders?limit=500').then((r) => r.json()),
       fetch('/api/menu').then((r) => r.json()),
+      fetch('/api/cash').then((r) => r.json()).catch(() => null),
     ]);
     const list = Array.isArray(t) ? t : [];
     // mesa sem posição salva: mostra numa grade só na tela (salva quando o
     // operador confirmar o layout)
     setTables(needsAutoLayout(list) ? autoLayoutTables(list) : list);
-    setOrders(o); setMenu(m);
+    setOrders(Array.isArray(o) ? o : []);
+    setMenu(m);
+    // turno aberto: a comanda da mesa só mostra o que é deste turno, igual à cozinha
+    if (cx && !cx.error) setTurno(cx.turno ? String(cx.turno) : '');
   }, []);
 
   useEffect(() => {
@@ -833,7 +844,17 @@ export default function Mesas() {
 
   const activeTableId = modalTableId;
   const activeTable = tables.find((t: any) => t.id === activeTableId);
-  const activeOrders = orders.filter((o: any) => o.tableId === activeTableId && !['concluido', 'cancelado'].includes(o.status));
+
+  // Só entra na comanda o que é do turno aberto. Pedido que ficou aberto de um
+  // turno/dia anterior não aparece mais na mesa (e não recebe item novo por
+  // engano) — continua em Pedidos para o operador resolver.
+  const doTurno = (o: any) => !turno || String(o.turnoId || '1') === turno;
+  const pedidosAbertos = (tableId?: string | null) => (orders as any[]).filter((o: any) =>
+    (!tableId || o.tableId === tableId) && !['concluido', 'cancelado'].includes(o.status) && doTurno(o));
+  const pedidosAntigos = (tableId: string) => (orders as any[]).filter((o: any) =>
+    o.tableId === tableId && !['concluido', 'cancelado'].includes(o.status) && !doTurno(o));
+
+  const activeOrders = pedidosAbertos(activeTableId);
 
   const saveClient = async () => {
     if (!activeTableId) return;
@@ -849,7 +870,7 @@ export default function Mesas() {
     const name = clientNames[tableId] || '';
     await fetch('/api/tables', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'status', id: tableId, status: 'ocupada' }) });
     if (name) {
-      const tbOrders = orders.filter((o: any) => o.tableId === tableId && !['concluido', 'cancelado'].includes(o.status));
+      const tbOrders = pedidosAbertos(tableId);
       for (const o of tbOrders) {
         await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, customerName: name }) });
       }
@@ -908,7 +929,7 @@ export default function Mesas() {
   const transfer = async (destId: string, srcId?: string) => {
     const fromId = srcId || activeTableId;
     if (!fromId || fromId === destId) return;
-    const srcOrders = orders.filter((o: any) => o.tableId === fromId && !['concluido', 'cancelado'].includes(o.status));
+    const srcOrders = pedidosAbertos(fromId);
     for (const o of srcOrders) {
       await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, tableId: destId }) });
     }
@@ -965,7 +986,7 @@ export default function Mesas() {
   };
 
   const openAddItem = (tableId: string) => {
-    const tbOrders = orders.filter((o: any) => o.tableId === tableId && !['concluido', 'cancelado'].includes(o.status));
+    const tbOrders = pedidosAbertos(tableId);
     if (!clientNames[tableId]) {
       setClientNames((prev) => ({ ...prev, [tableId]: tbOrders[0]?.customerName || '' }));
     }
@@ -1073,7 +1094,7 @@ export default function Mesas() {
               )}
 
               {tables.map((t: any) => {
-                const tbOrders = orders.filter((o: any) => o.tableId === t.id && !['concluido', 'cancelado'].includes(o.status));
+                const tbOrders = pedidosAbertos(t.id);
                 const total = tbOrders.reduce((s: number, o: any) => s + o.total, 0);
                 const isFree = t.status === 'livre';
                 const isOccupied = t.status === 'ocupada';
@@ -1270,7 +1291,7 @@ export default function Mesas() {
                   </button>
                 </div>
                 <TableDetail
-                  table={selTable} orders={activeOrders}
+                  table={selTable} orders={activeOrders} antigos={pedidosAntigos(selTable.id).length}
                   onOpenTable={() => openTable(selTable.id)}
                   onOpenAddItem={() => openAddItem(selTable.id)}
                   onOpenTransfer={() => { setModalTableId(selTable.id); setModalTransfer(selTable.id); }}
@@ -1312,7 +1333,7 @@ export default function Mesas() {
       ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
         {tables.map((t: any) => {
-          const tbOrders = orders.filter((o: any) => o.tableId === t.id && !['concluido', 'cancelado'].includes(o.status));
+          const tbOrders = pedidosAbertos(t.id);
           const total = tbOrders.reduce((s: number, o: any) => s + o.total, 0);
           const isExpanded = expanded === t.id;
           const isFree = t.status === 'livre';
@@ -1377,7 +1398,7 @@ export default function Mesas() {
               {isExpanded && (
                 <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
                   <TableDetail
-                    table={t} orders={tbOrders}
+                    table={t} orders={tbOrders} antigos={pedidosAntigos(t.id).length}
                     onOpenTable={() => openTable(t.id)}
                     onOpenAddItem={() => openAddItem(t.id)}
                     onOpenTransfer={() => { setModalTableId(t.id); setModalTransfer(t.id); }}

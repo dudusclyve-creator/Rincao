@@ -151,7 +151,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         // leve, então busca o pedido completo só quando realmente vai imprimir.
         orders
           .filter(() => !!settingsRef.current?.printerAuto)
-          .filter((o: any) => justPaidIds.has(o.id) || new Date(o.createdAt).getTime() >= mountedAt.current - 20000)
+          .filter((o: any) => {
+            const idade = Date.now() - new Date(o.createdAt).getTime();
+            // pedido antigo que só agora foi pago (PIX) não volta a imprimir dias depois
+            if (justPaidIds.has(o.id)) return idade <= 12 * 60 * 60 * 1000;
+            return new Date(o.createdAt).getTime() >= mountedAt.current - 20000;
+          })
           .filter((o: any) => o.source !== 'pdv' && o.status !== 'cancelado' && o.status !== 'aguardando_pagamento' && !(Number(o.printCount || 0) > 0))
           .filter((o: any) => !printingOrders.current.has(o.id))
           .forEach((o: any) => {

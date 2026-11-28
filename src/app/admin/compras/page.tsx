@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { ShoppingBasket, Plus, Printer, Trash2, Pencil, Check, X, Eraser, Type } from 'lucide-react';
-import { printReceiptText, showToast } from '@/lib/utils';
+import { ShoppingBasket, Plus, Printer, Trash2, Pencil, Check, X, Eraser, Type, AlertCircle } from 'lucide-react';
+import { norm, printReceiptText, showToast } from '@/lib/utils';
 
 type Item = { id: string; categoryId: string; name: string; qty: string; done: boolean; createdAt: number };
 type Categoria = { id: string; name: string };
@@ -22,6 +22,9 @@ export default function Compras() {
   const [limpar, setLimpar] = useState(false);
   // fonte grande (2x2) e opcional: fica guardada no aparelho
   const [fonteGrande, setFonteGrande] = useState(false);
+  // sugestões: enquanto digita, mostra o que já existe na lista (evita repetir item)
+  const [sug, setSug] = useState<{ catId: string; q: string; top: number; left: number; width: number; maxH: number } | null>(null);
+  const [flashId, setFlashId] = useState<string | null>(null);
 
   useEffect(() => {
     try { setFonteGrande(localStorage.getItem('compras_fonte_grande') === '1'); } catch {}
@@ -69,10 +72,89 @@ export default function Compras() {
   const pendentes = totalItens - comprados;
   const pct = totalItens ? Math.round((comprados / totalItens) * 100) : 0;
 
+  // pisca o item existente para o operador achar onde ele já está
+  const destacar = (id: string) => {
+    setFlashId(id);
+    setTimeout(() => setFlashId((cur) => (cur === id ? null : cur)), 1400);
+    try { document.getElementById(`shop-item-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {}
+  };
+
+  // fecha as sugestões ao rolar/redimensionar (o menu é fixo na tela)
+  useEffect(() => {
+    if (!sug) return;
+    const fechar = () => setSug(null);
+    window.addEventListener('scroll', fechar, true);
+    window.addEventListener('resize', fechar);
+    return () => {
+      window.removeEventListener('scroll', fechar, true);
+      window.removeEventListener('resize', fechar);
+    };
+  }, [sug]);
+
+  // itens que já estão na lista e batem com o que está sendo digitado
+  const sugestoes = useMemo(() => {
+    if (!sug || !lista) return [] as any[];
+    const term = norm(sug.q);
+    if (!term) return [] as any[];
+    const catNome = (id: string) => lista.categories.find((c) => c.id === id)?.name || '';
+    const vistos = new Set<string>();
+    return lista.items
+      .filter((i) => norm(i.name).includes(term))
+      .sort((a, b) => {
+        const an = norm(a.name);
+        const bn = norm(b.name);
+        const ap = an.startsWith(term) ? 0 : 1;
+        const bp = bn.startsWith(term) ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        const am = a.categoryId === sug.catId ? 0 : 1;
+        const bm = b.categoryId === sug.catId ? 0 : 1;
+        if (am !== bm) return am - bm;
+        return an.localeCompare(bn, 'pt-BR');
+      })
+      .filter((i) => {
+        const k = norm(i.name) + '|' + i.categoryId;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      })
+      .slice(0, 6)
+      .map((i) => ({ ...i, catNome: catNome(i.categoryId) }));
+  }, [sug, lista]);
+
+  const abrirSugestoes = (el: HTMLInputElement, catId: string, value: string) => {
+    if (!value.trim()) { setSug(null); return; }
+    const r = el.getBoundingClientRect();
+    const width = Math.max(r.width, 270);
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+    const abaixo = window.innerHeight - r.bottom - 12;
+    const acima = r.top - 12;
+    const paraBaixo = abaixo >= 180 || abaixo >= acima;
+    const maxH = Math.min(260, Math.max(110, paraBaixo ? abaixo : acima));
+    const top = paraBaixo ? r.bottom + 4 : Math.max(8, r.top - 4 - maxH);
+    setSug({ catId, q: value, top, left, width, maxH });
+  };
+
+  // clicar na sugestão preenche o nome (e a quantidade) do item que já existe
+  const usarSugestao = (it: Item) => {
+    if (!sug) return;
+    const catId = sug.catId;
+    setAdds((p) => ({ ...p, [catId]: { name: it.name, qty: it.qty || p[catId]?.qty || '' } }));
+    setSug(null);
+    if (it.categoryId === catId) destacar(it.id);
+  };
+
   const adicionar = async (catId: string) => {
     const a = adds[catId];
     const name = (a?.name || '').trim();
     if (!name) return;
+    // já existe na mesma lista? não duplica — leva até o item
+    const repetido = (lista?.items || []).find((i) => i.categoryId === catId && norm(i.name) === norm(name));
+    if (repetido) {
+      showToast(`“${repetido.name}” já está nesta lista`, 'warning');
+      destacar(repetido.id);
+      return;
+    }
+    setSug(null);
     const ok = await post({ action: 'addItem', categoryId: catId, name, qty: a?.qty || '' });
     if (ok) setAdds((prev) => ({ ...prev, [catId]: { name: '', qty: prev[catId]?.qty || '' } }));
   };
@@ -234,6 +316,9 @@ export default function Compras() {
           const doCat = porCategoria[cat.id] || [];
           const feitosCat = doCat.filter((i) => i.done).length;
           const restantes = doCat.length - feitosCat;
+          // nome digitado que já existe nesta mesma lista (bloqueia duplicar)
+          const nomeAtual = adds[cat.id]?.name || '';
+          const duplicado = nomeAtual.trim() ? (doCat.find((i) => norm(i.name) === norm(nomeAtual)) || null) : null;
           return (
             <div key={cat.id} className="rounded-xl flex flex-col overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
               {/* cabeçalho da categoria */}
@@ -276,20 +361,39 @@ export default function Compras() {
               </div>
 
               {/* adicionar item */}
-              <div className="flex items-center gap-1.5 px-3 py-2.5" style={{ background: 'rgba(0,0,0,0.14)' }}>
-                <input value={adds[cat.id]?.qty || ''} onChange={(e) => setAdds((p) => ({ ...p, [cat.id]: { name: p[cat.id]?.name || '', qty: e.target.value } }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') adicionar(cat.id); }}
-                  placeholder="Qtd" className="w-14 shrink-0 rounded-lg px-2 py-1.5 text-[11px] outline-none"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)', color: '#f0e8e0' }} />
-                <input value={adds[cat.id]?.name || ''} onChange={(e) => setAdds((p) => ({ ...p, [cat.id]: { name: e.target.value, qty: p[cat.id]?.qty || '' } }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') adicionar(cat.id); }}
-                  placeholder="Adicionar item…" className="flex-1 min-w-0 rounded-lg px-2 py-1.5 text-[11px] outline-none"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)', color: '#f0e8e0' }} />
-                <button onClick={() => adicionar(cat.id)} title="Adicionar"
-                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all active:scale-95"
-                  style={{ background: `${cor}22`, color: cor, border: `1px solid ${cor}35` }}>
-                  <Plus size={14} />
-                </button>
+              <div className="px-3 py-2.5" style={{ background: 'rgba(0,0,0,0.14)' }}>
+                <div className="flex items-center gap-1.5">
+                  <input value={adds[cat.id]?.qty || ''} onChange={(e) => setAdds((p) => ({ ...p, [cat.id]: { name: p[cat.id]?.name || '', qty: e.target.value } }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') adicionar(cat.id); }}
+                    placeholder="Qtd" className="w-14 shrink-0 rounded-lg px-2 py-1.5 text-[11px] outline-none"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)', color: '#f0e8e0' }} />
+                  <input value={adds[cat.id]?.name || ''}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setAdds((p) => ({ ...p, [cat.id]: { name, qty: p[cat.id]?.qty || '' } }));
+                      abrirSugestoes(e.currentTarget, cat.id, name);
+                    }}
+                    onFocus={(e) => abrirSugestoes(e.currentTarget, cat.id, adds[cat.id]?.name || '')}
+                    onBlur={() => setSug(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { setSug(null); adicionar(cat.id); }
+                      if (e.key === 'Escape') setSug(null);
+                    }}
+                    autoComplete="off"
+                    placeholder="Adicionar item…" className="flex-1 min-w-0 rounded-lg px-2 py-1.5 text-[11px] outline-none"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${duplicado ? 'rgba(239,68,68,0.45)' : 'rgba(255,255,255,0.07)'}`, color: '#f0e8e0' }} />
+                  <button onClick={() => adicionar(cat.id)} disabled={!!duplicado} title={duplicado ? 'Já está na lista' : 'Adicionar'}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-all active:scale-95 disabled:opacity-40"
+                    style={{ background: duplicado ? 'rgba(239,68,68,0.15)' : `${cor}22`, color: duplicado ? '#f87171' : cor, border: `1px solid ${duplicado ? 'rgba(239,68,68,0.3)' : `${cor}35`}` }}>
+                    <Plus size={14} />
+                  </button>
+                </div>
+                {duplicado && (
+                  <button onClick={() => destacar(duplicado.id)} className="flex items-center gap-1 mt-1.5 text-[9.5px] font-bold text-left"
+                    style={{ color: '#f87171' }}>
+                    <AlertCircle size={10} /> Já está nesta lista{duplicado.done ? ' (comprado)' : ''} — ver item
+                  </button>
+                )}
               </div>
 
               {/* itens */}
@@ -297,7 +401,12 @@ export default function Compras() {
                 {doCat.length === 0 ? (
                   <p className="px-3.5 py-3 text-[10px]" style={{ color: '#4b5563' }}>Nenhum item ainda</p>
                 ) : doCat.map((it) => (
-                  <div key={it.id} className="flex items-center gap-2 px-3 py-2 group" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                  <div key={it.id} id={`shop-item-${it.id}`} className="flex items-center gap-2 px-3 py-2 group transition-colors duration-300"
+                    style={{
+                      borderTop: '1px solid rgba(255,255,255,0.04)',
+                      background: flashId === it.id ? 'rgba(225,29,72,0.14)' : 'transparent',
+                      boxShadow: flashId === it.id ? `inset 3px 0 0 ${cor}` : 'none',
+                    }}>
                     <button onClick={() => post({ action: 'toggleItem', id: it.id })} title={it.done ? 'Desmarcar' : 'Marcar como comprado'}
                       className="w-4 h-4 rounded-[5px] flex items-center justify-center shrink-0 transition-all duration-150"
                       style={{ background: it.done ? cor : 'transparent', border: `1.5px solid ${it.done ? cor : 'rgba(255,255,255,0.18)'}` }}>
@@ -344,6 +453,39 @@ export default function Compras() {
           );
         })}
       </div>
+
+      {/* sugestões do que já está na lista */}
+      {sug && sugestoes.length > 0 && (
+        <div className="fixed z-[60] rounded-xl"
+          style={{
+            top: sug.top, left: sug.left, width: sug.width, maxHeight: sug.maxH,
+            overflowY: 'auto', background: '#241c30',
+            border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 18px 44px rgba(0,0,0,0.55)',
+          }}>
+          <p className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider"
+            style={{ color: '#7c7288', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            Já na lista — clique para usar
+          </p>
+          {sugestoes.map((it: any) => (
+            <button key={`${it.id}-${it.categoryId}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => usarSugestao(it)}
+              className="w-full text-left px-3 py-2 flex items-center gap-2 transition-colors hover:bg-white/5"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-[11.5px] font-bold truncate" style={{ color: it.done ? '#8b8296' : '#f0e8e0' }}>{it.name}</p>
+                <p className="text-[9px] mt-0.5 truncate" style={{ color: '#7c7288' }}>
+                  {it.catNome}
+                  {it.categoryId === sug.catId ? ' · nesta lista' : ''}
+                  {it.done ? ' · comprado' : ''}
+                </p>
+              </div>
+              {it.qty && <span className="text-[10px] font-black shrink-0" style={{ color: '#d4a574' }}>{it.qty}</span>}
+              <span className="text-[9px] font-bold shrink-0 px-1.5 py-0.5 rounded" style={{ color: '#a1a1aa', background: 'rgba(255,255,255,0.06)' }}>usar</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {lista.categories.length === 0 && (
         <div className="rounded-xl p-8 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.08)' }}>
