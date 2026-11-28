@@ -126,8 +126,10 @@ function lineTotal(it: any): number {
 }
 
 // Mantem payments, string de pagamento e movimentos do caixa batendo com o total novo
-// (devolve a string de pagamento final)
-async function syncOrderMoney(orderId: string, number: number, total: number): Promise<string> {
+// (devolve a string de pagamento final). `agora` = a venda esta sendo recebida
+// neste momento (pedido concluido agora), entao entra no caixa aberto mesmo que
+// o pedido tenha sido aberto antes da meia-noite.
+async function syncOrderMoney(orderId: string, number: number, total: number, agora = false): Promise<string> {
   const ord = await prisma.order.findUnique({ where: { id: orderId } });
   if (!ord) return '';
   // caixa e pagamentos registram o valor da venda sem a taxa da maquininha
@@ -152,11 +154,13 @@ async function syncOrderMoney(orderId: string, number: number, total: number): P
     }
     return paymentStr;
   }
-  // nunca lancado: cria agora so se o pedido ja deve contar no caixa de hoje.
-  // (mesa do salao conta so quando a conta e paga; pedido de outro dia nao entra no caixa de agora)
+  // nunca lancado: cria agora se o pedido ja deve contar no caixa.
+  // (mesa do salao conta so quando a conta e paga; pedido antigo que so foi
+  // editado nao entra no caixa de agora, mas o que esta sendo concluido agora
+  // entra mesmo tendo sido aberto antes da meia-noite)
   const anywhere = await prisma.cashMovement.count({ where: { orderId, kind: 'venda' } });
   const mesmoDia = new Date(ord.createdAt).toDateString() === new Date().toDateString();
-  const deveContar = anywhere === 0 && mesmoDia && (ord.status === 'concluido' || ord.type !== 'mesa');
+  const deveContar = anywhere === 0 && (agora || mesmoDia) && (ord.status === 'concluido' || ord.type !== 'mesa');
   if (deveContar) {
     for (const p of parts) {
       await prisma.cashMovement.create({ data: { registerId: openReg.id, kind: 'venda', method: p.method, amount: p.amount, reason: `Pedido #${number}`, orderId } });
@@ -705,14 +709,19 @@ export async function PATCH(req: Request) {
   }
 
   // caixa: concluir garante a venda; trocar a forma de pagamento atualiza o movimento
+  const concluindo = b.status === 'concluido' && prev.status !== 'concluido';
   if ((b.status === 'concluido' || b.payment !== undefined) && b.status !== 'cancelado') {
-    await syncOrderMoney(order.id, order.number, order.total);
+    await syncOrderMoney(order.id, order.number, order.total, concluindo);
   }
   // sinal para a tela avisar quando o pedido concluido nao entrou no caixa
   let cashLaunch: string | undefined;
   if (b.status === 'concluido') {
     const anyMv = await prisma.cashMovement.count({ where: { orderId: order.id, kind: 'venda' } });
-    cashLaunch = anyMv > 0 ? 'ok' : 'sem_caixa';
+    if (anyMv > 0) cashLaunch = 'ok';
+    else {
+      const abertos = await prisma.cashRegister.count({ where: { status: 'aberto' } });
+      cashLaunch = abertos > 0 ? 'fora_turno' : 'sem_caixa';
+    }
   }
   if (b.status === 'cancelado') {
     await prisma.notification.create({ data: { kind: 'cancelado', text: `Pedido #${order.number} cancelado` } });

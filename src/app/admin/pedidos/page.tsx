@@ -457,6 +457,7 @@ export default function Pedidos() {
   const setStatus = async (id: string, status: string) => {
     const r = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) }).then((x) => x.json()).catch(() => null);
     if (r?.cashLaunch === 'sem_caixa') showToast('Pedido concluído, mas NÃO entrou no caixa — nenhum caixa aberto', 'error');
+    else if (r?.cashLaunch === 'fora_turno') showToast('Pedido concluído, mas a venda NÃO entrou no caixa — lance manualmente', 'error');
     // recarrega tudo: mudança de status pode remover o pedido da coluna/turno
     load(true);
   };

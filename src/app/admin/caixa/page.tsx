@@ -359,8 +359,9 @@ export default function Caixa() {
       return { id, name, total: t, paid, remaining: Math.max(0, t - paid), phone: drv?.phone };
     });
     setDriverBreakdown(breakdown);
-    const today = new Date().toDateString();
-    const dayOrders = turnoOrders.filter((o: any) => new Date(o.createdAt).toDateString() === today);
+    // o turno pode atravessar a meia-noite: o relatorio de entregas acompanha o
+    // turno inteiro (mesmo criterio dos totais e do repasse de motoboys)
+    const dayOrders = turnoOrders;
     const deliveryDayCount = dayOrders.filter((o: any) => o.type === 'entrega').length;
     const dayDelivered = dayOrders.filter((o: any) => o.type === 'entrega' && o.status === 'concluido' && o.driverId);
     const byLabel: Record<string, { count: number; fee: number }> = {};

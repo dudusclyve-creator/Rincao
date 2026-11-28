@@ -945,6 +945,7 @@ export default function Mesas() {
     try {
       let fail: string | null = null;
       let semCaixa = false;
+      let foraTurno = false;
       // taxa do cartao: fica registrada no pedido (comanda/total), mas o caixa recebe
       // so o valor da venda (sem a taxa) para bater com o extrato da maquininha
       if (cardFee > 0) {
@@ -959,6 +960,7 @@ export default function Mesas() {
         const pr = await fetch('/api/orders', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: o.id, status: 'concluido', payment: o.source === 'pdv' ? undefined : payment }) }).then((x) => x.json()).catch(() => null);
         if (!pr || pr.error) { fail = pr?.error || 'falha na conexao'; break; }
         if (pr.cashLaunch === 'sem_caixa') semCaixa = true;
+        else if (pr.cashLaunch === 'fora_turno') foraTurno = true;
       }
       if (fail) {
         showToast(`Mesa nao fechada: ${fail}`, 'error');
@@ -969,6 +971,7 @@ export default function Mesas() {
       setModalClose(null);
       await load();
       if (semCaixa) showToast('Mesa fechada, mas a venda NAO entrou no caixa — nenhum caixa aberto', 'error');
+      else if (foraTurno) showToast('Mesa fechada, mas a venda NAO entrou no caixa — lance manualmente', 'error');
     } finally {
       closingRef.current = false;
       setClosing(false);
